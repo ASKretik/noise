@@ -28,8 +28,13 @@ const TYPES = {
 
 const server = createServer(async (req, res) => {
   try {
-    const url = new URL(req.url, `http://localhost:${PORT}`);
-    let rel = decodeURIComponent(url.pathname);
+    // Strip the query and fragment by hand rather than via `new URL`. A request path of
+    // "//" is a protocol-relative URL with an empty authority, so `new URL("//", base)`
+    // THROWS rather than resolving to the root -- which quietly turned into a 404 from
+    // the catch below. Repeated slashes are collapsed first, so "//" means the root.
+    const raw = (req.url || '/').split('?')[0].split('#')[0];
+    let rel = decodeURIComponent(raw).replace(/\/{2,}/g, '/');
+    if (!rel.startsWith('/')) rel = `/${rel}`;
     if (rel.endsWith('/')) rel += 'index.html';
     // Containment check: normalize, then verify the result is still under ROOT.
     const target = join(ROOT, normalize(rel));
