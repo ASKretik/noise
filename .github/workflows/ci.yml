@@ -1,0 +1,28 @@
+# Tests on every push and pull request, on the two Node versions that matter:
+# the current LTS, and the oldest version package.json claims to support.
+
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['18', '20']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Acceptance criteria
+        run: npm test -- --seeds 8
+      - name: Web layer smoke test
+        run: npm run webcheck
+      - name: Benchmark report
+        run: npm run bench -- --quick

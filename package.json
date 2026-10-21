@@ -7,6 +7,7 @@
   "scripts": {
     "serve": "node tools/serve.mjs",
     "test": "node bench/acceptance.js",
+    "webcheck": "node bench/webcheck.js",
     "bench": "node bench/run.js",
     "plots": "node bench/plots.js",
     "priors": "node bench/priors.js",
