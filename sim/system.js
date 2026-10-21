@@ -28,7 +28,10 @@ export { SPAWNER_MODES, MODE_LABEL };
 export function createSystem(o) {
   const level = o.level;
   const params = o.params || level.params;
-  const mode = SPAWNER_MODES.includes(o.mode) ? o.mode : 'full';
+  // Mode is mutable, not captured: switching the spawner live in front of an examiner is
+  // the cheapest convincing demo in the project, and it only reads as a demo if the
+  // switch takes effect on the same run rather than restarting the level.
+  const initialMode = SPAWNER_MODES.includes(o.mode) ? o.mode : 'full';
   // Tier 1 resets at each new level by construction: a chain over THIS map's regions
   // cannot mean anything on the next map. Tier 2 is what crosses the boundary.
   const chain = o.chain || new LevelChain(level.regions.count, {
@@ -41,6 +44,7 @@ export function createSystem(o) {
   const accumulator = new TraitAccumulator();
 
   const state = {
+    mode: initialMode,
     tau: o.tau ?? params.tauBase,
     lastPrediction: null,
     lastSpawn: null,
@@ -65,7 +69,7 @@ export function createSystem(o) {
 
   const spawnPolicy = {
     arrive(view, rng) {
-      const spawn = sampleSpawn({ view, chain, dossier, tau: state.tau, mode, rng, params: view.params });
+      const spawn = sampleSpawn({ view, chain, dossier, tau: state.tau, mode: state.mode, rng, params: view.params });
       if (spawn) {
         state.lastPrediction = spawn.prediction;
         state.lastSpawn = spawn;
@@ -74,14 +78,15 @@ export function createSystem(o) {
       return spawn;
     },
     intercept(view, rng, patrol) {
-      const got = sampleIntercept({ view, chain, dossier, tau: state.tau, mode, rng, params: view.params });
+      const got = sampleIntercept({ view, chain, dossier, tau: state.tau, mode: state.mode, rng, params: view.params });
       if (got?.prediction) { state.lastPrediction = got.prediction; state.predictions++; }
       return got;
     },
   };
 
   return {
-    mode,
+    get mode() { return state.mode; },
+    set mode(v) { if (SPAWNER_MODES.includes(v)) state.mode = v; },
     chain,
     dossier,
     accumulator,
@@ -97,7 +102,7 @@ export function createSystem(o) {
       const p = predict({
         chain, dossier, view,
         tau: overrides.tau ?? state.tau,
-        mode: overrides.mode ?? mode,
+        mode: overrides.mode ?? state.mode,
         k: overrides.k ?? view.params.kAhead,
       });
       state.lastPrediction = p;

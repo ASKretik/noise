@@ -4,3 +4,14 @@ node_modules/
 bench/out/
 .vscode/
 .idea/
+
+# The /docs mirror produced by `npm run build:docs`.
+#
+# The primary deploy path is GitHub Actions serving the repository root, which needs no
+# mirror at all, so committing one would just put a second copy of the whole codebase in
+# git. If you switch Pages to "Deploy from a branch -> /docs" instead, delete these four
+# lines, run `npm run build:docs`, and commit the result.
+docs/index.html
+docs/sim/
+docs/web/
+docs/bots/

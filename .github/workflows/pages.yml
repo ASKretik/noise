@@ -1,0 +1,60 @@
+# Deploy NOISE to GitHub Pages.
+#
+# There is no build step: the game is plain ES modules and Pages serves them as they are.
+# This workflow uploads the repository root as the site, so index.html, /sim, /web and
+# /bots are served at the paths index.html already references, and nothing is duplicated.
+#
+# ONE-TIME SETUP, in the repository on github.com:
+#   Settings > Pages > Build and deployment > Source: GitHub Actions
+# Then push to main. The URL appears in the workflow summary and under Settings > Pages,
+# and is https://<your-username>.github.io/<repo-name>/
+#
+# The tests run before the deploy on purpose: a broken game should not replace a
+# working one just because it was pushed.
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish rather than cancelling it half-published.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Acceptance criteria
+        run: npm test -- --seeds 8
+      - name: Web layer smoke test
+        run: npm run webcheck
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - name: Upload the repository root as the site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

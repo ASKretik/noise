@@ -102,6 +102,18 @@ export class Game {
     this.firstEncounterTick = null;
     this.firstDetectionTick = null;
 
+    /**
+     * Entropy snapshots at fixed ticks.
+     *
+     * Comparing end-of-run visit entropy between spawner modes is confounded, and badly:
+     * a sharper spawner kills the player sooner, a shorter run covers fewer districts, and
+     * so the better predictor LOOKS like it makes players more predictable when all it did
+     * was end the run early. Snapshotting at fixed ticks gives a length-matched comparison
+     * -- same number of ticks of walking, different amount of pressure.
+     */
+    this.entropyMarks = o.entropyMarks || [40, 80, 160];
+    this.entropyAt = {};
+
     this.visits = new Int32Array(this.regions.count);
     this.visitedCells = new Uint8Array(this.map.tiles.length);
     this.log = [];
@@ -528,6 +540,7 @@ export class Game {
     const revisit = this.visitedCells[i] === 1;
     this.visits[region]++;
     this.visitedCells[i] = 1;
+    if (this.entropyMarks.includes(this.tick)) this.entropyAt[this.tick] = entropyBits(this.visits);
 
     const threatDist = this.nearestPatrolDist();
     const threatVisible = threatDist <= this.effectiveRadius;
@@ -614,6 +627,7 @@ export class Game {
       firstEncounterTick: this.firstEncounterTick,
       firstDetectionTick: this.firstDetectionTick,
       visits: Array.from(this.visits),
+      entropyAt: { ...this.entropyAt },
       logHash: this.logLevel === 'none' ? null : hashLog(this.log),
     };
   }
