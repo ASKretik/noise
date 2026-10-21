@@ -12,6 +12,7 @@ bench/out/
 # git. If you switch Pages to "Deploy from a branch -> /docs" instead, delete these four
 # lines, run `npm run build:docs`, and commit the result.
 docs/index.html
+docs/play.html
 docs/sim/
 docs/web/
 docs/bots/
