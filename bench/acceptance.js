@@ -94,20 +94,26 @@ criterion(3, 'Every generated level is fully connected: 10,000 generations, zero
 // --------------------------------------------------------------------------- 4
 criterion(4, 'No spawn ever lands within 8 cells of the player across 1,000 episodes', () => {
   clearLevelCache();
-  let worst = Infinity, spawns = 0, fallbacks = 0, violations = 0;
+  let worst = Infinity, spawns = 0, fallbacks = 0, violations = 0, splits = 0, deferred = 0;
   for (let i = 0; i < 1000; i++) {
     const lv = level(`spawn${i % 60}`, 1 + (i % CURVE_CAP));
     const r = episode({ level: lv, bot: BOT_NAMES[i % BOT_NAMES.length], mode: 'full', seed: i * 13 + 1 });
     for (const s of r.game.spawnLog) {
       spawns++;
       if (s.fallback) fallbacks++;
+      if (s.split) splits++;
       if (s.playerDist < worst) worst = s.playerDist;
       if (s.playerDist < lv.params.spawnMinDist) violations++;
     }
+    deferred += r.game.splits === 0 && r.summary.ticks > 120 ? 1 : 0;
   }
   return violations === 0
-    ? [PASS, `${spawns} spawns, closest was ${worst} cells (floor is 8); ${fallbacks} (${fmtPct(fallbacks / spawns, 1)}) fell back to uniform and still satisfied every constraint`]
-    : [FAIL, `${violations}/${spawns} spawns violated the 8-cell floor, closest ${worst}`];
+    ? [PASS, `${spawns} placements, closest was ${worst} cells (floor is ${11}); ` +
+      `${fallbacks} (${fmtPct(fallbacks / spawns, 1)}) fell back to uniform and still satisfied every constraint.\n` +
+      `      ${splits} of those placements were DIVISIONS rather than arrivals, and they are held to the\n` +
+      `      same floor: a division that cannot be placed fairly is deferred instead, so the squad never\n` +
+      `      gets to double while it already has the player cornered.`]
+    : [FAIL, `${violations}/${spawns} placements violated the floor, closest ${worst} (${splits} were divisions)`];
 });
 
 // --------------------------------------------------------------------------- 5

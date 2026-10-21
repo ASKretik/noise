@@ -4,13 +4,31 @@ export const GRID_W = 32;
 export const GRID_H = 20;
 
 export const TILE = Object.freeze({
+  /** Open ground. */
   FLOOR: 0,
+  /** Solid. Nothing crosses it, human or alien. */
   WALL: 1,
+  /** Water. Standing in it halves the radius at which an alien can see you. */
   COVER: 2,
+  /** The portal out. Only exists once every key is collected. */
   DROP: 3,
+  /**
+   * A broken building. The human cannot climb it; the aliens go straight through.
+   *
+   * This is the first thing in the project where the two agent types do not share a
+   * movement rule, and it is load-bearing rather than cosmetic: it means every distance
+   * field now has to declare whose distance it is measuring. The two predicates below
+   * are the only legitimate way to ask.
+   */
+  BUILDING: 4,
 });
 
-export const TILE_NAME = ['floor', 'wall', 'cover', 'drop'];
+export const TILE_NAME = ['floor', 'wall', 'water', 'portal', 'building'];
+
+/** What stops the human. */
+export const blocksHuman = (t) => t === TILE.WALL || t === TILE.BUILDING;
+/** What stops an alien. Rubble is not an obstacle to something that flows through it. */
+export const blocksAlien = (t) => t === TILE.WALL;
 
 /**
  * Directions, in a fixed order that must never be reshuffled: the index is written
@@ -55,13 +73,26 @@ export function setTile(map, x, y, t) {
   if (inBounds(map, x, y)) map.tiles[y * map.w + x] = t;
 }
 
-/** Walls block, everything else is walkable. Drop tiles are walkable but may be locked by rules. */
+/**
+ * Can the HUMAN stand here? This is the default sense of "walkable" throughout the
+ * project: districts, objectives, level connectivity and the bots all mean the human's
+ * world when they say walkable.
+ */
 export function isWalkable(map, x, y) {
-  return inBounds(map, x, y) && map.tiles[y * map.w + x] !== TILE.WALL;
+  return inBounds(map, x, y) && !blocksHuman(map.tiles[y * map.w + x]);
 }
 
 export function isWalkableIdx(map, i) {
-  return map.tiles[i] !== TILE.WALL;
+  return !blocksHuman(map.tiles[i]);
+}
+
+/** Can an ALIEN stand here? Everything but solid wall. */
+export function isAlienPassable(map, x, y) {
+  return inBounds(map, x, y) && !blocksAlien(map.tiles[y * map.w + x]);
+}
+
+export function isAlienPassableIdx(map, i) {
+  return !blocksAlien(map.tiles[i]);
 }
 
 /** Count of walkable 4-neighbours. 1 = dead end, 2 = corridor, 3+ = junction or room. */
@@ -85,7 +116,7 @@ export function walkableCells(map) {
   const out = [];
   for (let y = 0; y < map.h; y++) {
     for (let x = 0; x < map.w; x++) {
-      if (map.tiles[y * map.w + x] !== TILE.WALL) out.push({ x, y });
+      if (!blocksHuman(map.tiles[y * map.w + x])) out.push({ x, y });
     }
   }
   return out;
@@ -97,7 +128,7 @@ export const euclid = (ax, ay, bx, by) => Math.sqrt(dist2(ax, ay, bx, by));
 
 /** Serialise a map to a compact string -- used by the determinism tests and the bench cache. */
 export function mapToString(map) {
-  const glyph = ['.', '#', ':', 'X'];
+  const glyph = ['.', '#', '~', 'O', 'B'];
   const rows = [];
   for (let y = 0; y < map.h; y++) {
     let r = '';

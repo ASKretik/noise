@@ -8,9 +8,19 @@
 // headless harness runs this roughly a thousand times per episode and the acceptance
 // criterion is 1,000 episodes in under 30 seconds.
 
-import { DIRS, TILE } from './grid.js';
+import { DIRS, TILE, blocksHuman, blocksAlien } from './grid.js';
 
 export const UNREACHABLE = -1;
+
+/**
+ * Whose distance is this?
+ *
+ * Every field in the game is now one of these two, and mixing them up is a whole class
+ * of bug: an alien chasing down a human-walkable field will refuse to cut through a
+ * building, and a human routed along an alien field will walk into one.
+ */
+export const HUMAN = blocksHuman;
+export const ALIEN = blocksAlien;
 
 /** A pool of reusable distance/queue buffers sized to one map. */
 export class FieldPool {
@@ -30,7 +40,7 @@ export class FieldPool {
  * Multi-source BFS. `sources` is a flat array of cell indices.
  * Writes into buf.dist and returns it.
  */
-export function bfsFrom(map, sources, buf) {
+export function bfsFrom(map, sources, buf, blocks = HUMAN) {
   const { w, h, tiles } = map;
   const dist = buf.dist;
   const queue = buf.queue;
@@ -38,7 +48,7 @@ export function bfsFrom(map, sources, buf) {
   let head = 0, tail = 0;
   for (let s = 0; s < sources.length; s++) {
     const i = sources[s];
-    if (i < 0 || i >= tiles.length || tiles[i] === TILE.WALL) continue;
+    if (i < 0 || i >= tiles.length || blocks(tiles[i])) continue;
     dist[i] = 0;
     queue[tail++] = i;
   }
@@ -52,7 +62,7 @@ export function bfsFrom(map, sources, buf) {
       const ny = cy + DIRS[k].dy;
       if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
       const ni = ny * w + nx;
-      if (tiles[ni] === TILE.WALL || dist[ni] !== UNREACHABLE) continue;
+      if (blocks(tiles[ni]) || dist[ni] !== UNREACHABLE) continue;
       dist[ni] = d;
       queue[tail++] = ni;
     }
@@ -60,8 +70,8 @@ export function bfsFrom(map, sources, buf) {
   return dist;
 }
 
-export function bfsField(map, sx, sy, buf) {
-  return bfsFrom(map, [sy * map.w + sx], buf);
+export function bfsField(map, sx, sy, buf, blocks = HUMAN) {
+  return bfsFrom(map, [sy * map.w + sx], buf, blocks);
 }
 
 /**
@@ -70,7 +80,7 @@ export function bfsField(map, sx, sy, buf) {
  * deterministically clump, and so the choice stays reproducible.
  * Returns a direction index, or STAY (-1) when already there or boxed in.
  */
-export function stepDownhill(map, dist, x, y, rng, blocked = null) {
+export function stepDownhill(map, dist, x, y, rng, blocked = null, blocks = HUMAN) {
   const here = dist[y * map.w + x];
   if (here === 0) return -1;
   let best = here === UNREACHABLE ? Infinity : here;
@@ -80,7 +90,7 @@ export function stepDownhill(map, dist, x, y, rng, blocked = null) {
     const ny = y + DIRS[k].dy;
     if (nx < 0 || ny < 0 || nx >= map.w || ny >= map.h) continue;
     const ni = ny * map.w + nx;
-    if (map.tiles[ni] === TILE.WALL) continue;
+    if (blocks(map.tiles[ni])) continue;
     if (blocked && blocked(nx, ny)) continue;
     const d = dist[ni];
     if (d === UNREACHABLE) continue;
@@ -92,7 +102,7 @@ export function stepDownhill(map, dist, x, y, rng, blocked = null) {
 }
 
 /** The step that maximises distance from a field -- used by fleeing bots. */
-export function stepUphill(map, dist, x, y, rng) {
+export function stepUphill(map, dist, x, y, rng, blocks = HUMAN) {
   let best = -Infinity;
   const cands = [];
   for (let k = 0; k < 4; k++) {
@@ -111,8 +121,8 @@ export function stepUphill(map, dist, x, y, rng) {
 }
 
 /** Number of walkable cells reachable from (sx,sy). The generator's connectivity gate. */
-export function reachableCount(map, sx, sy, buf) {
-  const dist = bfsField(map, sx, sy, buf);
+export function reachableCount(map, sx, sy, buf, blocks = HUMAN) {
+  const dist = bfsField(map, sx, sy, buf, blocks);
   let n = 0;
   for (let i = 0; i < dist.length; i++) if (dist[i] !== UNREACHABLE) n++;
   return n;

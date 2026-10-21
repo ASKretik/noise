@@ -20,18 +20,11 @@
 //
 // COUPLINGS-BEGIN
 export const REWEIGHT_TERMS = Object.freeze([
-  { trait: 'revisitRate',         feature: 'visitedFrac',     sign: +1, w: 1.4, why: 'retreads old ground' },
-  { trait: 'revisitRate',         feature: 'isCurrent',       sign: +1, w: 1.4, why: 'circles one district' },
-  { trait: 'cacheOrdering',       feature: 'cacheProximity',  sign: -1, w: 1.4, why: 'takes the near cache' },
-  { trait: 'objectiveDirectness', feature: 'cacheProximity',  sign: -1, w: 1.4, why: 'runs straight at caches' },
-  { trait: 'backtrackRate',       feature: 'visitedFrac',     sign: +1, w: 1.0, why: 'doubles back' },
-  { trait: 'corridorPreference',  feature: 'areaFrac',        sign: -1, w: 0.4, why: 'avoids big rooms' },
-  { trait: 'turnRate',            feature: 'junctionFrac',    sign: +1, w: 0.7, why: 'turns often' },
-  { trait: 'threatDistance',      feature: 'threatProximity', sign: -1, w: 0.4, why: 'gives patrols room' },
-  { trait: 'headingPersistence',  feature: 'headingAlign',    sign: +1, w: 0.4, why: 'holds a heading' },
-  { trait: 'regionDwell',         feature: 'isCurrent',       sign: +1, w: 0.7, why: 'settles in a district' },
-  { trait: 'corridorPreference',  feature: 'corridorFrac',    sign: +1, w: 0.4, why: 'favours corridors' },
-  { trait: 'dropRush',            feature: 'dropProximity',   sign: -1, w: 1.4, why: 'beelines for the drop' },
+  { trait: 'openGroundTolerance', feature: 'coverFrac',        sign: -1, w: 0.7, why: 'ignores cover' },
+  { trait: 'cacheOrdering',       feature: 'cacheProximity',   sign: -1, w: 0.7, why: 'takes the near cache' },
+  { trait: 'cacheOrdering',       feature: 'cacheRank',        sign: +1, w: 1.0, why: 'cache ordering' },
+  { trait: 'revisitRate',         feature: 'visitedFrac',      sign: +1, w: 0.4, why: 'retreads old ground' },
+  { trait: 'openGroundTolerance', feature: 'buildingEdgeFrac', sign: -1, w: 0.4, why: 'keeps clear of rubble' },
 ]);
 // COUPLINGS-END
 
@@ -74,4 +67,10 @@ export const CANDIDATE_TERMS = Object.freeze([
   { trait: 'threatDistance',      feature: 'threatProximity',  sign: -1, why: 'gives patrols room' },
   { trait: 'threatTurnAway',      feature: 'threatProximity',  sign: -1, why: 'breaks away on contact' },
   { trait: 'postAlertFlee',       feature: 'threatProximity',  sign: -1, why: 'flees contact' },
+  // Rubble is where aliens arrive from a direction the human cannot retreat into, so
+  // "ground that touches a broken building" is a distinct piece of geometry from "ground
+  // that touches a wall" -- the first is permeable to the hunter and the second is not.
+  { trait: 'wallAffinity',        feature: 'buildingEdgeFrac', sign: +1, why: 'sticks to structures' },
+  { trait: 'openGroundTolerance', feature: 'buildingEdgeFrac', sign: -1, why: 'keeps clear of rubble' },
+  { trait: 'threatDistance',      feature: 'buildingEdgeFrac', sign: -1, why: 'avoids blind corners' },
 ]);

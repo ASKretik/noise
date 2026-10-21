@@ -16,7 +16,11 @@ export class Hud {
     this.el = {
       level: $('hud-level'),
       profile: $('hud-profile'),
-      caches: $('hud-caches'),
+      keytab: $('keytab'),
+      keytabCount: $('keytab-count'),
+      keytabNote: $('keytab-note'),
+      boost: $('hud-boost'),
+      settled: $('hud-settled'),
       score: $('hud-score'),
       bits: $('hud-bits'),
       patrols: $('hud-patrols'),
@@ -60,18 +64,45 @@ export class Hud {
       const scale = difficulty.lambdaScale ?? 1;
       this.el.lambda.textContent = `${this.params.lambdaBase.toFixed(4)} x${scale.toFixed(2)}`;
     }
+    if (this.el.settled) {
+      this.el.settled.textContent = mode !== 'full'
+        ? 'controller off'
+        : (difficulty.settled ? 'locked for this district' : 'set on first entry');
+      this.el.settled.title = 'Difficulty is settled once per district and reused on every ' +
+        'retry, so losing never makes the same district harder.';
+    }
   }
 
   /** Called every rendered frame; cheap string writes only. */
   tick(game) {
-    this.el.caches.textContent = `${game.collected}/${game.caches.length}`;
+    const left = game.caches.length - game.collected;
+    this.el.keytabCount.textContent = `${game.collected} / ${game.caches.length}`;
+    if (game.dropUnlocked) {
+      this.el.keytab.dataset.state = 'open';
+      this.el.keytabNote.textContent = 'portal open — get to it';
+    } else {
+      this.el.keytab.dataset.state = 'locked';
+      this.el.keytabNote.textContent =
+        `key${left === 1 ? '' : 's'} — ${left} more to open the portal`;
+    }
+
     this.el.score.textContent = String(game.score);
     this.el.bits.textContent = `${game.entropy.toFixed(2)} bits`;
     this.el.patrols.textContent = String(game.patrols.length);
     this.el.time.textContent = `${(game.tick / TICKS_PER_SECOND).toFixed(1)}s`;
+
     const alert = game.alertTicks > 0;
-    this.el.alert.textContent = alert ? `SEEN ${game.alertTicks}` : (game.dropUnlocked ? 'DROP OPEN' : 'dark');
-    this.el.alert.dataset.state = alert ? 'alert' : (game.dropUnlocked ? 'open' : 'calm');
+    const hidden = game.onCover;
+    this.el.alert.textContent = alert
+      ? `SEEN ${game.alertTicks}`
+      : (hidden ? 'HIDDEN' : 'unseen');
+    this.el.alert.dataset.state = alert ? 'alert' : (hidden ? 'hidden' : 'calm');
+
+    if (this.el.boost) {
+      const b = game.boostTicks;
+      this.el.boost.textContent = b > 0 ? `${(b / TICKS_PER_SECOND).toFixed(1)}s` : '—';
+      this.el.boost.dataset.state = b > 0 ? 'on' : 'off';
+    }
   }
 
   _ensureBars(count) {
@@ -176,10 +207,13 @@ export class Hud {
     this.el.dispatchStatus.dataset.state = state;
   }
 
-  spawn(entry, regions) {
+  spawn(entry) {
     const li = document.createElement('li');
-    li.innerHTML = `<b>t${entry.tick}</b> district ${entry.region} ` +
-      `<span class="muted">${entry.playerDist} cells away${entry.fallback ? ' · fallback' : ` · ${entry.tries} draw${entry.tries === 1 ? '' : 's'}`}</span>`;
+    const how = entry.split
+      ? 'division'
+      : (entry.fallback ? 'fallback' : `${entry.tries} draw${entry.tries === 1 ? '' : 's'}`);
+    li.innerHTML = `<b>t${entry.tick}</b> ${entry.split ? 'split in' : 'arrived in'} district ${entry.region} ` +
+      `<span class="muted">${entry.playerDist} cells away · ${how}</span>`;
     li.title = entry.reason;
     this.el.spawnLog.prepend(li);
     while (this.el.spawnLog.children.length > 6) this.el.spawnLog.lastChild.remove();

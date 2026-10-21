@@ -9,8 +9,8 @@
 // Seeded from hash(profileId, levelNumber), so a level is content rather than data:
 // reproducible, infinite, and a difficulty parameter instead of drawn geometry.
 
-import { GRID_W, GRID_H, TILE, createMap, setTile, isWalkable, DIRS } from './grid.js';
-import { FieldPool, bfsField, UNREACHABLE } from './pathfind.js';
+import { GRID_W, GRID_H, TILE, createMap, setTile, isWalkable, blocksHuman, DIRS } from './grid.js';
+import { FieldPool, bfsField, bfsFrom, UNREACHABLE, HUMAN } from './pathfind.js';
 import { buildRegions, REGION_COUNT } from './regions.js';
 import { Rng, levelSeed } from './prng.js';
 import { levelParams } from './difficulty.js';
@@ -159,6 +159,87 @@ function carveRoomsAndCorridors(map, rng, targetRooms) {
   return rooms;
 }
 
+/**
+ * Pass 3b: broken buildings. Rubble the human has to walk around and the aliens walk
+ * straight through, which is what makes them feel like a different kind of thing rather
+ * than a faster version of you.
+ *
+ * Every cluster is provisional: it is written, the human's connectivity is re-checked
+ * against every objective, and it is rolled back if it sealed anything off. Placing
+ * obstacles that can disconnect a level and *not* re-running the connectivity gate is
+ * the obvious way to ship a level where a key is unreachable, and the acceptance
+ * criterion for that is 10,000 generations with zero failures.
+ */
+function scatterBuildings(map, rng, count, rooms, protectedCells, mustReach, pool) {
+  const placed = [];
+  let attempts = 0;
+  while (placed.length < count && attempts++ < count * 8) {
+    const room = rooms[rng.int(rooms.length)];
+    if (room.w < 4 || room.h < 3) continue;
+    const bw = rng.range(1, Math.min(3, room.w - 2));
+    const bh = rng.range(1, Math.min(2, room.h - 2));
+    const x0 = room.x0 + 1 + rng.int(Math.max(1, room.w - bw - 1));
+    const y0 = room.y0 + 1 + rng.int(Math.max(1, room.h - bh - 1));
+
+    const cluster = [];
+    let blocked = false;
+    for (let y = y0; y < y0 + bh && !blocked; y++) {
+      for (let x = x0; x < x0 + bw; x++) {
+        const i = y * map.w + x;
+        if (map.tiles[i] === TILE.WALL || map.tiles[i] === TILE.BUILDING || protectedCells.has(i)) { blocked = true; break; }
+        cluster.push({ i, was: map.tiles[i] });
+      }
+    }
+    if (blocked || cluster.length === 0) continue;
+
+    for (const c of cluster) map.tiles[c.i] = TILE.BUILDING;
+
+    // Roll back anything that sealed off an objective or stranded open ground.
+    const buf = pool.take();
+    const dist = bfsField(map, mustReach.from.x, mustReach.from.y, buf, HUMAN);
+    let ok = true;
+    for (const cell of mustReach.cells) {
+      if (dist[cell.y * map.w + cell.x] === UNREACHABLE) { ok = false; break; }
+    }
+    if (ok) {
+      let total = 0, reached = 0;
+      for (let i = 0; i < map.tiles.length; i++) {
+        if (blocksHuman(map.tiles[i])) continue;
+        total++;
+        if (dist[i] !== UNREACHABLE) reached++;
+      }
+      if (total !== reached) ok = false;
+    }
+    pool.give(buf);
+
+    if (!ok) {
+      for (const c of cluster) map.tiles[c.i] = c.was;
+      continue;
+    }
+    placed.push({ x0, y0, w: bw, h: bh, cells: cluster.map((c) => c.i) });
+  }
+  return placed;
+}
+
+/**
+ * Pass 3c: lightning bolts. Three seconds at double speed, one or two per district, so
+ * every part of the map holds one answer to being cornered.
+ */
+function scatterBolts(map, rng, regions, perDistrict, taken) {
+  const bolts = [];
+  for (let r = 0; r < regions.count; r++) {
+    const want = rng.range(perDistrict[0], perDistrict[1]);
+    const candidates = regions.cells[r].filter((i) => map.tiles[i] === TILE.FLOOR && !taken.has(i));
+    rng.shuffle(candidates);
+    for (let k = 0; k < want && k < candidates.length; k++) {
+      const i = candidates[k];
+      taken.add(i);
+      bolts.push({ x: i % map.w, y: (i - (i % map.w)) / map.w, district: r, taken: false });
+    }
+  }
+  return bolts;
+}
+
 /** Pass 2: is every walkable cell reachable from the first room centre? */
 function fullyConnected(map, from, pool) {
   const buf = pool.take();
@@ -255,7 +336,7 @@ export function generateLevel(profileId, level, opts = {}) {
   throw new Error(`generateLevel: no valid layout after ${MAX_ATTEMPTS} attempts (profile=${profileId}, level=${level})`);
 }
 
-/** Pass 4 plus cover and regions: turn a carved, connected layout into a playable level. */
+/** Pass 4 and after: turn a carved, connected layout into a playable district. */
 function furnish(cand, profileId, level, baseSeed, params, pool) {
   const { rng, map, rooms, conn } = cand;
 
@@ -264,41 +345,53 @@ function furnish(cand, profileId, level, baseSeed, params, pool) {
   const spawn = { x: rooms[spawnRoom].cx, y: rooms[spawnRoom].cy };
 
   const buf = pool.take();
-  const fromSpawn = Int16Array.from(bfsField(map, spawn.x, spawn.y, buf));
+  const fromSpawn = Int16Array.from(bfsField(map, spawn.x, spawn.y, buf, HUMAN));
   pool.give(buf);
 
-  // Drop goes in the room whose centre is furthest from spawn by path, not by line.
-  let dropRoom = -1, dropDist = -1;
-  for (let i = 0; i < rooms.length; i++) {
-    if (i === spawnRoom) continue;
-    const d = fromSpawn[rooms[i].cy * map.w + rooms[i].cx];
-    if (d !== UNREACHABLE && d > dropDist) { dropDist = d; dropRoom = i; }
-  }
-  if (dropRoom < 0) return null;
-  const drop = { x: rooms[dropRoom].cx, y: rooms[dropRoom].cy };
-
-  // Caches in distinct rooms, none of them the spawn room or the drop room.
-  const cacheRooms = order.filter((i) => i !== spawnRoom && i !== dropRoom);
-  if (cacheRooms.length < params.caches) return null;
+  // Keys go in distinct rooms, none of them the spawn room.
+  const keyRooms = order.filter((i) => i !== spawnRoom);
+  if (keyRooms.length < params.caches) return null;
   const caches = [];
   for (let c = 0; c < params.caches; c++) {
-    const r = rooms[cacheRooms[c]];
-    // Offset inside the room so caches are not all dead centre, which would make
-    // every room's interior interchangeable to the chain.
+    const r = rooms[keyRooms[c]];
+    // Offset inside the room so keys are not all dead centre, which would make every
+    // room's interior interchangeable to the chain.
     const cx = r.x0 + rng.int(r.w);
     const cy = r.y0 + rng.int(r.h);
-    const i = cy * map.w + cx;
-    if (fromSpawn[i] === UNREACHABLE) return null;
+    if (fromSpawn[cy * map.w + cx] === UNREACHABLE) return null;
     caches.push({ x: cx, y: cy, collected: false });
   }
 
-  const forbidden = new Set([spawn.y * map.w + spawn.x, drop.y * map.w + drop.x]);
-  for (const c of caches) forbidden.add(c.y * map.w + c.x);
-  const coverCount = scatterCover(map, rng, params.coverDensity, forbidden);
+  const protectedCells = new Set([spawn.y * map.w + spawn.x]);
+  for (const c of caches) protectedCells.add(c.y * map.w + c.x);
+  // Keep every room centre clear: these are the portal's candidate sites, chosen fresh
+  // at the start of each run, and a portal inside rubble would be unreachable.
+  for (const r of rooms) protectedCells.add(r.cy * map.w + r.cx);
 
-  setTile(map, drop.x, drop.y, TILE.DROP);
+  const coverCount = scatterCover(map, rng, params.coverDensity, protectedCells);
+
+  const buildings = scatterBuildings(map, rng, params.buildings, rooms, protectedCells, {
+    from: spawn,
+    cells: [...caches, ...rooms.map((r) => ({ x: r.cx, y: r.cy }))],
+  }, pool);
 
   const regions = buildRegions(map, rooms.map((r) => ({ x: r.cx, y: r.cy })), REGION_COUNT, pool);
+
+  const taken = new Set(protectedCells);
+  const bolts = scatterBolts(map, rng, regions, params.boltsPerDistrict, taken);
+
+  // The portal is NOT placed here. Its location is drawn fresh from the run's own stream
+  // at the start of every attempt (see sim/game.js), so restarting a district does not
+  // hand the player a route they have already memorised. All the generator owes is a set
+  // of legal sites and how far each is from the spawn.
+  const buf2 = pool.take();
+  const afterBuildings = Int16Array.from(bfsField(map, spawn.x, spawn.y, buf2, HUMAN));
+  pool.give(buf2);
+  const portalCandidates = rooms
+    .map((r, i) => ({ x: r.cx, y: r.cy, room: i, dist: afterBuildings[r.cy * map.w + r.cx] }))
+    .filter((p) => p.room !== spawnRoom && p.dist !== UNREACHABLE)
+    .sort((a, b) => b.dist - a.dist);
+  if (portalCandidates.length === 0) return null;
 
   return {
     profileId,
@@ -310,9 +403,17 @@ function furnish(cand, profileId, level, baseSeed, params, pool) {
     rooms,
     spawn,
     caches,
-    drop,
+    portalCandidates,
+    bolts,
+    buildings,
     regions,
-    stats: { walkable: conn.total, coverCount, dropDist },
+    stats: {
+      walkable: conn.total,
+      coverCount,
+      buildingCount: buildings.length,
+      boltCount: bolts.length,
+      furthestPortal: portalCandidates[0].dist,
+    },
   };
 }
 
@@ -320,15 +421,24 @@ function furnish(cand, profileId, level, baseSeed, params, pool) {
 export function verifyLevel(level, pool) {
   const p = pool || new FieldPool(level.map.tiles.length);
   const buf = p.take();
-  const dist = bfsField(level.map, level.spawn.x, level.spawn.y, buf);
+  // Checked with the HUMAN's movement rule: an alien can cross rubble, so verifying with
+  // alien walkability would pass levels the player cannot actually finish.
+  const dist = bfsField(level.map, level.spawn.x, level.spawn.y, buf, HUMAN);
   const bad = [];
   for (const c of level.caches) {
-    if (dist[c.y * level.map.w + c.x] === UNREACHABLE) bad.push({ kind: 'cache', ...c });
+    if (dist[c.y * level.map.w + c.x] === UNREACHABLE) bad.push({ kind: 'key', ...c });
   }
-  if (dist[level.drop.y * level.map.w + level.drop.x] === UNREACHABLE) bad.push({ kind: 'drop', ...level.drop });
+  for (const b of level.bolts || []) {
+    if (dist[b.y * level.map.w + b.x] === UNREACHABLE) bad.push({ kind: 'bolt', ...b });
+  }
+  let portalOk = false;
+  for (const q of level.portalCandidates || []) {
+    if (dist[q.y * level.map.w + q.x] !== UNREACHABLE) { portalOk = true; break; }
+  }
+  if (!portalOk) bad.push({ kind: 'portal' });
   let total = 0, reached = 0;
   for (let i = 0; i < level.map.tiles.length; i++) {
-    if (level.map.tiles[i] === TILE.WALL) continue;
+    if (blocksHuman(level.map.tiles[i])) continue;
     total++;
     if (dist[i] !== UNREACHABLE) reached++;
   }

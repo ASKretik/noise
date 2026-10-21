@@ -1,6 +1,12 @@
 # dna.md — decisions, assumptions, and what the measurements changed
 
-A running log kept while building NOISE from `spec.md`. Three kinds of entry:
+A running log kept while building NOISE from `spec.md`. **For the change round that came
+after the first playable version — retry difficulty, the separate play page, the
+human/alien/keys theme, water and lightning bolts, the hidden portal, alien division and
+broken buildings — see [decisions.md](decisions.md).** That file also records a regression
+in acceptance criterion 6 that those changes caused.
+
+Three kinds of entry:
 
 - **[YOU]** — a decision that is yours, not mine. Most need about a minute; a few need
   you to click something on github.com that I cannot click.

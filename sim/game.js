@@ -11,8 +11,8 @@
 // uniform policy and you get the baseline; run it with the full policy and you get the
 // game. Same core, three experiments.
 
-import { TILE, DIRS, STAY, isWalkable, euclid } from './grid.js';
-import { FieldPool, bfsFrom, bfsField, stepDownhill, UNREACHABLE } from './pathfind.js';
+import { TILE, DIRS, STAY, isWalkable, isAlienPassable, euclid } from './grid.js';
+import { FieldPool, bfsFrom, bfsField, stepDownhill, UNREACHABLE, HUMAN, ALIEN } from './pathfind.js';
 import { Rng } from './prng.js';
 import { entropyBits, entropyScore } from './entropy.js';
 import { levelParams, TICKS_PER_SECOND } from './difficulty.js';
@@ -31,6 +31,8 @@ export const FLAG = Object.freeze({
   WON: 16,
   LOST: 32,
   SPAWNED: 64,
+  BOOSTED: 128,
+  SPLIT: 256,
 });
 
 /** FNV-1a over the whole tick log. Two runs with the same seed and inputs must agree. */
@@ -90,7 +92,28 @@ export class Game {
     this.caches = o.level.caches.map((c) => ({ x: c.x, y: c.y, collected: false }));
     this.collected = 0;
     this.dropUnlocked = false;
-    this.drop = { x: o.level.drop.x, y: o.level.drop.y };
+
+    /**
+     * The portal is drawn fresh for every attempt, from the run's own stream rather than
+     * the level's. Restarting a district therefore re-rolls where the exit will be, so a
+     * failed run teaches you the map but not the route, and it stays reproducible for a
+     * given run seed -- which is what the determinism criterion actually hashes.
+     *
+     * It is also not revealed until every key is collected: until then the player does
+     * not know which way they will eventually need to run, and neither does the
+     * predictor's drop-proximity feature, which is gated on the same flag.
+     */
+    this.portal = this._choosePortal(o.level);
+    this.drop = this.portal;              // legacy alias; the predictor view reads `drop`
+
+    /** Lightning bolts: three seconds at double speed. Copied, never shared with the level. */
+    this.bolts = (o.level.bolts || []).map((b) => ({ x: b.x, y: b.y, taken: false }));
+    this.boostTicks = 0;
+    this.boostsUsed = 0;
+
+    /** Next tick at which one alien splits into two. Redrawn after every split. */
+    this.splitAt = null;
+    this.splits = 0;
 
     this.patrols = [];
     this.nextPatrolId = 1;
@@ -98,6 +121,7 @@ export class Game {
     this.lastKnown = null;
     this.detections = 0;
     this.spawnCount = 0;
+    this.peakAliens = 0;
     this.spawnLog = [];
     this.firstEncounterTick = null;
     this.firstDetectionTick = null;
@@ -130,11 +154,15 @@ export class Game {
       this._cellsOfType(TILE.COVER),
       /* emptyFallback */ 999,
     );
-    this._dropField = this._staticField([this.drop.y * this.map.w + this.drop.x], UNREACHABLE);
+    this._dropField = this._staticField([this.portal.y * this.map.w + this.portal.x], UNREACHABLE);
 
     // --- per-tick memoised fields ---
     this._memo = {
+      // The player field is the HUMAN's; the alien field is the aliens'. They differ
+      // wherever there is rubble, and conflating them is the whole bug class buildings
+      // introduced.
       player: { tick: -1, arr: new Int16Array(this.map.tiles.length) },
+      alienToPlayer: { tick: -1, arr: new Int16Array(this.map.tiles.length) },
       patrols: { tick: -1, arr: new Int16Array(this.map.tiles.length) },
       caches: { stamp: -1, arr: new Int16Array(this.map.tiles.length) },
     };
@@ -153,10 +181,32 @@ export class Game {
       const spawn = this.spawnPolicy.arrive(this.view, this.rngSpawn);
       if (spawn) this._addPatrol(spawn);
     }
+    this._scheduleSplit();
 
     // Tick 0 is a real tick of standing still: it is where the player's first region
     // observation and the first entry in the visit histogram come from.
     this._record({ moved: false, collectedNow: false, detectedNow: false, spawnedNow: false });
+  }
+
+  /**
+   * Pick this run's portal site. Weighted toward the far end of the district -- the
+   * furthest site is the most likely, but not certain -- so the exit is unpredictable
+   * without ever being next to the spawn.
+   */
+  _choosePortal(level) {
+    const sites = level.portalCandidates;
+    if (!sites || sites.length === 0) {
+      return level.drop ? { x: level.drop.x, y: level.drop.y } : { x: level.spawn.x, y: level.spawn.y };
+    }
+    const far = sites.slice(0, Math.max(1, Math.ceil(sites.length / 2)));
+    const weights = far.map((p) => Math.max(1, p.dist));
+    const pick = far[this.rng.fork('portal').categorical(weights)];
+    return { x: pick.x, y: pick.y };
+  }
+
+  _scheduleSplit() {
+    const [lo, hi] = this.params.splitIntervalTicks || [80, 120];
+    this.splitAt = this.tick + this.rngArrival.range(lo, hi);
   }
 
   // ---------------------------------------------------------------- geometry helpers
@@ -167,20 +217,38 @@ export class Game {
     return out;
   }
 
-  _staticField(sources, emptyFallback) {
+  _staticField(sources, emptyFallback, blocks = HUMAN) {
     if (sources.length === 0) return new Int16Array(this.map.tiles.length).fill(emptyFallback);
     const buf = this.pool.take();
-    const arr = Int16Array.from(bfsFrom(this.map, sources, buf));
+    const arr = Int16Array.from(bfsFrom(this.map, sources, buf, blocks));
     this.pool.give(buf);
     return arr;
   }
 
-  /** BFS distance from the player, recomputed at most once per tick. */
+  /** BFS distance from the player over HUMAN-walkable ground. */
   fieldPlayer() {
     const m = this._memo.player;
     if (m.tick !== this.tick) {
       const buf = this.pool.take();
-      bfsField(this.map, this.player.x, this.player.y, buf);
+      bfsField(this.map, this.player.x, this.player.y, buf, HUMAN);
+      m.arr.set(buf.dist);
+      this.pool.give(buf);
+      m.tick = this.tick;
+    }
+    return m.arr;
+  }
+
+  /**
+   * Distance to the player as an ALIEN measures it -- straight through rubble. This is
+   * what a hunting alien descends and what the spawner's minimum-distance constraint is
+   * checked against, because the honest question is how fast the thing can reach you,
+   * not how far you would have to walk.
+   */
+  fieldAlienToPlayer() {
+    const m = this._memo.alienToPlayer;
+    if (m.tick !== this.tick) {
+      const buf = this.pool.take();
+      bfsField(this.map, this.player.x, this.player.y, buf, ALIEN);
       m.arr.set(buf.dist);
       this.pool.give(buf);
       m.tick = this.tick;
@@ -195,7 +263,7 @@ export class Game {
       if (this.patrols.length === 0) m.arr.fill(UNREACHABLE);
       else {
         const buf = this.pool.take();
-        bfsFrom(this.map, this.patrols.map((p) => p.y * this.map.w + p.x), buf);
+        bfsFrom(this.map, this.patrols.map((p) => p.y * this.map.w + p.x), buf, ALIEN);
         m.arr.set(buf.dist);
         this.pool.give(buf);
       }
@@ -212,7 +280,7 @@ export class Game {
       if (src.length === 0) m.arr.fill(UNREACHABLE);
       else {
         const buf = this.pool.take();
-        bfsFrom(this.map, src, buf);
+        bfsFrom(this.map, src, buf, HUMAN);
         m.arr.set(buf.dist);
         this.pool.give(buf);
       }
@@ -221,10 +289,20 @@ export class Game {
     return m.arr;
   }
 
-  /** The player's effective detection radius: halved while standing in cover. */
+  /** The player's effective detection radius: halved while standing in water. */
   get effectiveRadius() {
     return this.onCover ? this.params.detectRadius / 2 : this.params.detectRadius;
   }
+
+  /** Cells the player covers per tick. Doubled for three seconds after a bolt. */
+  get speed() {
+    return this.boostTicks > 0 ? (this.params.boostSpeed || 2) : 1;
+  }
+
+  get boosted() { return this.boostTicks > 0; }
+
+  /** The portal only exists, visually and mechanically, once every key is in hand. */
+  get portalRevealed() { return this.dropUnlocked; }
 
   get onCover() {
     return this.map.tiles[this.player.y * this.map.w + this.player.x] === TILE.COVER;
@@ -255,8 +333,12 @@ export class Game {
       get player() { return game.player; },
       get patrols() { return game.patrols; },
       get caches() { return game.caches; },
-      get drop() { return game.drop; },
+      get drop() { return game.portal; },
+      get portal() { return game.portal; },
+      get portalRevealed() { return game.portalRevealed; },
       get dropUnlocked() { return game.dropUnlocked; },
+      get bolts() { return game.bolts; },
+      get boosted() { return game.boosted; },
       get visited() { return game.visitedCells; },
       get viewRadius() { return game.effectiveRadius; },
       get alertTicks() { return game.alertTicks; },
@@ -268,6 +350,7 @@ export class Game {
       get visits() { return game.visits; },
       fields: {
         get player() { return game.fieldPlayer(); },
+        get alienToPlayer() { return game.fieldAlienToPlayer(); },
         get patrols() { return game.fieldPatrols(); },
         get caches() { return game.fieldCaches(); },
         get drop() { return game._dropField; },
@@ -282,7 +365,7 @@ export class Game {
 
   _startLeg() {
     const buf = this.pool.take();
-    const field = Int16Array.from(bfsField(this.map, this.player.x, this.player.y, buf));
+    const field = Int16Array.from(bfsField(this.map, this.player.x, this.player.y, buf, HUMAN));
     this.pool.give(buf);
     const candidates = this.caches
       .filter((c) => !c.collected)
@@ -305,62 +388,77 @@ export class Game {
     const prev = { x: this.player.x, y: this.player.y };
     this.player.prevDir = this.player.dir;
 
-    // --- 1. the player moves ---
+    // --- 1. the player moves, once normally or twice while boosted ---
     let moved = false;
     let dir = STAY;
-    if (inputDir >= 0 && inputDir < 4) {
-      const nx = this.player.x + DIRS[inputDir].dx;
-      const ny = this.player.y + DIRS[inputDir].dy;
-      if (isWalkable(this.map, nx, ny)) {
-        this.player.x = nx; this.player.y = ny;
-        moved = true;
-        dir = inputDir;
-        this._leg.moves++;
-      } else {
+    let collectedNow = false;
+    let boltNow = false;
+    const steps = this.speed;
+
+    for (let m = 0; m < steps; m++) {
+      if (inputDir >= 0 && inputDir < 4) {
+        const nx = this.player.x + DIRS[inputDir].dx;
+        const ny = this.player.y + DIRS[inputDir].dy;
+        if (isWalkable(this.map, nx, ny)) {
+          this.player.x = nx; this.player.y = ny;
+          moved = true;
+          this._leg.moves++;
+          this._memo.player.tick = -1;
+          this._memo.alienToPlayer.tick = -1;
+        }
         // Walking into a wall still counts as an intent: the heading traits should see
         // that the player meant to keep going, even though the cell refused.
         dir = inputDir;
       }
-    }
-    this.player.dir = dir;
-    this._memo.player.tick = -1;          // position changed, invalidate the field
+      this.player.dir = dir;
 
-    // --- 2. caught by walking into a patrol ---
-    if (this._collides()) return this._finish(false, LOSE.CAUGHT, { moved, dir });
+      // --- 2. caught by walking into an alien ---
+      if (this._collides()) return this._finish(false, LOSE.CAUGHT, { moved, dir });
 
-    // --- 3. objectives ---
-    let collectedNow = false;
-    for (const c of this.caches) {
-      if (!c.collected && c.x === this.player.x && c.y === this.player.y) {
-        c.collected = true;
-        this.collected++;
-        collectedNow = true;
-        const field = this._leg.field;
-        const shortest = field[c.y * this.map.w + c.x];
-        const rank = this._leg.candidates.findIndex((e) => e.c.x === c.x && e.c.y === c.y);
-        this.observer?.onObjective?.({
-          movesTaken: this._leg.moves,
-          shortest: shortest === UNREACHABLE ? 0 : shortest,
-          rank: rank < 0 ? 0 : rank,
-          candidates: this._leg.candidates.length,
-          cache: { x: c.x, y: c.y },
-          tick: this.tick,
-        });
-        this._startLeg();
-        break;
+      // --- 3. objectives, picked up on every cell crossed, not only the last ---
+      for (const c of this.caches) {
+        if (!c.collected && c.x === this.player.x && c.y === this.player.y) {
+          c.collected = true;
+          this.collected++;
+          collectedNow = true;
+          const field = this._leg.field;
+          const shortest = field[c.y * this.map.w + c.x];
+          const rank = this._leg.candidates.findIndex((e) => e.c.x === c.x && e.c.y === c.y);
+          this.observer?.onObjective?.({
+            movesTaken: this._leg.moves,
+            shortest: shortest === UNREACHABLE ? 0 : shortest,
+            rank: rank < 0 ? 0 : rank,
+            candidates: this._leg.candidates.length,
+            cache: { x: c.x, y: c.y },
+            tick: this.tick,
+          });
+          this._startLeg();
+          break;
+        }
       }
-    }
-    if (!this.dropUnlocked && this.collected >= this.caches.length) {
-      this.dropUnlocked = true;
-      this._startLeg();                   // the final leg is last cache -> dead drop
-    }
+      for (const b of this.bolts) {
+        if (!b.taken && b.x === this.player.x && b.y === this.player.y) {
+          b.taken = true;
+          boltNow = true;
+          this.boostsUsed++;
+          // Refresh rather than stack: two bolts in a row give six seconds of double
+          // speed, not three seconds of quadruple speed.
+          this.boostTicks = this.params.boostTicks || 24;
+          break;
+        }
+      }
+      if (!this.dropUnlocked && this.collected >= this.caches.length) {
+        this.dropUnlocked = true;
+        this._startLeg();                 // the final leg is last key -> portal
+      }
 
-    // --- 4. win, checked before the patrols move ---
-    // Deliberately generous: standing on the unlocked drop ends the run in your favour
-    // even if a patrol would have stepped onto you this tick. Losing on the drop tile
-    // reads as a bug to a player regardless of whether it is one.
-    if (this.dropUnlocked && this.player.x === this.drop.x && this.player.y === this.drop.y) {
-      return this._finish(true, null, { moved, dir, collectedNow });
+      // --- 4. win, checked before the aliens move ---
+      // Deliberately generous: standing on an open portal ends the run in your favour
+      // even if an alien would have stepped onto you this tick. Losing on the exit tile
+      // reads as a bug to a player regardless of whether it is one.
+      if (this.portalRevealed && this.player.x === this.portal.x && this.player.y === this.portal.y) {
+        return this._finish(true, null, { moved, dir, collectedNow, boltNow });
+      }
     }
 
     // --- 5. arrivals ---
@@ -375,7 +473,8 @@ export class Game {
       spawnedNow = true;
     }
 
-    // --- 6. patrols retire, then the rest move ---
+    // --- 6. one alien splits in two, then they retire and move ---
+    const splitNow = this._maybeSplit();
     this._retirePatrols();
     this._movePatrols();
 
@@ -403,14 +502,101 @@ export class Game {
 
     // --- 8. caught by a patrol stepping onto you, or swapping through you ---
     if (this._collides() || this._swapped(prev)) {
-      return this._finish(false, LOSE.CAUGHT, { moved, dir, detectedNow, spawnedNow, collectedNow });
+      return this._finish(false, LOSE.CAUGHT, { moved, dir, detectedNow, spawnedNow, collectedNow, boltNow });
     }
 
     // --- 9. bookkeeping ---
-    this._record({ moved, dir, collectedNow, detectedNow, spawnedNow, alertStarted: detectedNow && alertWasCalm });
+    if (this.boostTicks > 0) this.boostTicks--;
+
+    this._record({ moved, dir, collectedNow, boltNow, detectedNow, spawnedNow, splitNow, alertStarted: detectedNow && alertWasCalm });
 
     if (this.tick >= this.maxTicks) return this._finish(false, LOSE.TIMEOUT, {});
     return true;
+  }
+
+  /**
+   * Every ten to fifteen seconds one alien, chosen at random, splits in two.
+   *
+   * The new one is placed on a cell adjacent to its parent so it is visibly a division
+   * rather than a spawn, and it inherits the parent's shift clock so the population
+   * does not become immortal just by dividing. If there is nothing to split -- the map
+   * is empty of aliens -- the window is simply redrawn.
+   *
+   * This overrides the concurrent cap on purpose: the cap governs ARRIVALS, and division
+   * is not an arrival. See decisions.md for what that does to run length.
+   */
+  _maybeSplit() {
+    if (this.splitAt === null || this.tick < this.splitAt) return false;
+    if (this.patrols.length === 0) { this._scheduleSplit(); return false; }
+
+    // A division is held to the SAME minimum distance as an arrival.
+    //
+    // The first version placed the child on any free cell beside its parent, and across
+    // a thousand episodes 128 of them landed inside the eight-cell floor, one of them
+    // directly adjacent to the player. That is precisely the failure the spawner's
+    // minimum distance exists to prevent: an alien silently becomes two, the second one
+    // is on top of you, and the death reads as the game cheating rather than as
+    // something you could have avoided. A division that cannot happen fairly is deferred
+    // a couple of seconds instead, which during a close chase means the squad does not
+    // get to double while it has you cornered.
+    const field = this.fieldAlienToPlayer();
+    const minDist = this.params.spawnMinDist;
+    const distAt = (x, y) => {
+      const d = field[y * this.map.w + x];
+      return d === UNREACHABLE ? Infinity : d;
+    };
+
+    const parents = [...this.patrols].sort((a, b) => distAt(b.x, b.y) - distAt(a.x, a.y));
+    for (const parent of parents) {
+      const spots = [];
+      for (let k = 0; k < 4; k++) {
+        const nx = parent.x + DIRS[k].dx;
+        const ny = parent.y + DIRS[k].dy;
+        if (!isAlienPassable(this.map, nx, ny)) continue;
+        if (nx === this.player.x && ny === this.player.y) continue;
+        if (this.patrols.some((q) => q.x === nx && q.y === ny)) continue;
+        const d = distAt(nx, ny);
+        if (d < minDist) continue;
+        spots.push({ x: nx, y: ny, d });
+      }
+      if (spots.length === 0) continue;
+      // Furthest legal cell, so the division opens away from the player rather than toward.
+      spots.sort((a, b) => b.d - a.d);
+      const at = spots[0];
+
+      const child = {
+        id: this.nextPatrolId++,
+        x: at.x, y: at.y, prevX: at.x, prevY: at.y,
+        dir: STAY,
+        mode: parent.mode,
+        target: null,
+        field: null,
+        moveAcc: 0,
+        spawnedAt: this.tick,
+        // Inherits the parent's shift clock: dividing must not buy immortality.
+        expiresAt: parent.expiresAt,
+        spawnRegion: this.regions.regionOf[at.y * this.map.w + at.x],
+        reason: `division of unit ${parent.id}`,
+        fallback: false,
+        bornFromSplit: true,
+      };
+      this.patrols.push(child);
+      this.splits++;
+      this._memo.patrols.tick = -1;
+      this._assignIntercept(child);
+      this.spawnLog.push({
+        tick: this.tick, x: at.x, y: at.y, region: child.spawnRegion,
+        reason: child.reason, fallback: false, tries: 0, split: true,
+        playerDist: at.d,
+        topP: null, top: null,
+      });
+      this._scheduleSplit();
+      return true;
+    }
+
+    // Nobody could divide without crowding the player. Try again shortly.
+    this.splitAt = this.tick + (this.params.splitDeferTicks || 16);
+    return false;
   }
 
   /**
@@ -467,7 +653,7 @@ export class Game {
     this.spawnLog.push({
       tick: this.tick, x: spawn.x, y: spawn.y, region: spawn.region,
       reason: spawn.reason || '', fallback: !!spawn.fallback, tries: spawn.tries ?? 0,
-      playerDist: this.fieldPlayer()[spawn.y * this.map.w + spawn.x],
+      playerDist: this.fieldAlienToPlayer()[spawn.y * this.map.w + spawn.x],
       topP: spawn.prediction?.topP ?? null,
       top: spawn.prediction?.top ?? null,
     });
@@ -477,55 +663,86 @@ export class Game {
 
   _assignIntercept(p) {
     const got = this.spawnPolicy?.intercept?.(this.view, this.rngSpawn, p);
-    const target = got || { x: this.drop.x, y: this.drop.y, region: -1 };
-    p.target = target;
-    p.mode = 'intercept';
+    const target = got || { x: this.portal.x, y: this.portal.y, region: -1 };
+    this._setTarget(p, target, 'intercept');
+  }
+
+  /** Give an alien a destination and the field it will descend to get there. */
+  _setTarget(p, target, mode) {
+    p.target = { x: target.x, y: target.y, region: target.region ?? -1 };
+    p.mode = mode;
+    p.role = target.role || mode;
     const buf = this.pool.take();
-    bfsField(this.map, target.x, target.y, buf);
+    // ALIEN, not HUMAN: an alien that refuses to cut through rubble is just a slow human.
+    bfsField(this.map, target.x, target.y, buf, ALIEN);
     p.field = Int16Array.from(buf.dist);
     this.pool.give(buf);
   }
 
+  /**
+   * Ask the squad for a joint assignment. Re-planned on a cadence rather than every tick
+   * because each cutoff role costs a BFS, and a plan that changes eight times a second
+   * produces aliens that jitter instead of committing.
+   */
+  _coordinate(force = false) {
+    if (!this.spawnPolicy?.assign || this.patrols.length === 0) return;
+    const every = this.params.coordEvery || 6;
+    if (!force && this.tick % every !== 0) return;
+    const plan = this.spawnPolicy.assign(this.view, this.rngSpawn, this.patrols);
+    if (!plan) return;
+    for (const p of this.patrols) {
+      const t = plan.get(p.id);
+      if (!t) continue;
+      p.role = t.role;
+      // A chaser rides the shared live field; no per-alien BFS and no stale target.
+      if (t.role === 'chase') { p.mode = 'hunt'; p.target = null; p.field = null; continue; }
+      if (p.target && p.target.x === t.x && p.target.y === t.y && p.field) { p.mode = t.role; continue; }
+      this._setTarget(p, t, t.role);
+    }
+  }
+
   _movePatrols() {
-    const playerField = this.alertTicks > 0 ? this.fieldPlayer() : null;
+    this._coordinate();
+    const hunting = this.alertTicks > 0;
+    // One shared field for everyone running the player down directly.
+    const chaseField = hunting ? this.fieldAlienToPlayer() : null;
+
     for (const p of this.patrols) {
       p.prevX = p.x; p.prevY = p.y;
 
-      // Mode selection. Alert overrides everything: for alertTicks ticks every patrol
-      // receives the live player position, after which they fall back to the last known
-      // cell and then resume their intercept.
       let field = null;
-      if (this.alertTicks > 0) {
-        p.mode = 'hunt';
-        field = playerField;
-      } else if (p.mode === 'hunt') {
-        p.mode = 'search';
-        const lk = this.lastKnown || this.drop;
-        p.target = { x: lk.x, y: lk.y, region: this.regions.regionOf[lk.y * this.map.w + lk.x] };
-        const buf = this.pool.take();
-        bfsField(this.map, p.target.x, p.target.y, buf);
-        p.field = Int16Array.from(buf.dist);
-        this.pool.give(buf);
+      if (hunting) {
+        // Alert overrides everything, but not identically for everyone: chasers close,
+        // cutoffs hold a route. Anything without a usable cutoff field falls back to
+        // chasing rather than standing still.
+        if (p.role === 'cutoff' && p.field) { p.mode = 'cutoff'; field = p.field; }
+        else { p.mode = 'hunt'; field = chaseField; }
+      } else if (p.mode === 'hunt' || p.mode === 'cutoff') {
+        // The alert just lapsed: fall back to the last cell the player was seen in.
+        const lk = this.lastKnown || this.portal;
+        this._setTarget(p, { x: lk.x, y: lk.y, region: this.regions.regionOf[lk.y * this.map.w + lk.x] }, 'search');
         field = p.field;
       } else {
         if (!p.field || !p.target) this._assignIntercept(p);
         if (p.x === p.target.x && p.y === p.target.y) {
-          // Arrived. Ask the predictor where to go next -- this is why the model keeps
-          // mattering after the spawn, instead of only at the moment of arrival.
-          if (p.mode === 'search') this._assignIntercept(p);
-          else this._assignIntercept(p);
+          // Arrived. Re-plan the whole squad rather than only this one, so the districts
+          // stay divided up instead of drifting into overlap one alien at a time.
+          this._coordinate(true);
+          if (!p.target || (p.x === p.target.x && p.y === p.target.y)) this._assignIntercept(p);
         }
         field = p.field;
       }
 
-      const period = p.mode === 'hunt' ? this.params.chaseMovePeriod : this.params.patrolMovePeriod;
+      const period = (p.mode === 'hunt' || p.mode === 'cutoff')
+        ? this.params.chaseMovePeriod
+        : this.params.patrolMovePeriod;
       p.moveAcc += 1;
       if (p.moveAcc < period) continue;
       p.moveAcc -= period;
 
       if (!field) continue;
       const occupied = (nx, ny) => this.patrols.some((q) => q !== p && q.x === nx && q.y === ny);
-      const d = stepDownhill(this.map, field, p.x, p.y, this.rngPatrol, occupied);
+      const d = stepDownhill(this.map, field, p.x, p.y, this.rngPatrol, occupied, ALIEN);
       if (d >= 0) {
         p.x += DIRS[d].dx; p.y += DIRS[d].dy;
         p.dir = d;
@@ -541,6 +758,8 @@ export class Game {
     this.visits[region]++;
     this.visitedCells[i] = 1;
     if (this.entropyMarks.includes(this.tick)) this.entropyAt[this.tick] = entropyBits(this.visits);
+
+    if (this.patrols.length > this.peakAliens) this.peakAliens = this.patrols.length;
 
     const threatDist = this.nearestPatrolDist();
     const threatVisible = threatDist <= this.effectiveRadius;
@@ -580,6 +799,8 @@ export class Game {
       if (info.detectedNow) flags |= FLAG.DETECTED;
       if (info.collectedNow) flags |= FLAG.COLLECTED;
       if (info.spawnedNow) flags |= FLAG.SPAWNED;
+      if (this.boostTicks > 0) flags |= FLAG.BOOSTED;
+      if (info.splitNow) flags |= FLAG.SPLIT;
       if (info.won) flags |= FLAG.WON;
       if (info.lost) flags |= FLAG.LOST;
       const row = [this.tick, this.player.x, this.player.y, info.dir ?? STAY, flags, this.alertTicks];
@@ -624,6 +845,9 @@ export class Game {
       caches: this.caches.length,
       detections: this.detections,
       spawns: this.spawnCount,
+      splits: this.splits,
+      boostsUsed: this.boostsUsed,
+      peakAliens: this.peakAliens,
       firstEncounterTick: this.firstEncounterTick,
       firstDetectionTick: this.firstDetectionTick,
       visits: Array.from(this.visits),

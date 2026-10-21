@@ -11,8 +11,8 @@
 // contiguous, room-aligned regions on any map the generator can produce, including
 // the degenerate ones.
 
-import { DIRS, TILE, isWalkable } from './grid.js';
-import { FieldPool, bfsFrom, UNREACHABLE } from './pathfind.js';
+import { DIRS, TILE, isWalkable, blocksHuman, blocksAlien } from './grid.js';
+import { FieldPool, bfsFrom, UNREACHABLE, HUMAN } from './pathfind.js';
 
 export const REGION_COUNT = 12;
 export const NO_REGION = 255;
@@ -35,8 +35,10 @@ export function buildRegions(map, roomCenters = [], count = REGION_COUNT, pool =
     seeds.push(i); seen.add(i);
   }
 
+  // Districts are a fact about where the HUMAN goes, so seeding and features use human
+  // walkability. The paint below is deliberately wider -- see the note there.
   const walkable = [];
-  for (let i = 0; i < n; i++) if (map.tiles[i] !== TILE.WALL) walkable.push(i);
+  for (let i = 0; i < n; i++) if (!blocksHuman(map.tiles[i])) walkable.push(i);
   if (walkable.length === 0) {
     return { count: 0, regionOf: owned, seeds: [], cells: [], features: [] };
   }
@@ -64,6 +66,10 @@ export function buildRegions(map, roomCenters = [], count = REGION_COUNT, pool =
   }
 
   // --- paint: multi-source BFS carrying ownership ---
+  // Painted over ALIEN-passable cells, not human-walkable ones, so that a building cell
+  // still belongs to a district. An alien standing inside rubble has to report a region
+  // every tick, and `regionOf` being total is cheaper than a null check at every call
+  // site. The district's *cells* and *features* below stay human-only.
   const dist = new Int16Array(n).fill(-1);
   const queue = new Int32Array(n);
   let head = 0, tail = 0;
@@ -80,7 +86,7 @@ export function buildRegions(map, roomCenters = [], count = REGION_COUNT, pool =
       const nx = cx + DIRS[k].dx, ny = cy + DIRS[k].dy;
       if (nx < 0 || ny < 0 || nx >= map.w || ny >= map.h) continue;
       const ni = ny * map.w + nx;
-      if (map.tiles[ni] === TILE.WALL || dist[ni] !== -1) continue;
+      if (blocksAlien(map.tiles[ni]) || dist[ni] !== -1) continue;
       dist[ni] = dist[cur] + 1;
       owned[ni] = owned[cur];
       queue[tail++] = ni;
@@ -89,12 +95,14 @@ export function buildRegions(map, roomCenters = [], count = REGION_COUNT, pool =
   // Any cell the paint could not reach (a sealed pocket the connectivity gate missed)
   // falls back to region 0 rather than NO_REGION, so no tick can log an invalid region.
   for (let i = 0; i < n; i++) {
-    if (map.tiles[i] !== TILE.WALL && owned[i] === NO_REGION) owned[i] = 0;
+    if (!blocksAlien(map.tiles[i]) && owned[i] === NO_REGION) owned[i] = 0;
   }
 
+  // cells[] is human-walkable only: it is what the spawner draws candidate cells from,
+  // and an alien materialising inside a building would be both invisible and unfair.
   const cells = Array.from({ length: seeds.length }, () => []);
   for (let i = 0; i < n; i++) {
-    if (map.tiles[i] !== TILE.WALL) cells[owned[i]].push(i);
+    if (!blocksHuman(map.tiles[i])) cells[owned[i]].push(i);
   }
 
   localPool.give(buf);
@@ -130,14 +138,14 @@ export function regionFeatures(map, regions, pool = null) {
   const coverSources = [];
   for (let i = 0; i < map.tiles.length; i++) if (map.tiles[i] === TILE.COVER) coverSources.push(i);
   const coverDist = coverSources.length
-    ? Int16Array.from(bfsFrom(map, coverSources, buf))
+    ? Int16Array.from(bfsFrom(map, coverSources, buf, HUMAN))
     : new Int16Array(map.tiles.length).fill(999);
 
   const totalWalkable = regions.cells.reduce((a, c) => a + c.length, 0) || 1;
   const out = [];
   for (let r = 0; r < regions.count; r++) {
     const cs = regions.cells[r];
-    let wallAdj = 0, cover = 0, degSum = 0, open = 0, deadEnd = 0, junction = 0;
+    let wallAdj = 0, cover = 0, degSum = 0, open = 0, deadEnd = 0, junction = 0, building = 0;
     let sx = 0, sy = 0;
     for (const i of cs) {
       const x = i % map.w, y = (i - x) / map.w;
@@ -152,6 +160,9 @@ export function regionFeatures(map, regions, pool = null) {
       if (d >= 3) junction++;
       if (map.tiles[i] === TILE.COVER) cover++;
       if (coverDist[i] === UNREACHABLE || coverDist[i] > 3) open++;
+      for (let k = 0; k < 4; k++) {
+        if (map.tiles[(y + DIRS[k].dy) * map.w + (x + DIRS[k].dx)] === TILE.BUILDING) { building++; break; }
+      }
     }
     const nc = cs.length || 1;
     out.push({
@@ -165,6 +176,9 @@ export function regionFeatures(map, regions, pool = null) {
       deadEndFrac: deadEnd / nc,
       junctionFrac: junction / nc,
       openGroundFrac: open / nc,
+      /** Cells that touch rubble -- ground where an alien can arrive from a direction
+       *  the human cannot retreat into. */
+      buildingEdgeFrac: building / nc,
       centroid: { x: sx / nc, y: sy / nc },
       seed: regions.seeds[r],
     });

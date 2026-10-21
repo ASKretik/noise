@@ -8,6 +8,7 @@
 // fallback all run without throwing.
 
 import { installDom } from './domshim.js';
+import { Dossier } from '../sim/predictor/dossier.js';
 import { isMain, args } from './cli.js';
 
 const results = [];
@@ -27,13 +28,29 @@ export async function run({ webgpu = false, indexeddb = 'absent' } = {}) {
   console.warn = (...a) => warnings.push(a.join(' '));
   console.error = (...a) => { errors.push(a.join(' ')); realError(...a); };
 
-  const dom = installDom({ webgpu, indexeddb });
-  // Cache-bust so repeated runs in one process get a fresh module graph.
-  const { default: _ } = { default: null };
-  await import(`../web/main.js?t=${Date.now()}`);
-  // boot() is async and started at import time; let its microtasks drain.
+  // ---- the launch page ----
+  const launchDom = installDom({ webgpu, indexeddb, page: 'index.html' });
+  await import(`../web/launch.js?t=${Date.now()}`);
   for (let i = 0; i < 50; i++) await Promise.resolve();
-  await new Promise((r) => setTimeout(r, 30));
+  await new Promise((r) => setTimeout(r, 20));
+
+  check('launch page lists both profile slots, each linking to play.html', () => {
+    const slots = launchDom.byId.get('slots');
+    if (!slots || slots.children.length !== 2) throw new Error(`expected 2 slots, got ${slots?.children.length}`);
+    const hrefs = slots.children.map((c) => c.href);
+    if (!hrefs.includes('play.html?p=main') || !hrefs.includes('play.html?p=guest')) {
+      throw new Error(`unexpected slot links: ${hrefs.join(', ')}`);
+    }
+    return hrefs.join(' · ');
+  });
+
+  // ---- the play page ----
+  const dom = installDom({ webgpu, indexeddb, page: 'play.html', search: '?p=main' });
+  // Cache-bust so repeated runs in one process get a fresh module graph.
+  await import(`../web/play.js?t=${Date.now()}`);
+  // boot() is async and started at import time; let its microtasks drain.
+  for (let i = 0; i < 80; i++) await Promise.resolve();
+  await new Promise((r) => setTimeout(r, 40));
 
   const app = globalThis.window.NOISE || globalThis.NOISE;
 
@@ -43,29 +60,39 @@ export async function run({ webgpu = false, indexeddb = 'absent' } = {}) {
     return `store=${app.storeKind}`;
   });
 
-  check('launch screen rendered both profile slots', () => {
-    const slots = dom.byId.get('slots');
-    if (!slots || slots.children.length !== 2) throw new Error(`expected 2 slots, got ${slots?.children.length}`);
-    return slots.children.map((c) => c.innerHTML.match(/<h2>(\w+)<\/h2>/)?.[1]).join(', ');
-  });
-
-  await app.enterProfile('main');
-  for (let i = 0; i < 20; i++) await Promise.resolve();
-
-  check('level 1 generated and game constructed', () => {
+  check('district 1 generated and game constructed', () => {
     if (!app.game) throw new Error('no game');
-    if (app.level.level !== 1) throw new Error(`expected level 1, got ${app.level.level}`);
-    if (dom.byId.get('game').hidden) throw new Error('game screen still hidden');
-    return `${app.level.rooms.length} rooms, ${app.level.caches.length} caches, ${app.level.regions.count} regions`;
+    if (app.level.level !== 1) throw new Error(`expected district 1, got ${app.level.level}`);
+    if (app.profileId !== 'main') throw new Error(`wrong profile: ${app.profileId}`);
+    return `${app.level.rooms.length} rooms, ${app.level.caches.length} keys, ` +
+      `${app.level.stats.buildingCount} buildings, ${app.level.stats.boltCount} bolts, ` +
+      `${app.level.regions.count} districts`;
   });
 
-  check('HUD and panels populated on level start', () => {
+  check('the portal is hidden until every key is collected', () => {
+    if (app.game.portalRevealed) throw new Error('portal revealed with keys outstanding');
+    if (!app.game.portal) throw new Error('no portal chosen');
+    // And it moves between attempts on the same district.
+    const sites = new Set();
+    for (let i = 0; i < 12; i++) { app.startLevel(1); sites.add(`${app.game.portal.x},${app.game.portal.y}`); }
+    if (sites.size < 2) throw new Error(`portal never moved across 12 restarts (${[...sites]})`);
+    return `${sites.size} distinct portal sites across 12 restarts of the same district`;
+  });
+
+  check('keys tab reports what is needed', () => {
+    const txt = `${dom.byId.get('keytab-count').textContent} ${dom.byId.get('keytab-note').textContent}`;
+    if (!/\d+ \/ \d+/.test(txt)) throw new Error(`keys tab reads "${txt}"`);
+    if (dom.byId.get('keytab').dataset.state !== 'locked') throw new Error('portal shown open at the start');
+    return txt;
+  });
+
+  check('HUD and panels populated on district start', () => {
     const bars = dom.byId.get('prediction-list');
     if (bars.children.length !== app.level.regions.count) {
       throw new Error(`prediction bars ${bars.children.length} != regions ${app.level.regions.count}`);
     }
     if (!dom.byId.get('dispatch-text').textContent) throw new Error('dispatch panel empty');
-    if (!dom.byId.get('hud-caches').textContent) throw new Error('caches readout empty');
+    if (!dom.byId.get('hud-score').textContent) throw new Error('score readout empty');
     return `dispatch: "${dom.byId.get('dispatch-text').textContent.slice(0, 48)}..."`;
   });
 
@@ -143,7 +170,20 @@ export async function run({ webgpu = false, indexeddb = 'absent' } = {}) {
     return `level ${was} -> ${now}`;
   });
 
-  check('tier 1 persists across runs of the same level, not across levels', () => {
+  check('difficulty is settled once per district and reused on retry', () => {
+    const lvl = app.level.level;
+    const first = app.store.settledDifficulty(lvl);
+    if (app.mode === 'full' && !first) throw new Error('nothing settled for the current district');
+    const tauBefore = app.difficulty.tau;
+    app.startLevel(lvl);
+    if (Math.abs(app.difficulty.tau - tauBefore) > 1e-9) {
+      throw new Error(`retry changed tau ${tauBefore} -> ${app.difficulty.tau}`);
+    }
+    if (!app.difficulty.settled) throw new Error('retry did not report settled difficulty');
+    return `tau ${tauBefore.toFixed(3)} held across a retry of district ${lvl}`;
+  });
+
+  check('tier 1 persists across runs of the same district, not across districts', () => {
     const lvl = app.level.level;
     const chain = app.chains.get(lvl);
     if (!chain) throw new Error('no chain cached for the current level');
@@ -156,8 +196,15 @@ export async function run({ webgpu = false, indexeddb = 'absent' } = {}) {
     return `level ${lvl} chain kept ${obs} observations; level ${lvl + 1} started fresh`;
   });
 
+  // Switch the ACTIVE profile on the same store, which is what the isolation rule
+  // actually governs. (Navigating to play.html?p=guest would create a second store with
+  // its own backend and prove nothing.)
   const mainBefore = JSON.stringify(await app.store.peek('main'));
-  await app.enterProfile('guest');
+  app.profile = await app.store.load('guest');
+  app.profileId = 'guest';
+  app.dossier = Dossier.fromJSON(app.profile.dossier);
+  app.chains.clear();
+  app.startLevel(1);
   for (let i = 0; i < 20; i++) await Promise.resolve();
   {
     let t = performance.now();
@@ -174,6 +221,22 @@ export async function run({ webgpu = false, indexeddb = 'absent' } = {}) {
     if (guest.id !== 'guest') throw new Error('active profile is not guest');
     if (guest.dossier.updates < 1) throw new Error('guest dossier was not written');
     return 'main byte-identical; guest dossier written';
+  });
+
+  check('alien division is scheduled in the 10-15 second window', () => {
+    app.startLevel(1);
+    const [lo, hi] = app.game.params.splitIntervalTicks;
+    const at = app.game.splitAt;
+    if (at === null) throw new Error('no division scheduled');
+    if (at < lo || at > hi) throw new Error(`first division at tick ${at}, outside [${lo}, ${hi}]`);
+    // Drive the run out and report whether the squad took distinct roles.
+    let t = performance.now();
+    let guard = 0;
+    while (!app.game.over && guard++ < 3000) { t += 125; app._frame(t); }
+    const s = app.game.summary();
+    const roles = new Set(app.game.spawnLog.map((e) => (e.split ? 'division' : 'arrival')));
+    return `first division due at tick ${at} (window ${lo}-${hi}); run lasted ${s.ticks} ticks, ` +
+      `${s.splits} division(s), peak ${s.peakAliens} aliens, log: ${[...roles].join(',') || 'none'}`;
   });
 
   check('dispatch degrades to templates without WebGPU', () => {
