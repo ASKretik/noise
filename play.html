@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NOISE — district</title>
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230b0906'/><circle cx='50' cy='46' r='26' fill='%23ff4d5e'/><circle cx='40' cy='42' r='6' fill='%23ffe9ec'/><circle cx='60' cy='42' r='6' fill='%23ffe9ec'/></svg>">
+<link rel="stylesheet" href="web/style.css">
+</head>
+<!-- The game lives on its own page. On a combined page the arrow keys fight the document
+     for scroll the moment the panels overflow, and the fix is structural rather than a
+     pile of preventDefault calls: this page never scrolls. -->
+<body class="play-body">
+
+<main id="game" class="screen">
+  <header class="topbar">
+    <a class="logo small" href="index.html" title="Back to profiles">NOISE</a>
+    <span class="chip">district <b id="hud-level">1</b></span>
+    <span class="chip">subject <b id="hud-profile">—</b></span>
+
+    <!-- The keys tab: the one thing a player needs at a glance. -->
+    <span class="keytab" id="keytab" data-state="locked">
+      <span class="keytab-icon" aria-hidden="true"></span>
+      <span class="keytab-text"><b id="keytab-count">0 / 0</b> <i id="keytab-note">keys to open the portal</i></span>
+    </span>
+
+    <span class="spacer"></span>
+    <label class="field">
+      <span>spawner</span>
+      <select id="mode-select" title="Switch the spawner live. Same code path, four configurations.">
+        <option value="uniform">uniform — baseline</option>
+        <option value="chain">chain only — tier 1</option>
+        <option value="chainDossier">chain + dossier — tier 1+2</option>
+        <option value="full" selected>full + controller</option>
+      </select>
+    </label>
+    <button id="btn-switch" class="btn ghost" title="Back to the profile picker">switch profile</button>
+  </header>
+
+  <div class="stage">
+    <div class="board">
+      <div class="canvas-wrap">
+        <canvas id="board" aria-label="game board"></canvas>
+        <div id="overlay" class="overlay" hidden>
+          <div class="overlay-card">
+            <h2 id="overlay-title">—</h2>
+            <p id="overlay-body"></p>
+            <div id="overlay-stats" class="overlay-stats"></div>
+            <div class="overlay-actions">
+              <button id="overlay-primary" class="btn">continue</button>
+              <button id="overlay-secondary" class="btn ghost">retry</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="statusbar">
+        <span class="stat"><i>noise</i><b id="hud-score">0</b></span>
+        <span class="stat"><i>entropy</i><b id="hud-bits">0.00 bits</b></span>
+        <span class="stat"><i>aliens</i><b id="hud-patrols">0</b></span>
+        <span class="stat"><i>elapsed</i><b id="hud-time">0.0s</b></span>
+        <span class="stat state"><i>status</i><b id="hud-alert" data-state="calm">unseen</b></span>
+        <span class="stat state"><i>boost</i><b id="hud-boost" data-state="off">—</b></span>
+      </div>
+
+      <div class="touchpad" id="touchpad" aria-hidden="true">
+        <button data-dir="0" aria-label="up">▲</button>
+        <div class="row">
+          <button data-dir="3" aria-label="left">◀</button>
+          <button data-dir="2" aria-label="down">▼</button>
+          <button data-dir="1" aria-label="right">▶</button>
+        </div>
+      </div>
+    </div>
+
+    <aside class="panels">
+      <section class="panel">
+        <h3>dispatch <span class="status" id="dispatch-status" data-state="idle">standby</span></h3>
+        <p id="dispatch-text" class="dispatch" data-source="template">—</p>
+      </section>
+
+      <section class="panel">
+        <h3>prediction <span class="status quiet" id="prediction-meta"></span></h3>
+        <div id="prediction-list" class="bars"></div>
+        <ul id="prediction-drivers" class="drivers"></ul>
+      </section>
+
+      <section class="panel">
+        <h3>arrivals</h3>
+        <ul id="spawn-log" class="spawns"></ul>
+      </section>
+
+      <section class="panel">
+        <h3>dossier <span class="status quiet" id="dossier-meta"></span></h3>
+        <ul id="dossier-list" class="traits"></ul>
+        <div class="panel-actions">
+          <button id="btn-reset" class="btn danger ghost" title="Wipe this profile's dossier, runs and unlocked districts">reset this profile</button>
+        </div>
+      </section>
+
+      <section class="panel compact">
+        <h3>knobs</h3>
+        <div class="kv"><span>mode</span><b id="hud-mode-label">—</b></div>
+        <div class="kv"><span>temperature τ</span><b id="hud-tau">—</b></div>
+        <div class="kv"><span>arrival λ</span><b id="hud-lambda">—</b></div>
+        <div class="kv"><span>settled</span><b id="hud-settled">—</b></div>
+      </section>
+
+      <p class="keyhint muted">
+        <b>H</b> prediction heatmap · <b>V</b> visited · <b>I</b> alien targets ·
+        <b>Space</b> pause · <b>R</b> restart district
+      </p>
+    </aside>
+  </div>
+</main>
+
+<script type="module" src="web/play.js"></script>
+</body>
+</html>

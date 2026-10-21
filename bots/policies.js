@@ -17,7 +17,7 @@
 // make every benchmark circular.
 
 import { DIRS, STAY, TILE, isWalkable, euclid } from '../sim/grid.js';
-import { FieldPool, bfsField, bfsFrom, stepDownhill, stepUphill, UNREACHABLE } from '../sim/pathfind.js';
+import { FieldPool, bfsField, bfsFrom, stepDownhill, stepUphill, UNREACHABLE, ALIEN } from '../sim/pathfind.js';
 
 export const BOT_NAMES = Object.freeze(['drunk', 'beeline', 'wallHugger', 'coverCrawler', 'evader']);
 
@@ -60,10 +60,16 @@ class Navigator {
   }
 }
 
+/**
+ * Danger, measured the way it actually travels: an alien's distance to a cell, straight
+ * through rubble. The bot's own MOVES stay restricted to human ground -- stepUphill
+ * defaults to the human rule -- so this is "how close is the thing" scored on a map the
+ * bot cannot itself shortcut across.
+ */
 function threatField(game, nav) {
   if (game.patrols.length === 0) return null;
   const buf = nav.pool.take();
-  bfsFrom(game.map, game.patrols.map((p) => p.y * game.map.w + p.x), buf);
+  bfsFrom(game.map, game.patrols.map((p) => p.y * game.map.w + p.x), buf, ALIEN);
   const f = Int16Array.from(buf.dist);
   nav.pool.give(buf);
   return f;

@@ -11,6 +11,7 @@ import { Dossier } from './predictor/dossier.js';
 import { TraitAccumulator } from './predictor/traits.js';
 import { predict, SPAWNER_MODES, MODE_LABEL } from './predictor/combine.js';
 import { sampleSpawn, sampleIntercept } from './spawner.js';
+import { assignSquad } from './squad.js';
 import { adaptDifficulty } from './difficulty.js';
 import { regionAdjacency } from './regions.js';
 
@@ -81,6 +82,20 @@ export function createSystem(o) {
       const got = sampleIntercept({ view, chain, dossier, tau: state.tau, mode: state.mode, rng, params: view.params });
       if (got?.prediction) { state.lastPrediction = got.prediction; state.predictions++; }
       return got;
+    },
+    /**
+     * Joint assignment for the whole squad. Only the two tier-aware modes coordinate:
+     * under 'uniform' the aliens stay independent, which keeps the dev dropdown an
+     * honest A/B rather than four labels over the same behaviour.
+     */
+    assign(view, rng, patrols) {
+      if (state.mode === 'uniform') return null;
+      const prediction = predict({
+        chain, dossier, view, tau: state.tau, mode: state.mode, k: view.params.kAhead,
+      });
+      state.lastPrediction = prediction;
+      state.predictions++;
+      return assignSquad({ view, prediction, patrols, rng });
     },
   };
 

@@ -28,14 +28,18 @@ const ctxStub = () => {
   const noop = () => {};
   const ctx = {
     canvas: null,
-    fillStyle: '', strokeStyle: '', lineWidth: 1, shadowColor: '', shadowBlur: 0, font: '',
-    globalAlpha: 1, textAlign: '', textBaseline: '',
+    fillStyle: '', strokeStyle: '', lineWidth: 1, lineCap: '', lineJoin: '',
+    shadowColor: '', shadowBlur: 0, font: '',
+    globalAlpha: 1, globalCompositeOperation: 'source-over', textAlign: '', textBaseline: '',
     clearRect: noop, fillRect: noop, strokeRect: noop, beginPath: noop, closePath: noop,
-    arc: noop, fill: noop, stroke: noop, moveTo: noop, lineTo: noop, rect: noop,
-    save: noop, restore: noop, translate: noop, scale: noop, clip: noop,
-    setLineDash: noop, setTransform: noop, drawImage: noop, fillText: noop, measureText: () => ({ width: 10 }),
+    arc: noop, arcTo: noop, ellipse: noop, fill: noop, stroke: noop,
+    moveTo: noop, lineTo: noop, quadraticCurveTo: noop, bezierCurveTo: noop, rect: noop,
+    save: noop, restore: noop, translate: noop, rotate: noop, scale: noop, transform: noop, clip: noop,
+    setLineDash: noop, getLineDash: () => [], setTransform: noop, resetTransform: noop,
+    drawImage: noop, fillText: noop, strokeText: noop, measureText: () => ({ width: 10 }),
     createRadialGradient: () => ({ addColorStop: noop }),
     createLinearGradient: () => ({ addColorStop: noop }),
+    createPattern: () => null,
   };
   return ctx;
 };
@@ -121,7 +125,8 @@ class El {
  * @param {boolean} [opts.indexeddb] pretend IndexedDB exists but throws on open
  */
 export function installDom(opts = {}) {
-  const html = readFileSync(join(here, '..', 'index.html'), 'utf8');
+  const page = opts.page || 'play.html';
+  const html = readFileSync(join(here, '..', page), 'utf8');
   const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
   const classesWanted = ['overlay-card', 'board', 'canvas-wrap'];
 
@@ -178,6 +183,12 @@ export function installDom(opts = {}) {
 
   const winListeners = {};
   const win = {
+    location: {
+      href: `http://localhost/${page}${opts.search || ''}`,
+      search: opts.search || '',
+      pathname: `/${page}`,
+      assign() {}, replace() {},
+    },
     devicePixelRatio: 1,
     innerWidth: 1280,
     innerHeight: 800,

@@ -12,7 +12,7 @@
 // the isolation rule testable under Node at all, and it is why this file lives in /sim
 // rather than /web despite being "persistence".
 
-export const SCHEMA = 2;
+export const SCHEMA = 3;
 export const PROFILE_IDS = Object.freeze(['main', 'guest']);
 export const MAX_RUNS = 50;
 
@@ -36,6 +36,12 @@ export function blankProfile(id, displayName = null) {
     level: 1,
     dossier: { traits: {}, updates: 0, levelsSeen: 0 },
     runs: [],
+    /**
+     * Difficulty settled for each district the first time it is entered, then reused on
+     * every retry. See adaptDifficulty(): re-tuning on each attempt makes a district get
+     * harder every time you lose it, which reads as the game punishing failure.
+     */
+    difficultyByLevel: {},
     settings: { spawnerMode: 'full', dispatchEnabled: true, showHeatmap: false },
     schema: SCHEMA,
     createdAt: Date.now(),
@@ -58,6 +64,7 @@ export function migrate(record) {
     const { updates = 0, levelsSeen = 0, ...rest } = out.dossier;
     out.dossier = { traits: rest, updates, levelsSeen };
   }
+  if (!out.difficultyByLevel || typeof out.difficultyByLevel !== 'object') out.difficultyByLevel = {};
   if (!Array.isArray(out.runs)) out.runs = [];
   out.runs = out.runs.slice(-MAX_RUNS);
   if (!out.settings || typeof out.settings !== 'object') out.settings = blankProfile(out.id).settings;
@@ -154,6 +161,35 @@ export class ProfileStore {
     return this._commit((rec) => { rec.dossier = dossierJSON; });
   }
 
+  /**
+   * Record the difficulty a district was settled at, so retries reuse it verbatim.
+   * The first entry wins and is returned on every later call.
+   *
+   * Synchronous by design: the caller needs the numbers now, to build the run with. The
+   * write behind it is fire-and-forget and already degrades to memory on failure, so
+   * there is nothing useful for a caller to await or handle.
+   */
+  rememberDifficulty(level, difficulty) {
+    const rec = this.current();
+    const key = String(level);
+    if (rec.difficultyByLevel[key]) return rec.difficultyByLevel[key];
+    const stored = {
+      tau: difficulty.tau,
+      lambdaScale: difficulty.lambdaScale,
+      meanSurvival: difficulty.meanSurvival ?? null,
+      meanEntropy: difficulty.meanEntropy ?? null,
+      at: Date.now(),
+    };
+    rec.difficultyByLevel[key] = stored;
+    this._commit(() => {}).catch(() => {});
+    return stored;
+  }
+
+  settledDifficulty(level) {
+    const rec = this.cache.get(activeId);
+    return rec?.difficultyByLevel?.[String(level)] || null;
+  }
+
   unlockLevel(level) {
     return this._commit((rec) => { rec.level = Math.max(rec.level, level); });
   }
@@ -169,6 +205,7 @@ export class ProfileStore {
       rec.level = fresh.level;
       rec.dossier = fresh.dossier;
       rec.runs = fresh.runs;
+      rec.difficultyByLevel = {};
       rec.createdAt = Date.now();
     });
   }

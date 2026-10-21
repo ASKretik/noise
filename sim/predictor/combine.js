@@ -41,7 +41,7 @@ export const DYNAMIC_FEATURES = Object.freeze([
 /** Region features that depend only on the map, so they are computed once per level. */
 export const STATIC_FEATURES = Object.freeze([
   'wallAdjFrac', 'corridorFrac', 'junctionFrac', 'openGroundFrac',
-  'coverFrac', 'areaFrac', 'deadEndFrac',
+  'coverFrac', 'areaFrac', 'deadEndFrac', 'buildingEdgeFrac',
 ]);
 
 export const ALL_FEATURES = Object.freeze([...DYNAMIC_FEATURES, ...STATIC_FEATURES]);

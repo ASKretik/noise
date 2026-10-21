@@ -1,10 +1,15 @@
 // web/render.js -- canvas rendering. Browser-only leaf, reads the sim and writes pixels.
 //
-// Coloured rectangles and circles, per the spec's no-art decision: every hour spent on
-// sprites is an hour not spent on the thing this project is actually about. What the
-// renderer does spend effort on is making the model legible -- the detection radius, the
-// alert state, and the prediction heatmap are all visible, because a predictor the player
-// cannot see is indistinguishable from a game that cheats.
+// Still no art assets: everything here is a path, a rectangle or an arc, drawn from the
+// tile grid. What it does spend effort on is making the RULES visible, because a rule the
+// player cannot see is indistinguishable from the game cheating:
+//
+//   - the detection ring around each alien is drawn at its EFFECTIVE radius, so stepping
+//     into water visibly halves every circle on screen at once;
+//   - the portal is not drawn at all until the last key is collected, because it does not
+//     exist until then;
+//   - rubble is drawn as broken masonry the aliens are seen to walk through, which is the
+//     only way "they can cross it and you cannot" reads as a rule rather than a bug.
 //
 // Rendering is decoupled from the 8 Hz simulation: positions are interpolated between the
 // previous and current tick so movement reads as smooth without the sim ever running at
@@ -13,26 +18,32 @@
 import { TILE, DIRS } from '../sim/grid.js';
 
 export const COLORS = {
-  bg: '#07090c',
-  floor: '#141a21',
-  floorAlt: '#161d25',
-  wall: '#05070a',
-  wallEdge: '#1d2630',
-  cover: '#1e3038',
-  coverHatch: '#2b4654',
-  dropLocked: '#2a3340',
-  dropOpen: '#19e0c8',
-  cache: '#ffb93b',
-  player: '#eaf2ff',
-  playerCover: '#8fd9ff',
-  patrol: '#ff4d5e',
-  patrolCalm: '#d8495a',
-  radius: 'rgba(255,77,94,0.10)',
-  radiusEdge: 'rgba(255,77,94,0.35)',
+  bg: '#0b0906',
+  ground: '#4a3a2a',
+  groundAlt: '#514032',
+  groundSpeck: 'rgba(28,20,13,0.5)',
+  wall: '#16100b',
+  wallEdge: '#2b2018',
+  water: '#1b4a5e',
+  waterDeep: '#143a4b',
+  waterGlint: 'rgba(150,224,255,0.30)',
+  building: '#39332c',
+  buildingTop: '#4a4239',
+  buildingCrack: '#15110d',
+  key: '#ffc93b',
+  bolt: '#ffe66d',
+  human: '#f2f6ff',
+  humanHidden: '#8fd9ff',
+  alien: '#ff4d5e',
+  alienCalm: '#c9414f',
+  alienEye: '#ffe9ec',
+  ring: 'rgba(255,77,94,0.09)',
+  ringEdge: 'rgba(255,77,94,0.38)',
+  ringHidden: 'rgba(143,217,255,0.45)',
+  portal: '#19e0c8',
   heat: '255,77,94',
   visited: 'rgba(143,217,255,0.05)',
-  grid: 'rgba(255,255,255,0.025)',
-  intercept: 'rgba(255,185,59,0.5)',
+  intercept: 'rgba(255,201,59,0.45)',
 };
 
 export class Renderer {
@@ -46,6 +57,7 @@ export class Renderer {
     this.dpr = 1;
     this._mapCache = null;
     this._mapKey = null;
+    this.frame = 0;
   }
 
   /** Size the backing store to the device pixel ratio and the map's aspect. */
@@ -55,8 +67,9 @@ export class Renderer {
     // canvas, so measuring it would make the canvas size depend on itself.
     const host = this.canvas.closest('.board') || this.canvas.parentElement;
     const availW = host && host.clientWidth > 0 ? host.clientWidth : 832;
-    // Integer tile size keeps walls crisp; at least 12px so phones stay playable.
-    const tile = Math.max(12, Math.floor(Math.min(availW / map.w, 34)));
+    const availH = Math.max(260, (window.innerHeight || 800) - 210);
+    // Integer tile size keeps edges crisp; at least 12px so phones stay playable.
+    const tile = Math.max(12, Math.floor(Math.min(availW / map.w, availH / map.h, 34)));
     this.tile = tile;
     this.dpr = dpr;
     const w = tile * map.w;
@@ -70,8 +83,8 @@ export class Renderer {
   }
 
   /**
-   * The map never changes during a run, so it is drawn once into an offscreen canvas and
-   * blitted. At 8 Hz this hardly matters; on a phone at 60 fps it does.
+   * The terrain never changes during a run, so it is drawn once into an offscreen canvas
+   * and blitted. At 8 Hz this hardly matters; on a phone at 60 fps it does.
    */
   _staticLayer(map, level) {
     const key = `${level.seed}:${level.level}:${this.tile}`;
@@ -84,38 +97,80 @@ export class Renderer {
     c.fillStyle = COLORS.bg;
     c.fillRect(0, 0, off.width, off.height);
 
+    // A cheap deterministic hash per cell, so speckle and cracks stay put between frames.
+    const noise = (x, y) => {
+      const n = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+      return n - Math.floor(n);
+    };
+
     for (let y = 0; y < map.h; y++) {
       for (let x = 0; x < map.w; x++) {
         const tile = map.tiles[y * map.w + x];
         const px = x * t, py = y * t;
+
         if (tile === TILE.WALL) {
           c.fillStyle = COLORS.wall;
           c.fillRect(px, py, t, t);
           continue;
         }
-        c.fillStyle = (x + y) % 2 === 0 ? COLORS.floor : COLORS.floorAlt;
+
+        // --- ground: brown, lightly flecked so it does not read as flat paint ---
+        c.fillStyle = (x + y) % 2 === 0 ? COLORS.ground : COLORS.groundAlt;
         c.fillRect(px, py, t, t);
+        const n = noise(x, y);
+        if (n > 0.62) {
+          c.fillStyle = COLORS.groundSpeck;
+          const sx = px + 3 + n * (t - 7);
+          const sy = py + 3 + noise(y, x) * (t - 7);
+          c.fillRect(Math.round(sx), Math.round(sy), 2, 2);
+        }
+
         if (tile === TILE.COVER) {
-          c.fillStyle = COLORS.cover;
-          c.fillRect(px, py, t, t);
-          // Hatching, so cover is distinguishable without relying on colour alone.
-          c.strokeStyle = COLORS.coverHatch;
+          // --- water: a shallow pool with a lighter rim and two glints ---
+          c.fillStyle = COLORS.water;
+          c.beginPath();
+          c.ellipse(px + t / 2, py + t / 2, t * 0.46, t * 0.40, 0, 0, Math.PI * 2);
+          c.fill();
+          c.fillStyle = COLORS.waterDeep;
+          c.beginPath();
+          c.ellipse(px + t / 2, py + t / 2 + t * 0.05, t * 0.33, t * 0.26, 0, 0, Math.PI * 2);
+          c.fill();
+          c.strokeStyle = COLORS.waterGlint;
           c.lineWidth = 1;
           c.beginPath();
-          for (let o = -t; o < t; o += 5) {
-            c.moveTo(px + o, py + t);
-            c.lineTo(px + o + t, py);
-          }
-          c.save();
-          c.rect(px, py, t, t);
-          c.clip();
+          c.moveTo(px + t * 0.26, py + t * 0.38);
+          c.lineTo(px + t * 0.46, py + t * 0.38);
+          c.moveTo(px + t * 0.55, py + t * 0.56);
+          c.lineTo(px + t * 0.70, py + t * 0.56);
           c.stroke();
-          c.restore();
+        }
+
+        if (tile === TILE.BUILDING) {
+          // --- broken building: a slab with a chipped top edge and a crack ---
+          c.fillStyle = COLORS.building;
+          c.fillRect(px + 1, py + 1, t - 2, t - 2);
+          c.fillStyle = COLORS.buildingTop;
+          const chip = Math.round(n * 4);
+          c.fillRect(px + 1, py + 1, t - 2, 3);
+          c.fillStyle = COLORS.building;
+          c.fillRect(px + 1 + chip, py + 1, 3, 3);
+          c.fillRect(px + t - 6 - chip, py + 1, 3, 3);
+          c.strokeStyle = COLORS.buildingCrack;
+          c.lineWidth = 1.5;
+          c.beginPath();
+          const cx = px + t * (0.3 + n * 0.4);
+          c.moveTo(cx, py + 3);
+          c.lineTo(cx - 2 + n * 4, py + t * 0.5);
+          c.lineTo(cx + 1, py + t - 3);
+          c.stroke();
+          c.strokeStyle = 'rgba(0,0,0,0.5)';
+          c.lineWidth = 1;
+          c.strokeRect(px + 1.5, py + 1.5, t - 3, t - 3);
         }
       }
     }
 
-    // Wall edges: a one-pixel lip where floor meets wall, which is what makes the layout
+    // Wall edges: a one-pixel lip where ground meets wall, which is what makes the layout
     // readable at a glance instead of a field of flat blocks.
     c.strokeStyle = COLORS.wallEdge;
     c.lineWidth = 1;
@@ -142,18 +197,159 @@ export class Renderer {
     return off;
   }
 
+  // ------------------------------------------------------------------ entity shapes
+
+  /** A key: round bow, straight shaft, two teeth. */
+  _drawKey(ctx, cx, cy, r, pulse) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(-Math.PI / 5);
+    ctx.fillStyle = COLORS.key;
+    ctx.shadowColor = COLORS.key;
+    ctx.shadowBlur = 6 + pulse * 5;
+    ctx.beginPath();
+    ctx.arc(0, -r * 0.45, r * 0.46, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillRect(-r * 0.12, -r * 0.3, r * 0.24, r * 1.25);
+    ctx.fillRect(-r * 0.12, r * 0.55, r * 0.52, r * 0.2);
+    ctx.fillRect(-r * 0.12, r * 0.9, r * 0.36, r * 0.18);
+    ctx.restore();
+    // Punch the bow's hole back out so it reads as a key at 12px.
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(-Math.PI / 5);
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.arc(0, -r * 0.45, r * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /** A lightning bolt: the classic two-triangle zigzag. */
+  _drawBolt(ctx, cx, cy, r, pulse) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.fillStyle = COLORS.bolt;
+    ctx.shadowColor = COLORS.bolt;
+    ctx.shadowBlur = 8 + pulse * 7;
+    ctx.beginPath();
+    ctx.moveTo(r * 0.22, -r);
+    ctx.lineTo(-r * 0.46, r * 0.16);
+    ctx.lineTo(-r * 0.04, r * 0.16);
+    ctx.lineTo(-r * 0.24, r);
+    ctx.lineTo(r * 0.5, -r * 0.2);
+    ctx.lineTo(r * 0.06, -r * 0.2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /** The human: head, shoulders, legs. Small, upright, obviously a person. */
+  _drawHuman(ctx, cx, cy, t, hidden, boosted) {
+    const s = t / 26;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.fillStyle = hidden ? COLORS.humanHidden : COLORS.human;
+    ctx.shadowColor = boosted ? COLORS.bolt : ctx.fillStyle;
+    ctx.shadowBlur = boosted ? 14 : (hidden ? 4 : 9);
+    ctx.beginPath();
+    ctx.arc(0, -5.2 * s, 3.1 * s, 0, Math.PI * 2);   // head
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.beginPath();                                   // torso
+    ctx.moveTo(-3.4 * s, -1.8 * s);
+    ctx.lineTo(3.4 * s, -1.8 * s);
+    ctx.lineTo(2.3 * s, 4.2 * s);
+    ctx.lineTo(-2.3 * s, 4.2 * s);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillRect(-2.4 * s, 4.0 * s, 1.7 * s, 4.0 * s); // legs
+    ctx.fillRect(0.7 * s, 4.0 * s, 1.7 * s, 4.0 * s);
+    ctx.restore();
+  }
+
+  /** An alien: bulbous body, three eyes, trailing tendrils. Not a circle. */
+  _drawAlien(ctx, cx, cy, t, hunting, phase) {
+    const s = t / 26;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.fillStyle = hunting ? COLORS.alien : COLORS.alienCalm;
+    if (hunting) { ctx.shadowColor = COLORS.alien; ctx.shadowBlur = 11; }
+
+    ctx.beginPath();                                   // tendrils
+    for (let i = -1; i <= 1; i++) {
+      const wobble = Math.sin(phase * 2 + i) * 1.3 * s;
+      ctx.moveTo(i * 3.1 * s, 2.0 * s);
+      ctx.quadraticCurveTo(i * 3.1 * s + wobble, 5.6 * s, i * 3.1 * s - wobble, 8.2 * s);
+    }
+    ctx.lineWidth = 1.7 * s;
+    ctx.strokeStyle = ctx.fillStyle;
+    ctx.stroke();
+
+    ctx.beginPath();                                   // body
+    ctx.ellipse(0, -0.9 * s, 5.2 * s, 5.8 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = COLORS.alienEye;                   // eyes
+    for (const [ex, ey, er] of [[-2.2, -1.6, 1.35], [2.2, -1.6, 1.35], [0, 1.3, 1.0]]) {
+      ctx.beginPath();
+      ctx.arc(ex * s, ey * s, er * s, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (hunting) {
+      ctx.fillStyle = '#2a0309';
+      for (const [ex, ey] of [[-2.2, -1.6], [2.2, -1.6]]) {
+        ctx.beginPath();
+        ctx.arc(ex * s, ey * s, 0.62 * s, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  /** The portal: a rotating double ring. Only ever drawn once it exists. */
+  _drawPortal(ctx, cx, cy, t, phase) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.strokeStyle = COLORS.portal;
+    ctx.shadowColor = COLORS.portal;
+    ctx.shadowBlur = 16;
+    ctx.lineWidth = 2.4;
+    for (let i = 0; i < 2; i++) {
+      const r = t * (0.26 + i * 0.13);
+      const spin = phase * (i ? -1.4 : 1.9);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, r, r * 0.74, spin, 0.5, Math.PI * 1.7);
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(25,224,200,0.22)';
+    ctx.beginPath();
+    ctx.arc(0, 0, t * 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ------------------------------------------------------------------ the frame
+
   /**
    * @param {object} o
    * @param {import('../sim/game.js').Game} o.game
    * @param {object} o.level
-   * @param {number} o.alpha        interpolation factor in [0,1] between prev and current tick
+   * @param {number} o.alpha        interpolation in [0,1] between prev and current tick
    * @param {object} o.prev         previous-tick positions
-   * @param {Float64Array} [o.prediction]  per-region probabilities for the heatmap
+   * @param {Float64Array} [o.prediction]  per-district probabilities for the heatmap
    */
   draw({ game, level, alpha = 1, prev = null, prediction = null }) {
     const ctx = this.ctx;
     const t = this.tile;
     const map = game.map;
+    this.frame++;
+    const phase = this.frame / 22;
+    const pulse = 0.5 + 0.5 * Math.sin(this.frame / 14);
+
     ctx.clearRect(0, 0, map.w * t, map.h * t);
     ctx.drawImage(this._staticLayer(map, level), 0, 0);
 
@@ -163,7 +359,7 @@ export class Renderer {
       for (const p of prediction) if (p > max) max = p;
       if (max > 0) {
         for (let r = 0; r < game.regions.count; r++) {
-          const a = (prediction[r] / max) * 0.42;
+          const a = (prediction[r] / max) * 0.4;
           if (a < 0.015) continue;
           ctx.fillStyle = `rgba(${COLORS.heat},${a.toFixed(3)})`;
           for (const i of game.regions.cells[r]) {
@@ -184,55 +380,43 @@ export class Renderer {
       }
     }
 
-    // --- dead drop ---
-    const unlocked = game.dropUnlocked;
-    const dx = game.drop.x * t, dy = game.drop.y * t;
-    ctx.save();
-    ctx.strokeStyle = unlocked ? COLORS.dropOpen : COLORS.dropLocked;
-    ctx.lineWidth = 2;
-    if (unlocked) {
-      ctx.shadowColor = COLORS.dropOpen;
-      ctx.shadowBlur = 12;
+    // --- the portal, if it exists yet ---
+    if (game.portalRevealed) {
+      this._drawPortal(ctx, game.portal.x * t + t / 2, game.portal.y * t + t / 2, t, phase);
     }
-    ctx.beginPath();
-    ctx.rect(dx + 3, dy + 3, t - 6, t - 6);
-    ctx.moveTo(dx + 3, dy + 3); ctx.lineTo(dx + t - 3, dy + t - 3);
-    ctx.moveTo(dx + t - 3, dy + 3); ctx.lineTo(dx + 3, dy + t - 3);
-    ctx.stroke();
-    ctx.restore();
 
-    // --- caches ---
+    // --- keys and bolts ---
     for (const c of game.caches) {
       if (c.collected) continue;
-      ctx.save();
-      ctx.fillStyle = COLORS.cache;
-      ctx.shadowColor = COLORS.cache;
-      ctx.shadowBlur = 8;
-      ctx.beginPath();
-      ctx.arc(c.x * t + t / 2, c.y * t + t / 2, Math.max(3, t * 0.22), 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+      this._drawKey(ctx, c.x * t + t / 2, c.y * t + t / 2, Math.max(5, t * 0.30), pulse);
+    }
+    for (const b of game.bolts) {
+      if (b.taken) continue;
+      this._drawBolt(ctx, b.x * t + t / 2, b.y * t + t / 2, Math.max(4, t * 0.24), pulse);
     }
 
-    // --- patrols: body, heading, and the radius that actually matters ---
+    // --- aliens, each ringed at the radius that applies RIGHT NOW ---
+    // Drawing the effective radius rather than the nominal one is what makes the water
+    // rule legible: step into a pool and every ring on screen visibly contracts.
+    const hidden = game.onCover;
+    const radius = game.effectiveRadius * t;
     for (const p of game.patrols) {
       const pp = prev?.patrols?.[p.id];
       const px = (pp ? pp.x + (p.x - pp.x) * alpha : p.x) * t + t / 2;
       const py = (pp ? pp.y + (p.y - pp.y) * alpha : p.y) * t + t / 2;
-      const hunting = p.mode === 'hunt';
+      const hunting = p.mode === 'hunt' || p.mode === 'cutoff';
 
-      const radius = game.params.detectRadius * t;
-      ctx.fillStyle = COLORS.radius;
+      ctx.fillStyle = COLORS.ring;
       ctx.beginPath();
       ctx.arc(px, py, radius, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = COLORS.radiusEdge;
-      ctx.lineWidth = hunting ? 1.5 : 1;
+      ctx.strokeStyle = hidden ? COLORS.ringHidden : COLORS.ringEdge;
+      ctx.lineWidth = hunting ? 1.6 : 1;
       ctx.setLineDash(hunting ? [] : [3, 4]);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      if (this.showIntercepts && p.target && !hunting) {
+      if (this.showIntercepts && p.target && p.mode !== 'hunt') {
         ctx.strokeStyle = COLORS.intercept;
         ctx.setLineDash([2, 5]);
         ctx.beginPath();
@@ -244,38 +428,32 @@ export class Renderer {
         ctx.fillRect(p.target.x * t + t / 2 - 2, p.target.y * t + t / 2 - 2, 4, 4);
       }
 
-      ctx.save();
-      ctx.fillStyle = hunting ? COLORS.patrol : COLORS.patrolCalm;
-      if (hunting) { ctx.shadowColor = COLORS.patrol; ctx.shadowBlur = 10; }
-      ctx.beginPath();
-      ctx.arc(px, py, Math.max(4, t * 0.3), 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-      ctx.fillStyle = COLORS.bg;
-      ctx.beginPath();
-      ctx.arc(px, py, Math.max(1.5, t * 0.1), 0, Math.PI * 2);
-      ctx.fill();
+      this._drawAlien(ctx, px, py, t, hunting, phase + p.id);
     }
 
-    // --- player ---
+    // --- the human ---
     const pl = game.player;
     const prevP = prev?.player;
-    const plx = (prevP ? prevP.x + (pl.x - prevP.x) * alpha : pl.x) * t;
-    const ply = (prevP ? prevP.y + (pl.y - prevP.y) * alpha : pl.y) * t;
-    const inCover = game.onCover;
-    ctx.save();
-    ctx.fillStyle = inCover ? COLORS.playerCover : COLORS.player;
-    ctx.shadowColor = ctx.fillStyle;
-    ctx.shadowBlur = inCover ? 4 : 10;
-    const pad = t * 0.22;
-    ctx.fillRect(plx + pad, ply + pad, t - pad * 2, t - pad * 2);
-    ctx.restore();
-    if (inCover) {
-      // A visible ring at the halved radius: the cover rule has to be legible to be used.
-      ctx.strokeStyle = 'rgba(143,217,255,0.25)';
-      ctx.setLineDash([2, 3]);
+    const plx = (prevP ? prevP.x + (pl.x - prevP.x) * alpha : pl.x) * t + t / 2;
+    const ply = (prevP ? prevP.y + (pl.y - prevP.y) * alpha : pl.y) * t + t / 2;
+
+    if (game.boosted) {
+      // Speed trail, so the three seconds are felt rather than read off the HUD.
+      ctx.strokeStyle = `rgba(255,230,109,${(0.25 + 0.2 * pulse).toFixed(2)})`;
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(plx + t / 2, ply + t / 2, (game.params.detectRadius / 2) * t, 0, Math.PI * 2);
+      ctx.arc(plx, ply, t * 0.46, phase % (Math.PI * 2), (phase % (Math.PI * 2)) + Math.PI * 1.2);
+      ctx.stroke();
+    }
+    this._drawHuman(ctx, plx, ply, t, hidden, game.boosted);
+
+    if (hidden) {
+      // The player's own halved ring, so the benefit is attached to them, not inferred.
+      ctx.strokeStyle = COLORS.ringHidden;
+      ctx.setLineDash([2, 3]);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(plx, ply, radius, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
     }

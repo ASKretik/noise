@@ -10,27 +10,27 @@
 //
 // PRIORS-BEGIN
 export const TRAIT_PRIORS = {
-  wallAffinity:        { mean: 0.4575, sd: 0.1620 },  // n=600
-  corridorPreference:  { mean: 0.1635, sd: 0.0821 },  // n=600
-  junctionAffinity:    { mean: 0.8365, sd: 0.0821 },  // n=600
-  openGroundTolerance: { mean: 0.1267, sd: 0.1519 },  // n=600
-  coverDwell:          { mean: 0.5517, sd: 1.3771 },  // n=600
-  coverSeeking:        { mean: 0.1220, sd: 0.0873 },  // n=600
-  headingPersistence:  { mean: 0.5525, sd: 0.2196 },  // n=600
-  turnRate:            { mean: 0.3329, sd: 0.1281 },  // n=600
-  backtrackRate:       { mean: 0.1145, sd: 0.1272 },  // n=600
-  motionRate:          { mean: 0.9092, sd: 0.0970 },  // n=600
-  pauseMean:           { mean: 1.2486, sd: 0.7235 },  // n=600
-  pauseVar:            { mean: 1.2767, sd: 10.7648 },  // n=600
-  revisitRate:         { mean: 0.3011, sd: 0.2589 },  // n=600
-  regionDwell:         { mean: 13.6533, sd: 20.9277 },  // n=600
-  objectiveDirectness: { mean: 1.5128, sd: 1.7572 },  // n=420
-  cacheOrdering:       { mean: 0.0904, sd: 0.2193 },  // n=420
-  dropRush:            { mean: 1.0930, sd: 0.7422 },  // n=181
-  threatDistance:      { mean: 4.5633, sd: 0.7293 },  // n=519
-  threatTurnAway:      { mean: 0.1615, sd: 0.1467 },  // n=519
-  postAlertFlee:       { mean: 0.0880, sd: 0.2706 },  // n=519
-  postAlertFreeze:     { mean: 0.0019, sd: 0.0439 },  // n=519
+  wallAffinity:        { mean: 0.5878, sd: 0.1776 },  // n=600
+  corridorPreference:  { mean: 0.2068, sd: 0.1363 },  // n=600
+  junctionAffinity:    { mean: 0.7932, sd: 0.1363 },  // n=600
+  openGroundTolerance: { mean: 0.1472, sd: 0.1750 },  // n=600
+  coverDwell:          { mean: 0.4864, sd: 0.9940 },  // n=600
+  coverSeeking:        { mean: 0.1281, sd: 0.0996 },  // n=600
+  headingPersistence:  { mean: 0.4336, sd: 0.1990 },  // n=600
+  turnRate:            { mean: 0.3335, sd: 0.1326 },  // n=600
+  backtrackRate:       { mean: 0.2329, sd: 0.1764 },  // n=600
+  motionRate:          { mean: 0.9035, sd: 0.1143 },  // n=600
+  pauseMean:           { mean: 1.2244, sd: 0.4524 },  // n=600
+  pauseVar:            { mean: 0.5418, sd: 1.7976 },  // n=600
+  revisitRate:         { mean: 0.3864, sd: 0.2344 },  // n=600
+  regionDwell:         { mean: 12.3500, sd: 14.5420 },  // n=600
+  objectiveDirectness: { mean: 1.9919, sd: 2.3382 },  // n=413
+  cacheOrdering:       { mean: 0.0762, sd: 0.1991 },  // n=413
+  dropRush:            { mean: 1.9762, sd: 2.2758 },  // n=125
+  threatDistance:      { mean: 4.0961, sd: 0.7180 },  // n=537
+  threatTurnAway:      { mean: 0.1913, sd: 0.1603 },  // n=537
+  postAlertFlee:       { mean: 0.0920, sd: 0.2706 },  // n=536
+  postAlertFreeze:     { mean: 0.0019, sd: 0.0432 },  // n=536
 };
 // PRIORS-END
 

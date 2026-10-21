@@ -1,15 +1,19 @@
 # NOISE
 
-A browser stealth game whose enemy spawner learns where you are going and is waiting
-there when you arrive.
+A browser stealth game whose aliens learn where you are going and are waiting there when
+you arrive.
 
 **[Play it](https://example.github.io/noise/)** · **[Benchmarks](docs/bench.html)** ·
 no install, no backend, no build step
 
-You are a courier moving data through a city that models its couriers. Collect every
-cache, reach the dead drop, and try not to become legible. Your score is the Shannon
-entropy of your own movement: the system wins by turning you into signal, and you win by
-staying noise.
+Find every key, open the portal, get out. Water halves how far you can be seen and every
+alien's detection ring visibly shrinks when you step into it; lightning gives you three
+seconds at double speed; rubble stops you but not them. Every ten to fifteen seconds one
+alien splits in two, and they hunt as a squad — one runs you down while the others post
+themselves on the routes you might break toward.
+
+Your score is the Shannon entropy of your own movement: the system wins by turning you
+into signal, and you win by staying noise.
 
 The part worth looking at is that **the file on you follows you between levels**. A
 transition matrix over the current map's districts is wiped every time you leave; a
@@ -46,8 +50,11 @@ npm run couplings # re-select the trait-to-geometry couplings by measurement
 ### Controls
 
 Arrow keys or WASD, one cell per tick, eight ticks a second.
-`H` prediction heatmap · `V` visited cells · `I` patrol intercepts · `Space` pause ·
+`H` prediction heatmap · `V` visited cells · `I` alien targets · `Space` pause ·
 `R` restart the district.
+
+The game runs on its own page (`play.html`) so the arrow keys never fight the document
+for scroll.
 
 ---
 
@@ -56,33 +63,25 @@ Arrow keys or WASD, one cell per tick, eight ticks a second.
 Everything below is produced by `npm run bench`, not asserted. Numbers move a little with
 seeds; the shape does not.
 
-| | uniform | chain (tier 1) | chain + dossier | full |
+| top-1 district accuracy, 20 ticks ahead | uniform | chain (tier 1) | chain + dossier | full |
 |---|---|---|---|---|
-| top-1 district accuracy, 20 ticks ahead (macro mean over 5 bots) | 10% | 26% | **39%** | 38% |
-| mean ticks to first encounter, drunk bot | 109 | 45 | 46 | **44** |
-| mean ticks to first encounter, evader bot | 68 | 54 | 44 | **47** |
+| drunk | 12.7% | 66.8% | — | **64.8%** |
+| beeline | 10.2% | 17.4% | — | **20.6%** |
+| wallHugger | 12.0% | 20.2% | — | **18.8%** |
+| coverCrawler | 11.9% | 24.1% | — | **27.1%** |
+| evader | 10.2% | 26.7% | — | **24.2%** |
 
 Chance is 1 in 12. Time-to-first-encounter is lower under the full spawner than under
-uniform for all five bot policies.
+uniform for **all five** bot policies — the clearest single result in the project, and the
+one a player can actually feel.
 
-**Cross-level transfer**, with tier 1 given exactly one attempt per level so it is cold on
-every new map and only the dossier carries over:
-
-| bot | chain only | chain + dossier | |
-|---|---|---|---|
-| beeline | 5.6% | **21.5%** | +15.9pp, t = 4.8 |
-| wallHugger | 5.4% | **27.5%** | +22.2pp, t = 6.0 |
-| coverCrawler | 7.2% | **21.2%** | +13.9pp, t = 3.8 |
-| drunk | 82.7% | 79.3% | −3.5pp, t = −0.6 |
-| evader | 26.8% | 24.8% | −2.0pp, t = −0.7 |
-
-The two bots the dossier does not help are the two whose chain is already sharp — a player
-who barely changes district is best predicted by "still there", and tier 2 is deliberately
-gated by tier 1's own uncertainty so it cannot override a confident chain. That gate is
-why those rows are flat instead of negative.
-
-Two of the thirteen acceptance criteria come back **NOT DEMONSTRATED** rather than passed,
-and the suite says so in those words. See [dna.md](dna.md).
+**Three of the thirteen acceptance criteria come back NOT DEMONSTRATED** rather than
+passed, and the suite says so in those words rather than quietly rounding up. One of them
+— whether the behavioural dossier adds anything on top of the geometric model — regressed
+when broken buildings were added, because forcing the player to detour around rubble made
+the geometric model much better on its own. That is written up honestly in
+**[decisions.md](decisions.md)**; it is a more interesting result than a number that only
+ever went up.
 
 ---
 
@@ -94,9 +93,10 @@ sim/        the pure core. Zero DOM, zero imports outside /sim, runs under Node
   grid      32x20, four tile types, one flat typed array
   gen       BSP level generator: rooms, corridors, connectivity, cover, objectives
   regions   the 12-district partition tier 1 reasons over
-  game      the tick loop: movement, objectives, patrols, detection, alert, win/lose
-  poisson   patrol arrivals and departures as a birth-death process
+  game      the tick loop: movement, keys, aliens, detection, alert, division, win/lose
+  poisson   alien arrivals and departures as a birth-death process
   spawner   rejection sampling from a truncated distribution
+  squad     the aliens decide together: roles, and one district each
   profile   profiles and the isolation rule, backend-agnostic so it is testable
   system    the composition root: wires predictor + spawner into the game by injection
   predictor/
@@ -107,6 +107,7 @@ sim/        the pure core. Zero DOM, zero imports outside /sim, runs under Node
     couplings  GENERATED -- which trait pulls on which piece of geometry
     combine    how the two tiers become one distribution
 web/        browser-only leaves: canvas, input, HUD, IndexedDB, dispatch
+              launch.js drives index.html; play.js drives play.html
 bots/       five scripted policies spanning the legibility axis
 bench/      the Node harness, the acceptance suite, and the two generators
 docs/       the benchmark report and its figures
@@ -152,7 +153,10 @@ Update the Play link at the top of this file once you know your Pages URL.
 
 ## Reading further
 
-- **[dna.md](dna.md)** — every assumption, every deviation from the spec and why, and the
-  decisions that are yours rather than mine.
+- **[decisions.md](decisions.md)** — the change round after the first playable version:
+  retry difficulty, the separate play page, the theme, water and bolts, the hidden portal,
+  alien division and broken buildings. Includes the criterion-6 regression in full.
+- **[dna.md](dna.md)** — the original build: every assumption, every deviation from the
+  spec and why, and the decisions that are yours rather than mine.
 - **[spec.md](spec.md)** — the original build spec.
 - **[docs/bench.html](docs/bench.html)** — the figures, each with its data table.

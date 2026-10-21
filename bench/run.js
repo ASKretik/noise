@@ -108,12 +108,13 @@ if (isMain(import.meta.url)) {
 
   // ---------------------------------------------------------------- 1
   heading(1, 'difficulty curve');
-  console.log('  lvl caches units  init   lambda  E[N]  radius  chase   tau   grace');
+  console.log('  lvl keys units  init   lambda  E[N]  radius  chase   tau  bldgs  split window');
   for (let L = 1; L <= CURVE_CAP; L++) {
     const p = levelParams(L);
-    console.log(`  ${padL(L, 3)} ${padL(p.caches, 6)} ${padL(p.maxPatrols, 5)} ${padL(p.initialPatrols, 5)} ` +
+    console.log(`  ${padL(L, 3)} ${padL(p.caches, 4)} ${padL(p.maxPatrols, 6)} ${padL(p.initialPatrols, 5)} ` +
       `${padL(p.lambdaBase.toFixed(4), 8)} ${padL((p.lambdaBase * p.patrolLifetime).toFixed(2), 5)} ` +
-      `${padL(p.detectRadius.toFixed(1), 7)} ${padL(p.chaseMovePeriod.toFixed(2), 6)} ${padL(p.tauBase.toFixed(2), 5)} ${padL(p.spawnGraceTicks, 7)}`);
+      `${padL(p.detectRadius.toFixed(1), 7)} ${padL(p.chaseMovePeriod.toFixed(2), 6)} ${padL(p.tauBase.toFixed(2), 5)} ` +
+      `${padL(p.buildings, 6)} ${padL(`${p.splitIntervalTicks[0]}-${p.splitIntervalTicks[1]}t`, 13)}`);
   }
   console.log(`  survival band ${SURVIVAL_BAND.lo}-${SURVIVAL_BAND.hi} ticks (${SURVIVAL_BAND.lo / TICKS_PER_SECOND}-${SURVIVAL_BAND.hi / TICKS_PER_SECOND}s); a win counts as right-censored at the horizon`);
 
@@ -263,8 +264,36 @@ if (isMain(import.meta.url)) {
   }
   console.log(`  (level 6 base tau ${p6.tauBase.toFixed(2)})`);
 
-  // ---------------------------------------------------------------- 8
-  heading(8, 'throughput');
+  // ---------------------------------------------------------------- 7b
+  heading(8, 'the added mechanics, measured');
+  console.log('  Buildings, bolts and division all change how long a run lasts, which is the only');
+  console.log('  thing that decides whether a player ever SEES them. An efficient bot finishes a');
+  console.log('  district in about forty ticks -- five seconds -- so it never reaches the ten-to-');
+  console.log('  fifteen-second division window at all. A wandering bot does, and so will a human.');
+  console.log('');
+  console.log(`  ${pad('bot', 14)}${padL('mean ticks', 12)}${padL('seconds', 10)}${padL('divisions', 11)}${padL('peak aliens', 13)}${padL('bolts used', 12)}`);
+  clearLevelCache();
+  for (const bot of BOT_NAMES) {
+    let ticks = 0, splits = 0, peak = 0, boosts = 0;
+    const N = quick ? 40 : 80;
+    for (let i = 0; i < N; i++) {
+      const lv = level(`mech${i % 20}`, 1 + (i % 6));
+      const r = episode({ level: lv, bot, mode: 'full', seed: 4000 + i });
+      ticks += r.summary.ticks;
+      splits += r.summary.splits || 0;
+      peak += r.summary.peakAliens || 0;
+      boosts += r.summary.boostsUsed || 0;
+    }
+    console.log(`  ${pad(bot, 14)}${padL((ticks / N).toFixed(0), 12)}${padL((ticks / N / TICKS_PER_SECOND).toFixed(1), 10)}` +
+      `${padL((splits / N).toFixed(2), 11)}${padL((peak / N).toFixed(1), 13)}${padL((boosts / N).toFixed(1), 12)}`);
+  }
+  console.log('');
+  console.log('  Divisions are held to the same minimum distance as arrivals: one that cannot be');
+  console.log('  placed fairly is deferred rather than dropped next to the player. Without that the');
+  console.log('  floor was violated by 128 of 1,425 placements, one of them directly adjacent.');
+
+  // ---------------------------------------------------------------- 9
+  heading(9, 'throughput');
   clearLevelCache();
   const N = quick ? 300 : 1000;
   const tStart = Date.now();

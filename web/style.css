@@ -1,16 +1,18 @@
 /* web/style.css -- dark, monospace, surveillance-console. No art assets anywhere. */
 
 :root {
-  --bg: #07090c;
-  --bg-2: #0c1016;
-  --bg-3: #121822;
-  --line: #1e2834;
-  --fg: #dfe7f2;
-  --fg-dim: #8294a8;
-  --fg-faint: #5b6b7e;
+  --bg: #0b0906;
+  --bg-2: #15110d;
+  --bg-3: #1e1813;
+  --line: #2e2620;
+  --fg: #efe6da;
+  --fg-dim: #a59684;
+  --fg-faint: #776a5c;
   --accent: #19e0c8;
-  --warn: #ffb93b;
+  --warn: #ffc93b;
   --danger: #ff4d5e;
+  --water: #4fb6da;
+  --bolt: #ffe66d;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   --radius: 4px;
 }
@@ -26,7 +28,24 @@ html, body {
   -webkit-text-size-adjust: 100%;
 }
 
-body { min-height: 100vh; }
+.launch-body { min-height: 100vh; }
+
+/* The play page never scrolls. The arrow keys belong to the game, and on a scrollable
+   page the browser takes them the moment the panels overflow -- which no amount of
+   preventDefault reliably fixes once focus lands on a select or a button. */
+.play-body {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.play-body #game {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.play-body .stage { flex: 1 1 auto; min-height: 0; }
+.play-body .panels { max-height: 100%; overflow-y: auto; }
 
 .screen { display: block; }
 .screen[hidden] { display: none; }
@@ -70,6 +89,8 @@ b { font-weight: 600; }
 
 .slot {
   appearance: none;
+  display: block;
+  text-decoration: none;
   text-align: left;
   background: var(--bg-2);
   border: 1px solid var(--line);
@@ -113,9 +134,12 @@ b { font-weight: 600; }
 .brief-body p { margin: 0 0 10px; }
 
 .k { padding: 0 4px; border-radius: 2px; color: var(--bg); font-weight: 600; }
-.k.cache { background: var(--warn); }
-.k.drop { background: var(--accent); }
-.k.patrol { background: var(--danger); }
+.k.key { background: var(--warn); }
+.k.portal { background: var(--accent); }
+.k.alien { background: var(--danger); }
+.k.bolt { background: var(--bolt); }
+.k.rubble { background: #6f6454; color: #efe6da; }
+.k.water { background: var(--water); }
 
 /* -------------------------------- game -------------------------------- */
 
@@ -133,6 +157,49 @@ b { font-weight: 600; }
 
 .chip { color: var(--fg-dim); }
 .chip b { color: var(--fg); }
+
+/* ---- the keys tab: the one readout a player needs at a glance ---- */
+.keytab {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 12px 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-3);
+  transition: border-color 160ms, background 160ms;
+}
+
+.keytab-icon {
+  width: 13px; height: 13px;
+  flex: none;
+  border-radius: 50% 50% 40% 40%;
+  background: var(--warn);
+  box-shadow: 0 0 9px rgba(255, 201, 59, 0.55);
+  position: relative;
+}
+.keytab-icon::after {
+  content: "";
+  position: absolute;
+  left: 5px; top: 10px;
+  width: 3px; height: 8px;
+  background: var(--warn);
+}
+
+.keytab-text b { font-size: 14px; }
+.keytab-text i { font-style: normal; color: var(--fg-dim); }
+
+.keytab[data-state="open"] {
+  border-color: var(--accent);
+  background: rgba(25, 224, 200, 0.10);
+}
+.keytab[data-state="open"] .keytab-icon {
+  background: var(--accent);
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(25, 224, 200, 0.7);
+}
+.keytab[data-state="open"] .keytab-icon::after { display: none; }
+.keytab[data-state="open"] .keytab-text i { color: var(--accent); }
 
 #hud-profile[data-degraded="yes"]::after {
   content: " (not saved)";
@@ -165,7 +232,10 @@ select:hover, .btn:hover { border-color: var(--accent); }
   align-items: start;
 }
 
-@media (max-width: 1040px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 1040px) {
+  .stage { grid-template-columns: minmax(0, 1fr); }
+  .play-body, .play-body #game { height: auto; overflow: auto; }
+}
 
 .board { min-width: 0; }
 
@@ -197,8 +267,10 @@ canvas { display: block; image-rendering: pixelated; }
 .stat b { font-size: 14px; }
 
 #hud-alert[data-state="alert"] { color: var(--danger); }
-#hud-alert[data-state="open"] { color: var(--accent); }
+#hud-alert[data-state="hidden"] { color: var(--water); }
 #hud-alert[data-state="calm"] { color: var(--fg-faint); }
+#hud-boost[data-state="on"] { color: var(--bolt); }
+#hud-boost[data-state="off"] { color: var(--fg-faint); }
 
 /* ------------------------------- panels ------------------------------- */
 
@@ -251,7 +323,7 @@ canvas { display: block; image-rendering: pixelated; }
 
 .bar-row[data-top="yes"] .bar-fill { background: var(--danger); }
 .bar-row[data-top="yes"] .bar-val { color: var(--danger); }
-.bar-row[data-here="yes"] .bar-label { color: var(--accent); }
+.bar-row[data-here="yes"] .bar-label { color: var(--water); }
 .bar-row[data-here="yes"] .bar-label::after { content: "◂"; margin-left: 2px; }
 
 .drivers, .spawns, .traits { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; }
@@ -268,10 +340,14 @@ canvas { display: block; image-rendering: pixelated; }
 }
 .trait-gauge i { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
 .trait-gauge i[data-sign="pos"] { background: var(--warn); }
-.trait-gauge i[data-sign="neg"] { background: #4f9dd6; }
+.trait-gauge i[data-sign="neg"] { background: var(--water); }
 .trait-z { text-align: right; color: var(--fg-faint); }
 
-.panel.compact .kv { display: flex; justify-content: space-between; color: var(--fg-dim); }
+.keyhint { margin: 0; font-size: 11.5px; line-height: 1.7; }
+.keyhint b { color: var(--fg-dim); }
+
+.panel.compact .kv { display: flex; justify-content: space-between; color: var(--fg-dim); gap: 10px; }
+.panel.compact .kv b { text-align: right; }
 .panel.compact .kv b { color: var(--fg); }
 .panel-actions { margin-top: 10px; }
 

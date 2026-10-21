@@ -1,8 +1,8 @@
-// web/main.js -- the browser composition root.
+// web/play.js -- the game page. play.html only.
 //
-// Owns the screens, the fixed-timestep loop, level progression and the wiring between the
-// pure core and the four browser-only leaves (canvas, input, persistence, dispatch).
-// Everything game-shaped lives in /sim; nothing in /sim knows this file exists.
+// Owns the fixed-timestep loop, district progression and the wiring between the pure core
+// and the browser-only leaves (canvas, input, persistence, dispatch). Everything
+// game-shaped lives in /sim; nothing in /sim knows this file exists.
 
 import { generateLevel } from '../sim/gen.js';
 import { Game } from '../sim/game.js';
@@ -11,6 +11,7 @@ import { Dossier } from '../sim/predictor/dossier.js';
 import { SPAWNER_MODES } from '../sim/predictor/combine.js';
 import { levelParams, TICKS_PER_SECOND, CURVE_CAP } from '../sim/difficulty.js';
 import { PROFILE_IDS } from '../sim/profile.js';
+import { hashString } from '../sim/prng.js';
 import { regionAdjacency } from '../sim/regions.js';
 import { FieldPool } from '../sim/pathfind.js';
 
@@ -23,13 +24,14 @@ import { createDispatcher, buildState, webgpuAvailable } from './dispatch.js';
 const STEP_MS = 1000 / TICKS_PER_SECOND;
 /** Dispatch is asked for a line this often, plus on events. Fire-and-forget either way. */
 const DISPATCH_EVERY_TICKS = 8 * 4;
-/** Give the first level a moment to be playable before a few hundred megabytes start. */
+/** Give the first district a moment to be playable before a few hundred megabytes start. */
 const MODEL_LOAD_DELAY_MS = 2500;
 
 const $ = (id) => document.getElementById(id);
 
-class Noise {
-  constructor() {
+class Play {
+  constructor(profileId) {
+    this.profileId = profileId;
     this.pool = new FieldPool(32 * 20);
     this.renderer = new Renderer($('board'));
     this.input = new Input();
@@ -43,17 +45,14 @@ class Noise {
     this.system = null;
     this.dossier = new Dossier();
     /**
-     * Tier 1 resets at each new level -- a chain over this map's regions cannot mean
-     * anything on the next map -- but NOT at each new run. Keeping it per level number is
-     * what gives the chain the "about a minute of play" it needs to converge: measured,
-     * a chain handed a fresh map every attempt scores below uniform, and the same chain
-     * allowed to persist across attempts at one level reaches 22% top-1 against
-     * uniform's 9%.
+     * Tier 1 resets at each new district -- a chain over this map's regions cannot mean
+     * anything on the next map -- but NOT at each new run. Keeping it per district number
+     * is what gives the chain the "about a minute of play" it needs to converge.
      */
     this.chains = new Map();
 
     this.mode = 'full';
-    this.difficulty = { tau: 1, lambdaScale: 1, controller: null };
+    this.difficulty = { tau: 1, lambdaScale: 1, controller: null, settled: false };
     this.running = false;
     this.paused = false;
     this.acc = 0;
@@ -61,6 +60,7 @@ class Noise {
     this.prevSnapshot = null;
     this.prediction = null;
     this.seenSpawns = 0;
+    this.attempt = 0;
     this.modelLoadTimer = null;
 
     this.dispatcher = createDispatcher({
@@ -74,17 +74,21 @@ class Noise {
   // ------------------------------------------------------------------ boot
 
   async boot() {
-    const { store, degraded, reason } = await createProfileStore();
+    const { store, degraded } = await createProfileStore();
     this.store = store;
     this.storeKind = store.kind;
-    if (degraded) {
-      $('storage-note').textContent =
-        `Local storage unavailable (${reason}). You can play, but nothing will be saved.`;
-    }
+
+    this.profile = await this.store.load(this.profileId);
+    this.dossier = Dossier.fromJSON(this.profile.dossier);
+    this.mode = SPAWNER_MODES.includes(this.profile.settings.spawnerMode)
+      ? this.profile.settings.spawnerMode
+      : 'full';
+    $('mode-select').value = this.mode;
+    this.renderer.showHeatmap = !!this.profile.settings.showHeatmap;
+    this.hud.setProfile(this.profile, this.storeKind);
     this.hud.dispatchStatus(webgpuAvailable() ? 'idle' : 'template',
       webgpuAvailable() ? null : 'no WebGPU in this browser');
 
-    await this.renderLaunch();
     this.wireChrome();
     this.input.attach();
     this.input.bindTouch($('touchpad'));
@@ -97,82 +101,28 @@ class Noise {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && this.running && !this.paused) this.togglePause(true);
     });
-  }
 
-  /** The launch screen: two slots, each showing what the system already knows. */
-  async renderLaunch() {
-    const host = $('slots');
-    host.innerHTML = '';
-    for (const id of PROFILE_IDS) {
-      const rec = await this.store.peek(id);
-      const dossier = new Dossier(rec?.dossier);
-      const runs = rec?.runs?.length ?? 0;
-      const strongest = dossier.strongest(1)[0];
-      const btn = document.createElement('button');
-      btn.className = 'slot';
-      btn.type = 'button';
-      btn.innerHTML =
-        `<h2>${id === 'main' ? 'MAIN' : 'GUEST'}</h2>` +
-        `<div class="slot-meta">` +
-        `<span>unlocked<b>district ${rec?.level ?? 1}</b></span>` +
-        `<span>runs logged<b>${runs}</b></span>` +
-        `<span>file depth<b>${dossier.levelsSeen} level${dossier.levelsSeen === 1 ? '' : 's'}</b></span>` +
-        `<span>tier-2 confidence<b>${Math.round(dossier.confidence() * 100)}%</b></span>` +
-        `</div>` +
-        `<p class="slot-hint">${strongest
-          ? `strongest habit: ${strongest.key} ${strongest.z > 0 ? '+' : ''}${strongest.z.toFixed(2)}sd`
-          : (id === 'main' ? 'no file yet — the system starts blind' : 'hand the laptop over; the system starts blind again')}</p>`;
-      btn.addEventListener('click', () => this.enterProfile(id));
-      host.appendChild(btn);
+    this.startLevel(Math.min(this.profile.level, 99));
+
+    if (!this.modelLoadTimer && this.profile.settings.dispatchEnabled) {
+      this.modelLoadTimer = setTimeout(() => this.dispatcher.load(), MODEL_LOAD_DELAY_MS);
     }
+    if (degraded) console.warn('[noise] progress will not be saved this session');
   }
 
   wireChrome() {
     $('mode-select').addEventListener('change', (e) => this.setMode(e.target.value));
-    $('btn-switch').addEventListener('click', () => this.leaveProfile());
+    $('btn-switch').addEventListener('click', () => { window.location.href = 'index.html'; });
     $('btn-reset').addEventListener('click', () => this.resetProfile());
     $('overlay-primary').addEventListener('click', () => this.overlayPrimary());
     $('overlay-secondary').addEventListener('click', () => this.startLevel(this.level.level));
   }
 
-  // --------------------------------------------------------------- profiles
-
-  async enterProfile(id) {
-    this.profile = await this.store.load(id);
-    this.dossier = Dossier.fromJSON(this.profile.dossier);
-    this.chains.clear();
-    this.mode = SPAWNER_MODES.includes(this.profile.settings.spawnerMode)
-      ? this.profile.settings.spawnerMode
-      : 'full';
-    $('mode-select').value = this.mode;
-    this.renderer.showHeatmap = !!this.profile.settings.showHeatmap;
-    this.hud.setProfile(this.profile, this.storeKind);
-
-    $('launch').hidden = true;
-    $('game').hidden = false;
-
-    this.startLevel(Math.min(this.profile.level, 99));
-
-    // Lazy load, after the first level is already playable.
-    if (!this.modelLoadTimer && this.profile.settings.dispatchEnabled) {
-      this.modelLoadTimer = setTimeout(() => this.dispatcher.load(), MODEL_LOAD_DELAY_MS);
-    }
-  }
-
-  leaveProfile() {
-    this.running = false;
-    this.paused = false;
-    $('game').hidden = true;
-    $('launch').hidden = false;
-    $('overlay').hidden = true;
-    this.renderLaunch();
-  }
-
   async resetProfile() {
     const name = this.profile.displayName;
     if (!window.confirm(
-      `Wipe ${name}? This clears the dossier, every logged run and all unlocked districts. ` +
-      `The other profile is untouched.`)) return;
+      `Wipe ${name}? This clears the dossier, every logged run, the settled difficulty and ` +
+      `all unlocked districts. The other profile is untouched.`)) return;
     this.profile = await this.store.resetActive();
     this.dossier = Dossier.fromJSON(this.profile.dossier);
     this.chains.clear();
@@ -198,15 +148,33 @@ class Noise {
     if (what === 'intercepts') this.renderer.showIntercepts = !this.renderer.showIntercepts;
   }
 
-  // ------------------------------------------------------------------ level
+  // ------------------------------------------------------------------ difficulty
+
+  /**
+   * Difficulty is settled ONCE per district and then reused on every retry.
+   *
+   * Re-running the controller on each attempt makes a district get harder every time you
+   * lose it, which reads as the game punishing failure rather than adapting to you. What
+   * your movement tunes is the districts you have not reached yet: the controller reads
+   * the last five runs -- how long you survived and how predictable your route was -- and
+   * settles the NEXT district the first time you walk into it.
+   */
+  resolveFor(level) {
+    const params = levelParams(level);
+    if (this.mode !== 'full') {
+      return { tau: params.tauBase, lambdaScale: 1, controller: null, settled: false };
+    }
+    const stored = this.store.settledDifficulty(level);
+    if (stored) {
+      return { tau: stored.tau, lambdaScale: stored.lambdaScale, controller: stored, settled: true };
+    }
+    const fresh = resolveDifficulty({ mode: this.mode, params, runs: this.store.recentRuns(5) });
+    this.store.rememberDifficulty(level, fresh.controller || fresh);
+    return { ...fresh, settled: false };
+  }
 
   applyDifficulty() {
-    const params = this.level ? this.level.params : levelParams(1);
-    this.difficulty = resolveDifficulty({
-      mode: this.mode,
-      params,
-      runs: this.store.recentRuns(5),
-    });
+    this.difficulty = this.resolveFor(this.level ? this.level.level : 1);
     if (this.system) this.system.tau = this.difficulty.tau;
     if (this.game) {
       this.game.tau = this.difficulty.tau;
@@ -215,12 +183,15 @@ class Noise {
     this.hud.setMode(this.mode, this.difficulty);
   }
 
+  // ------------------------------------------------------------------ district
+
   startLevel(n) {
     const params = levelParams(n);
+    this.attempt++;
     this.level = generateLevel(this.profile.id, n, { pool: this.pool, params });
     this.level.regions.adjacency ||= regionAdjacency(this.level.map, this.level.regions);
 
-    this.difficulty = resolveDifficulty({ mode: this.mode, params, runs: this.store.recentRuns(5) });
+    this.difficulty = this.resolveFor(n);
 
     this.system = createSystem({
       level: this.level,
@@ -235,6 +206,14 @@ class Noise {
       level: this.level,
       params,
       pool: this.pool,
+      /**
+       * A fresh seed per attempt, derived rather than drawn: the map is fixed by
+       * hash(profile, district), but the run -- which includes where the portal opens --
+       * has to differ between attempts or restarting hands the player a route they have
+       * already memorised. Still no Math.random anywhere; the attempt index and the
+       * profile's logged-run count are the entropy, so a given attempt is reproducible.
+       */
+      seed: hashString(`${this.profile.id}#${n}#${this.profile.runs?.length ?? 0}#${this.attempt}`),
       spawnPolicy: this.system.spawnPolicy,
       observer: this.system.observer,
       tau: this.difficulty.tau,
@@ -308,7 +287,7 @@ class Noise {
     this.game.step(dir);
 
     // The predictor is queried once per tick for the panels and the heatmap. The spawner
-    // queries it independently when it actually needs a cell; this one is for the player.
+    // and the squad query it independently when they need a cell.
     this.prediction = this.system.predictNow(this.game.view);
     this.hud.prediction(this.prediction, this.game);
 
@@ -324,7 +303,7 @@ class Noise {
 
   syncSpawnLog() {
     for (let i = this.seenSpawns; i < this.game.spawnLog.length; i++) {
-      this.hud.spawn(this.game.spawnLog[i], this.game.regions);
+      this.hud.spawn(this.game.spawnLog[i]);
     }
     this.seenSpawns = this.game.spawnLog.length;
   }
@@ -336,7 +315,7 @@ class Noise {
       this.showOverlay({
         kind: 'paused',
         title: 'HELD',
-        body: 'The grid is still watching. Space or Escape to resume.',
+        body: 'They are still looking. Space or Escape to resume.',
         stats: this.runStats(),
         primary: 'resume',
         secondary: 'restart district',
@@ -360,21 +339,20 @@ class Noise {
       if (summary.won) await this.store.unlockLevel(this.level.level + 1);
       this.profile = this.store.current();
     } catch (err) {
-      console.warn('[main] persistence failed on run end:', err?.message);
+      console.warn('[play] persistence failed on run end:', err?.message);
     }
 
     this.hud.dossier(this.dossier, this.system.chain);
-    this.applyDifficulty();
     this.requestDispatch();
 
     const next = this.level.level + 1;
     if (summary.won) {
       this.showOverlay({
         kind: 'won',
-        title: 'DELIVERED',
+        title: 'THROUGH THE PORTAL',
         body: next > CURVE_CAP
-          ? `District ${this.level.level} is clear. The curve caps at ${CURVE_CAP}, so from here the districts keep coming and the file keeps thickening.`
-          : `District ${this.level.level} is clear. Your file follows you to district ${next}.`,
+          ? `District ${this.level.level} is behind you. The curve caps at ${CURVE_CAP}, so from here the districts keep coming and the file keeps thickening.`
+          : `District ${this.level.level} is behind you. Your file follows you to district ${next}.`,
         stats: this.runStats(summary),
         primary: `enter district ${next}`,
         secondary: 'replay this district',
@@ -382,11 +360,12 @@ class Noise {
     } else {
       this.showOverlay({
         kind: 'lost',
-        title: summary.loseReason === 'timeout' ? 'TIMED OUT' : 'INTERCEPTED',
+        title: summary.loseReason === 'timeout' ? 'TIMED OUT' : 'CAUGHT',
         body: summary.loseReason === 'timeout'
-          ? 'The courier window closed. The run still went into your file.'
-          : `A unit walked into you after ${(summary.ticks / TICKS_PER_SECOND).toFixed(1)}s. ` +
-            `The run still went into your file — that is the point.`,
+          ? 'The window closed. The run still went into your file.'
+          : `They reached you after ${(summary.ticks / TICKS_PER_SECOND).toFixed(1)}s. ` +
+            `The run still went into your file — that is the point. This district will not ` +
+            `get harder because you lost it.`,
         stats: this.runStats(summary),
         primary: 'run it again',
         secondary: 'replay this district',
@@ -396,22 +375,26 @@ class Noise {
 
   runStats(summary = null) {
     const s = summary || this.game.summary();
-    const band = this.difficulty.controller;
-    return [
+    const c = this.difficulty.controller;
+    const rows = [
       ['noise index', `${s.score} / 1000`],
       ['visit entropy', `${s.entropy.toFixed(2)} bits`],
       ['survived', `${(s.ticks / TICKS_PER_SECOND).toFixed(1)}s`],
-      ['caches', `${s.collected}/${s.caches}`],
+      ['keys', `${s.collected}/${s.caches}`],
       ['times seen', String(s.detections)],
-      ['units sent', String(s.spawns)],
-      ['file depth', `${this.dossier.levelsSeen} levels`],
+      ['aliens at peak', String(s.peakAliens ?? 0)],
+      ['divisions', String(s.splits ?? 0)],
+      ['bolts used', String(s.boostsUsed ?? 0)],
+      ['file depth', `${this.dossier.levelsSeen} districts`],
       ['temperature τ', this.difficulty.tau.toFixed(2)],
-      band && band.meanSurvival !== null
-        ? ['controller', band.acting
-          ? `${band.error > 0 ? 'tightening' : 'easing'} (mean ${(band.meanSurvival / TICKS_PER_SECOND).toFixed(0)}s)`
-          : `holding (mean ${(band.meanSurvival / TICKS_PER_SECOND).toFixed(0)}s in band)`]
-        : ['controller', this.mode === 'full' ? 'no history yet' : 'off in this mode'],
-    ].filter(Boolean);
+    ];
+    if (this.mode !== 'full') rows.push(['controller', 'off in this mode']);
+    else if (!c || c.meanSurvival == null) rows.push(['controller', 'no history yet']);
+    else {
+      rows.push(['settled from', `${(c.meanSurvival / TICKS_PER_SECOND).toFixed(0)}s survival` +
+        (c.meanEntropy != null ? `, noise ${Math.round(c.meanEntropy * 1000)}` : '')]);
+    }
+    return rows;
   }
 
   showOverlay({ kind, title, body, stats, primary, secondary }) {
@@ -450,7 +433,10 @@ class Noise {
   }
 }
 
-const app = new Noise();
+const requested = new URLSearchParams(window.location.search).get('p');
+const profileId = PROFILE_IDS.includes(requested) ? requested : 'main';
+
+const app = new Play(profileId);
 app.boot().catch((err) => {
   console.error('[noise] boot failed', err);
   document.body.innerHTML =

@@ -29,8 +29,16 @@ export function effectiveSurvival(run) {
   return run.won ? Math.max(run.ticks || 0, WIN_HORIZON) : (run.ticks || 0);
 }
 
+/**
+ * The movement target: normalised visit entropy the curve assumes of an average player.
+ * Below it the player is legible and the system leans harder on prediction; above it
+ * prediction has little left to exploit and the temperature relaxes.
+ */
+export const ENTROPY_TARGET = 0.55;
+
 export const CONTROLLER = Object.freeze({
   gain: 0.45,         // proportional gain on normalised band error
+  entropyGain: 0.40,  // proportional gain on how predictable the player's movement is
   window: 5,          // runs averaged, per the spec
   tauMin: 0.25,
   tauMax: 3.0,
@@ -91,8 +99,30 @@ export function levelParams(level) {
      */
     initialPatrols: 1,
     /** Detection radius in cells, halved when the player stands in cover. */
-    detectRadius: lerp(5.0, 6.0, t),
+    /**
+     * Detection radius, halved while the player stands in water.
+     *
+     * Pulled down from 5.0-6.0 when the aliens learned to cross rubble: they now reach
+     * you through buildings, so the same radius buys them appreciably more.
+     */
+    detectRadius: lerp(4.6, 5.6, t),
     coverDensity: lerp(0.15, 0.09, t),
+    /** Broken buildings: rubble the human walks around and the aliens walk through. */
+    buildings: Math.round(lerp(3, 7, t)),
+    /** Lightning bolts per district, [min, max]. */
+    boltsPerDistrict: [1, 2],
+    /** Ticks of double speed a bolt grants. 3 seconds at 8 ticks/s. */
+    boostTicks: 24,
+    /** Cells per tick while boosted. */
+    boostSpeed: 2,
+    /**
+     * A randomly chosen alien splits in two somewhere in this window, then the window
+     * is redrawn. Random rather than a fixed metronome so the player cannot simply
+     * count to ten, and seeded so a run is still reproducible.
+     */
+    splitIntervalTicks: [10 * TICKS_PER_SECOND, 15 * TICKS_PER_SECOND],
+    /** Retry delay when no alien can divide without crowding the player. */
+    splitDeferTicks: 16,
     /** Softmax temperature before the controller touches it. Lower = sharper interception. */
     tauBase: lerp(1.40, 0.55, t),
     /** Ticks of immunity at the start of a run so a run never dies before it starts. */
@@ -119,40 +149,81 @@ export function levelParams(level) {
      */
     chaseMovePeriod: lerp(1.75, 1.5, t),
     patrolMovePeriod: 2.5,
+    /** How often the squad re-plans who covers which district. */
+    coordEvery: 6,
     /** Spawner rejection-sampling constraints. */
-    spawnMinDist: 8,
-    spawnMaxDist: 18,
+    /**
+     * Minimum arrival distance, measured as the ALIEN travels. Raised from the spec's 8
+     * for the same reason as the radius: eight cells through a building is a much shorter
+     * walk than eight cells around one.
+     */
+    spawnMinDist: 11,
+    spawnMaxDist: 20,
     spawnTries: 30,
   };
 }
 
 /**
- * Proportional controller over the last `window` runs.
- * Above the band the system gets sharper (lower tau) and busier (higher lambda);
- * below the band it relaxes. Inside the band it does nothing -- the deadband is what
- * stops a player who is exactly on target from being nudged every single run.
+ * Proportional controller over the last `window` runs, on two signals.
  *
- * @param {Array<{ticks:number}>} runs  most recent last
- * @param {object} params               output of levelParams
+ * SURVIVAL decides pressure. Above the band the system gets busier (higher lambda);
+ * below it, calmer. Inside the band it does nothing -- the deadband is what stops a
+ * player who is exactly on target from being nudged every single run.
+ *
+ * MOVEMENT decides sharpness. The player's own normalised visit entropy says how legible
+ * they have been, and temperature is the knob that exploits legibility: a player who
+ * walks the same three districts every run gets a system that commits to the modal
+ * guess, and a player who genuinely wanders gets one that admits it does not know. This
+ * is the half of the controller that reads how someone MOVES rather than how long they
+ * lasted, and it is what makes the difficulty curve personal rather than ordinal.
+ *
+ * IMPORTANT, and this is a design rule rather than an implementation detail: the result
+ * is computed ONCE per district and then frozen for every retry of that district (see
+ * ProfileStore.rememberDifficulty). Re-running the controller on each attempt means a
+ * player who dies twice finds the third attempt harder than the first, which reads as
+ * the game punishing them for losing. Tuning applies to districts they have not reached
+ * yet.
+ *
+ * @param {Array<{ticks:number, won:boolean, score:number}>} runs  most recent last
+ * @param {object} params                                           output of levelParams
  */
 export function adaptDifficulty(runs = [], params) {
   const recent = runs.slice(-CONTROLLER.window);
-  const base = { tau: params.tauBase, lambdaScale: 1, meanSurvival: null, error: 0, acting: false };
+  const base = {
+    tau: params.tauBase, lambdaScale: 1,
+    meanSurvival: null, meanEntropy: null,
+    error: 0, entropyError: 0, acting: false,
+  };
   if (recent.length === 0) return base;
 
   let sum = 0;
   for (const r of recent) sum += effectiveSurvival(r);
-  const mean = sum / recent.length;
+  const meanSurvival = sum / recent.length;
   const centre = (SURVIVAL_BAND.lo + SURVIVAL_BAND.hi) / 2;
 
   let error = 0;
-  if (mean > SURVIVAL_BAND.hi) error = (mean - SURVIVAL_BAND.hi) / centre;
-  else if (mean < SURVIVAL_BAND.lo) error = (mean - SURVIVAL_BAND.lo) / centre;
+  if (meanSurvival > SURVIVAL_BAND.hi) error = (meanSurvival - SURVIVAL_BAND.hi) / centre;
+  else if (meanSurvival < SURVIVAL_BAND.lo) error = (meanSurvival - SURVIVAL_BAND.lo) / centre;
 
-  const tau = clamp(params.tauBase * (1 - CONTROLLER.gain * error), CONTROLLER.tauMin, CONTROLLER.tauMax);
+  // Normalised visit entropy, as the HUD's noise index already reports it.
+  const scored = recent.filter((r) => Number.isFinite(r.score));
+  const meanEntropy = scored.length
+    ? scored.reduce((a, r) => a + r.score / 1000, 0) / scored.length
+    : null;
+  const entropyError = meanEntropy === null ? 0 : (meanEntropy - ENTROPY_TARGET) / ENTROPY_TARGET;
+
+  const tau = clamp(
+    params.tauBase * (1 - CONTROLLER.gain * error + CONTROLLER.entropyGain * entropyError),
+    CONTROLLER.tauMin, CONTROLLER.tauMax,
+  );
   const lambdaScale = clamp(1 + CONTROLLER.gain * error, CONTROLLER.lambdaScaleMin, CONTROLLER.lambdaScaleMax);
 
-  return { tau, lambdaScale, meanSurvival: mean, error, acting: error !== 0 };
+  return {
+    tau, lambdaScale,
+    meanSurvival, meanEntropy,
+    error, entropyError,
+    acting: error !== 0 || Math.abs(entropyError) > 0.05,
+  };
 }
 
 export const ticksToSeconds = (ticks) => ticks / TICKS_PER_SECOND;

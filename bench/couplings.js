@@ -48,9 +48,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const TARGET = join(here, '..', 'sim', 'predictor', 'couplings.js');
 
 const WEIGHT_GRID = [0.4, 0.7, 1.0, 1.4];
-const MAX_TERMS = 12;            // the spec's own "cut the list to 12 or so"
-const MIN_GAIN = 0.0005;         // stop when the next term buys less than this
-const REGRESSION_PENALTY = 2.0;  // multiplier on any bot left worse than chain-only
+const MAX_TERMS = Number(process.env.MAX_TERMS || 12);   // the spec's own "cut the list to 12 or so"
+const MIN_GAIN = Number(process.env.MIN_GAIN || 0.0005); // stop when the next term buys less than this
+const REGRESSION_PENALTY = Number(process.env.REG_PENALTY || 2.0); // on any bot left worse than chain-only
 
 /**
  * Record (projection, features, deviation, truth) tuples by playing careers.
