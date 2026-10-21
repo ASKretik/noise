@@ -1,0 +1,20 @@
+{
+  "name": "noise",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "NOISE - a browser stealth game whose enemy spawner predicts where you are going.",
+  "scripts": {
+    "serve": "node tools/serve.mjs",
+    "test": "node bench/acceptance.js",
+    "bench": "node bench/run.js",
+    "plots": "node bench/plots.js",
+    "priors": "node bench/priors.js",
+    "couplings": "node bench/couplings.js",
+    "build:docs": "node tools/build-docs.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
