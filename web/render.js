@@ -16,20 +16,20 @@
 // frame rate.
 
 import { TILE, DIRS } from '../sim/grid.js';
+import { themeFor } from './themes.js';
 
+/**
+ * Entity colours, identical in every belt.
+ *
+ * These are the game's vocabulary: gold means a key, the four coin colours mean 1/2/5/10,
+ * red means alien. Repainting them per belt would force the player to relearn the board
+ * every ten districts. Only the TERRAIN changes, and it comes from web/themes.js.
+ */
 export const COLORS = {
   bg: '#0b0906',
-  ground: '#4a3a2a',
-  groundAlt: '#514032',
-  groundSpeck: 'rgba(28,20,13,0.5)',
-  wall: '#16100b',
-  wallEdge: '#2b2018',
-  water: '#1b4a5e',
-  waterDeep: '#143a4b',
-  waterGlint: 'rgba(150,224,255,0.30)',
-  building: '#39332c',
-  buildingTop: '#4a4239',
-  buildingCrack: '#15110d',
+  groundSpeck: 'rgba(0,0,0,0.42)',
+  waterGlint: 'rgba(170,232,255,0.32)',
+  buildingCrack: 'rgba(0,0,0,0.6)',
   key: '#ffc93b',
   bolt: '#ffe66d',
   /** Coin colours by denomination. Worth is readable without counting. */
@@ -37,12 +37,15 @@ export const COLORS = {
   coin2: '#cfd8e3',
   coin5: '#ffc93b',
   coin10: '#c87bff',
-  safeFill: 'rgba(6,5,4,0.76)',
+  safeFill: 'rgba(5,5,7,0.80)',
   safeEdge: 'rgba(180,196,214,0.38)',
   stunned: '#6d6a74',
   spark: '#9fd8ff',
   human: '#f2f6ff',
   humanHidden: '#8fd9ff',
+  humanJacket: '#5c6a86',
+  humanLimb: '#44506b',
+  humanHair: '#23262f',
   alien: '#ff4d5e',
   alienCalm: '#c9414f',
   alienEye: '#ffe9ec',
@@ -67,6 +70,18 @@ export class Renderer {
     this._mapCache = null;
     this._mapKey = null;
     this.frame = 0;
+    /** Terrain palette for the belt of ten this district belongs to. */
+    this.theme = themeFor(1);
+  }
+
+  /** Belt palette. Changing it invalidates the cached terrain layer. */
+  setDistrict(level) {
+    const next = themeFor(level);
+    if (next !== this.theme) {
+      this.theme = next;
+      this._mapKey = null;
+    }
+    return this.theme;
   }
 
   /** Size the backing store to the device pixel ratio and the map's aspect. */
@@ -96,14 +111,15 @@ export class Renderer {
    * and blitted. At 8 Hz this hardly matters; on a phone at 60 fps it does.
    */
   _staticLayer(map, level) {
-    const key = `${level.seed}:${level.level}:${this.tile}`;
+    const key = `${level.seed}:${level.level}:${this.tile}:${this.theme.name}`;
     if (this._mapKey === key) return this._mapCache;
     const t = this.tile;
     const off = document.createElement('canvas');
     off.width = map.w * t;
     off.height = map.h * t;
     const c = off.getContext('2d');
-    c.fillStyle = COLORS.bg;
+    const T = this.theme.terrain;
+    c.fillStyle = T.wall;
     c.fillRect(0, 0, off.width, off.height);
 
     // A cheap deterministic hash per cell, so speckle and cracks stay put between frames.
@@ -118,13 +134,13 @@ export class Renderer {
         const px = x * t, py = y * t;
 
         if (tile === TILE.WALL) {
-          c.fillStyle = COLORS.wall;
+          c.fillStyle = T.wall;
           c.fillRect(px, py, t, t);
           continue;
         }
 
-        // --- ground: brown, lightly flecked so it does not read as flat paint ---
-        c.fillStyle = (x + y) % 2 === 0 ? COLORS.ground : COLORS.groundAlt;
+        // --- ground: lightly flecked so it does not read as flat paint ---
+        c.fillStyle = (x + y) % 2 === 0 ? T.ground : T.groundAlt;
         c.fillRect(px, py, t, t);
         const n = noise(x, y);
         if (n > 0.62) {
@@ -136,11 +152,11 @@ export class Renderer {
 
         if (tile === TILE.COVER) {
           // --- water: a shallow pool with a lighter rim and two glints ---
-          c.fillStyle = COLORS.water;
+          c.fillStyle = T.water;
           c.beginPath();
           c.ellipse(px + t / 2, py + t / 2, t * 0.46, t * 0.40, 0, 0, Math.PI * 2);
           c.fill();
-          c.fillStyle = COLORS.waterDeep;
+          c.fillStyle = T.waterDeep;
           c.beginPath();
           c.ellipse(px + t / 2, py + t / 2 + t * 0.05, t * 0.33, t * 0.26, 0, 0, Math.PI * 2);
           c.fill();
@@ -159,7 +175,9 @@ export class Renderer {
           // it is the one place on the map nothing can see into.
           c.fillStyle = COLORS.safeFill;
           c.fillRect(px, py, t, t);
-          c.strokeStyle = COLORS.safeEdge;
+          // Edged in the belt's accent so it still belongs to this district, but the
+          // fill stays black everywhere: the box reads as a hole, and a hole has no hue.
+          c.strokeStyle = this.theme.accent;
           c.lineWidth = 1;
           c.setLineDash([3, 3]);
           c.strokeRect(px + 0.5, py + 0.5, t - 1, t - 1);
@@ -168,12 +186,12 @@ export class Renderer {
 
         if (tile === TILE.BUILDING) {
           // --- broken building: a slab with a chipped top edge and a crack ---
-          c.fillStyle = COLORS.building;
+          c.fillStyle = T.building;
           c.fillRect(px + 1, py + 1, t - 2, t - 2);
-          c.fillStyle = COLORS.buildingTop;
+          c.fillStyle = T.buildingTop;
           const chip = Math.round(n * 4);
           c.fillRect(px + 1, py + 1, t - 2, 3);
-          c.fillStyle = COLORS.building;
+          c.fillStyle = T.building;
           c.fillRect(px + 1 + chip, py + 1, 3, 3);
           c.fillRect(px + t - 6 - chip, py + 1, 3, 3);
           c.strokeStyle = COLORS.buildingCrack;
@@ -193,7 +211,7 @@ export class Renderer {
 
     // Wall edges: a one-pixel lip where ground meets wall, which is what makes the layout
     // readable at a glance instead of a field of flat blocks.
-    c.strokeStyle = COLORS.wallEdge;
+    c.strokeStyle = T.wallEdge;
     c.lineWidth = 1;
     c.beginPath();
     for (let y = 0; y < map.h; y++) {
@@ -294,27 +312,107 @@ export class Renderer {
     ctx.restore();
   }
 
-  /** The human: head, shoulders, legs. Small, upright, obviously a person. */
-  _drawHuman(ctx, cx, cy, t, hidden, boosted) {
+  /**
+   * The human. Head with hair and a face, shoulders, a jacket, swinging arms and
+   * alternating legs, and it turns to face the way it is walking.
+   *
+   * Detail at a 20-to-26 pixel tile has to come from silhouette and two or three tones,
+   * not from linework -- anything finer turns to mush. So: a dark hair cap and dark eyes
+   * against the bright body give the head a readable front and back, a dimmer jacket
+   * breaks the torso out of the limbs, and the limbs move. Facing is what sells it as a
+   * person rather than a token: the eyes disappear when walking away from the camera.
+   */
+  _drawHuman(ctx, cx, cy, t, hidden, boosted, dir, moving, phase) {
     const s = t / 26;
+    const body = hidden ? COLORS.humanHidden : COLORS.human;
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.fillStyle = hidden ? COLORS.humanHidden : COLORS.human;
-    ctx.shadowColor = boosted ? COLORS.bolt : ctx.fillStyle;
-    ctx.shadowBlur = boosted ? 14 : (hidden ? 4 : 9);
-    ctx.beginPath();
-    ctx.arc(0, -5.2 * s, 3.1 * s, 0, Math.PI * 2);   // head
-    ctx.fill();
+
+    if (boosted) { ctx.shadowColor = COLORS.bolt; ctx.shadowBlur = 14; }
+    else if (!hidden) { ctx.shadowColor = body; ctx.shadowBlur = 7; }
+
+    const swing = moving ? Math.sin(phase * 7) : 0;
+    const facingUp = dir === 0;
+    const facingSide = dir === 1 || dir === 3;
+    const flip = dir === 3 ? -1 : 1;
+
+    // ---- legs, behind everything ----
     ctx.shadowBlur = 0;
-    ctx.beginPath();                                   // torso
-    ctx.moveTo(-3.4 * s, -1.8 * s);
-    ctx.lineTo(3.4 * s, -1.8 * s);
-    ctx.lineTo(2.3 * s, 4.2 * s);
-    ctx.lineTo(-2.3 * s, 4.2 * s);
+    ctx.fillStyle = COLORS.humanLimb;
+    const legSwing = swing * 2.0 * s;
+    ctx.fillRect(-2.9 * s + (facingSide ? legSwing : 0), 3.6 * s, 2.1 * s, 4.8 * s + (facingSide ? 0 : legSwing));
+    ctx.fillRect(0.8 * s - (facingSide ? legSwing : 0), 3.6 * s, 2.1 * s, 4.8 * s - (facingSide ? 0 : legSwing));
+
+    // ---- arms ----
+    ctx.fillStyle = body;
+    const armSwing = swing * 2.4 * s;
+    ctx.save();
+    ctx.translate(-4.1 * s, -0.6 * s);
+    ctx.rotate(armSwing * 0.14);
+    ctx.fillRect(-0.9 * s, 0, 1.8 * s, 5.0 * s);
+    ctx.restore();
+    ctx.save();
+    ctx.translate(4.1 * s, -0.6 * s);
+    ctx.rotate(-armSwing * 0.14);
+    ctx.fillRect(-0.9 * s, 0, 1.8 * s, 5.0 * s);
+    ctx.restore();
+
+    // ---- torso: a jacket, so the trunk is not the same block as the limbs ----
+    ctx.fillStyle = COLORS.humanJacket;
+    ctx.beginPath();
+    ctx.moveTo(-3.8 * s, -2.4 * s);
+    ctx.lineTo(3.8 * s, -2.4 * s);
+    ctx.lineTo(3.0 * s, 4.2 * s);
+    ctx.lineTo(-3.0 * s, 4.2 * s);
     ctx.closePath();
     ctx.fill();
-    ctx.fillRect(-2.4 * s, 4.0 * s, 1.7 * s, 4.0 * s); // legs
-    ctx.fillRect(0.7 * s, 4.0 * s, 1.7 * s, 4.0 * s);
+    // collar
+    ctx.fillStyle = body;
+    ctx.fillRect(-3.8 * s, -2.4 * s, 7.6 * s, 1.1 * s);
+    // a seam down the front, only when we can see the front
+    if (!facingUp) {
+      ctx.fillStyle = 'rgba(0,0,0,0.30)';
+      ctx.fillRect(-0.35 * s, -1.3 * s, 0.7 * s, 5.5 * s);
+    }
+
+    // ---- head ----
+    ctx.fillStyle = body;
+    if (boosted) { ctx.shadowColor = COLORS.bolt; ctx.shadowBlur = 10; }
+    ctx.beginPath();
+    ctx.arc(0, -6.4 * s, 3.5 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Hair: a cap over the crown only. The first version sat low enough to read as
+    // sunglasses -- it has to leave most of the face showing or the eyes have nowhere
+    // to be.
+    ctx.fillStyle = COLORS.humanHair;
+    ctx.beginPath();
+    ctx.arc(facingSide ? -0.45 * s * flip : 0, -7.5 * s, 3.5 * s, Math.PI * 0.98, Math.PI * 2.02);
+    ctx.fill();
+    if (facingUp) {
+      // walking away: the back of the head is all hair
+      ctx.beginPath();
+      ctx.arc(0, -6.4 * s, 3.5 * s, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // eyes, only when the face is toward the camera
+    if (!facingUp) {
+      ctx.fillStyle = COLORS.humanHair;
+      if (facingSide) {
+        ctx.beginPath();
+        ctx.arc(1.45 * s * flip, -5.9 * s, 0.66 * s, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        for (const ex of [-1.35, 1.35]) {
+          ctx.beginPath();
+          ctx.arc(ex * s, -5.9 * s, 0.6 * s, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
     ctx.restore();
   }
 
@@ -530,7 +628,10 @@ export class Renderer {
       ctx.arc(plx, ply, t * 0.46, phase % (Math.PI * 2), (phase % (Math.PI * 2)) + Math.PI * 1.2);
       ctx.stroke();
     }
-    this._drawHuman(ctx, plx, ply, t, hidden, game.boosted);
+    this._drawHuman(
+      ctx, plx, ply, t, hidden, game.boosted,
+      pl.dir, !!(prevP && (prevP.x !== pl.x || prevP.y !== pl.y)), phase,
+    );
 
     if (hidden) {
       // The player's own halved ring, so the benefit is attached to them, not inferred.

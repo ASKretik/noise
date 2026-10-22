@@ -12,9 +12,10 @@ export const SHOP = Object.freeze({
     label: 'Stun gun',
     price: 500,
     kind: 'once',
-    blurb: `Holds ${STUN_GUN_CAPACITY} charges and arrives loaded. Press E to fire: every alien ` +
-      `whose detection range you are currently standing in is stunned for five seconds, ` +
-      `one charge each.`,
+    blurb: `The frame only. Holds up to ${STUN_GUN_CAPACITY} charges and arrives EMPTY — buy ` +
+      `charges separately. Press E to fire: every alien whose detection range you are ` +
+      `currently standing in is stunned for five seconds, one charge each, and a stunned ` +
+      `alien is inert, so you can walk straight over it.`,
   },
   bullet: {
     id: 'bullet',
@@ -85,9 +86,9 @@ export function applyPurchase(wallet, inventory, itemId, qty = 1) {
   const nextWallet = { ...wallet, coins: wallet.coins - check.cost };
   const nextInv = { ...inventory };
   if (itemId === 'stunGun') {
+    // Deliberately EMPTY. A gun that arrives loaded makes the first six charges free and
+    // the charge price meaningless; buying the frame and then arming it is the decision.
     nextInv.stunGun = true;
-    // Arrives loaded, which is why the gun costs five bullets' worth rather than one.
-    nextInv.bullets = STUN_GUN_CAPACITY;
   } else if (itemId === 'bullet') {
     nextInv.bullets = Math.min(STUN_GUN_CAPACITY, nextInv.bullets + check.qty);
   } else if (itemId === 'boltSecond') {

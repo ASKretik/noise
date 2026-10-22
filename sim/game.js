@@ -382,7 +382,7 @@ export class Game {
     if (this.loadout.bullets <= 0) return { fired: 0, spent: 0, reason: 'out of charges' };
 
     const inRange = this.patrols.filter((p) => (
-      (p.stunnedUntil || 0) <= this.tick &&
+      !this._isInert(p) &&
       euclid(p.x, p.y, this.player.x, this.player.y) <= this.effectiveRadius
     ));
     if (inRange.length === 0) return { fired: 0, spent: 0, reason: 'nothing in range' };
@@ -633,7 +633,7 @@ export class Game {
       this.firstEncounterTick = this.tick;
     }
     for (const p of this.patrols) {
-      if ((p.stunnedUntil || 0) > this.tick) continue;     // a stunned alien sees nothing
+      if (this._isInert(p)) continue;                      // a stunned alien sees nothing
       if (euclid(p.x, p.y, this.player.x, this.player.y) <= this.effectiveRadius) {
         detectedNow = true;
         break;
@@ -789,14 +789,29 @@ export class Game {
    * that cap (see _maybeSplit), which is the only way the count grows past it.
    */
 
+  /**
+   * A stunned alien is inert for the whole five seconds: it cannot see, cannot move, and
+   * cannot catch you. Walking over one is free.
+   *
+   * This is what makes the stun gun worth 500 coins. Without it the charge buys a pause
+   * and nothing else -- you would still have to go around something lying on the floor,
+   * which in a one-wide corridor means the gun cannot open the route it was fired to
+   * open.
+   */
+  _isInert(p) { return (p.stunnedUntil || 0) > this.tick; }
+
   _collides() {
-    for (const p of this.patrols) if (p.x === this.player.x && p.y === this.player.y) return true;
+    for (const p of this.patrols) {
+      if (this._isInert(p)) continue;
+      if (p.x === this.player.x && p.y === this.player.y) return true;
+    }
     return false;
   }
 
-  /** The player and a patrol traded cells, which would otherwise let them pass through. */
+  /** The player and an alien traded cells, which would otherwise let them pass through. */
   _swapped(prev) {
     for (const p of this.patrols) {
+      if (this._isInert(p)) continue;
       if (p.prevX === this.player.x && p.prevY === this.player.y && p.x === prev.x && p.y === prev.y) return true;
     }
     return false;
@@ -877,7 +892,7 @@ export class Game {
 
     for (const p of this.patrols) {
       p.prevX = p.x; p.prevY = p.y;
-      if ((p.stunnedUntil || 0) > this.tick) continue;     // stunned: nothing moves
+      if (this._isInert(p)) continue;                      // stunned: nothing moves
 
       let field = null;
       if (hunting) {

@@ -694,3 +694,119 @@ npm run webcheck  27/27
 
 The single not-demonstrated criterion is #8, which needs a human: fixed-policy bots cannot
 become less predictable under pressure because they cannot perceive pressure at all.
+
+---
+
+# Round four — belts you can see, a person you can see, and a gun worth buying
+
+## R11 · The palettes never touched the game
+
+**Reported:** "the colour palette for tide is not different from rust. it is the looks the
+same brown tiles."
+
+**Correct, and the diagnosis is embarrassing but simple: the themes only ever coloured the
+hub cards.** `DISTRICT_THEMES` supplied an accent and a tint for the district widgets, and
+the renderer painted terrain from a fixed set of constants that happened to be brown. Belt
+eleven looked exactly like belt one because, in the district itself, it *was* belt one.
+
+**Built.** Each belt now carries a full `terrain` scheme — ground, ground alternate, wall,
+wall edge, water, deep water, building, building top — and the renderer takes the belt
+through `setDistrict(level)`. The cached terrain layer keys on the theme name, so crossing
+a belt boundary repaints it.
+
+| belt | districts | ground |
+|---|---|---|
+| RUST | 1–10 | warm brown |
+| TIDE | 11–20 | blue-grey stone, teal water |
+| MOSS | 21–30 | olive green |
+| EMBER | 31–40 | warm charcoal |
+| VIOLET | 41–50 | purple-grey |
+| ASH | 51–60 | neutral concrete |
+| CORAL | 61–70 | dusty rose |
+| JADE | 71–80 | deep green-teal |
+| SOLAR | 81–90 | bleached sand |
+| COBALT | 91–100 | deep blue steel |
+
+**[ASSUMED]** Coins, lightning, keys, aliens, the portal and the player keep the same
+colours in every belt, exactly as asked. Those are the game's vocabulary — gold means a
+five, red means alien — and repainting them per belt would force the player to relearn the
+board every ten districts. Only the *place* changes.
+
+**[ASSUMED]** EMBER and CORAL are a warm charcoal and a dusty rose rather than the red
+their names suggest. The aliens are red; a red floor would bury them.
+
+**[ASSUMED]** Black boxes stay black in every belt, edged in the belt accent. The box reads
+as a hole in the map, and a hole has no hue.
+
+**[FOUND] — buildings were nearly invisible, in every belt.** Rendering six sample
+districts to an image and looking at them turned up something the hex values alone did not:
+the building fill sat one shade off the ground. That is unacceptable for the one piece of
+terrain the player cannot cross and the aliens can — not seeing it means not understanding
+why something reached you. Every belt's building colour is now pitched roughly halfway
+between its ground and its wall, with a clearly lighter top edge.
+
+---
+
+## R12 · A person, not a token
+
+**Asked:** "make the human look more human, there is very less amount of details on the
+human's design."
+
+**Built.** Head with a hair crown and eyes, a collar, a jacket in a dimmer tone, arms that
+swing, legs that alternate, and the whole figure turns to face the way it is walking —
+walking away from the camera shows the back of the head with no eyes, walking sideways
+shows one.
+
+**[ASSUMED]** Detail at a 20-to-26 pixel tile has to come from silhouette and two or three
+tones, not linework — anything finer turns to mush. So the readable parts are a dark crown
+against a bright body, a dimmer jacket separating the trunk from the limbs, and motion.
+
+**[FOUND]** The first attempt put the hair cap low enough that it read as sunglasses: the
+face had nowhere to be. Caught by rendering the real `_drawHuman` and looking at it (see
+below), then fixed by raising the head and cutting the hair back to the crown.
+
+### How both of these were checked without a browser
+
+I still cannot open the game, so for this round I built two throwaway renderers in the
+scratchpad: one that emits a sample district as SVG from the belt palettes, and one that
+**records the actual `_drawHuman` canvas calls and replays them as SVG** — a tiny
+transform-aware shim over `save`/`restore`/`translate`/`rotate`/`fillRect`/`arc`/`fill`. The
+second matters because it renders the shipped code rather than a reimplementation of it.
+That is how the sunglasses and the invisible buildings were caught. It still proves nothing
+about CSS layout or the ambience.
+
+---
+
+## R13 · A stunned alien is inert
+
+**Asked:** "if you run into a stunned alien, it should not end the game, the stunned alien
+is void, it does nothing for the duration it is stunned."
+
+**Built.** `_isInert()` now gates collision and the swap check as well as sight and
+movement. For the full five seconds a stunned alien cannot see, cannot move, and cannot
+catch you — walking over one is free.
+
+This is what makes the gun worth 500 coins. Without it the charge bought a pause and
+nothing else: you would still have had to go around something lying on the floor, which in
+a one-wide corridor means the gun could not open the route it was fired to open.
+
+---
+
+## R14 · The gun arrives empty
+
+**Asked:** "when you buy the gun, it should not come preloaded. it should be empty, even at
+the first purchase. then only it makes sense to purchase the bullets."
+
+**Built.** The 500 coins buy the frame. Charges are 100 each, up to six, and the shop
+refuses them outright until the gun is owned. A full kit is now **1,100 coins** — gun plus
+six charges — which is roughly a full pass through districts 1 to 10.
+
+The old behaviour was mine, not yours, and it was wrong for exactly the reason you give:
+shipping six free charges made the first magazine free and the charge price decorative.
+
+## Current state
+
+```
+npm test          12 passed · 1 not demonstrated · 0 failed
+npm run webcheck  29/29
+```

@@ -56,14 +56,15 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
   // ---- the hub ----
   const hubDom = installDom({ webgpu, indexeddb, page: 'districts.html', search: '?p=main' });
   // Seed a tier the way the chooser would, so the hub has a finished save to render.
-  {
-    const { createProfileStore } = await import(`../web/persist.js?t=${Date.now()}`);
-    const { store } = await createProfileStore();
+  const { createProfileStore: mkStore } = await import(`../web/persist.js?t=${Date.now()}`);
+  const app0 = await (async () => {
+    const { store } = await mkStore();
     await store.load('main');
     store.chooseDifficulty('hard');
-    await store.addCoins(1200);
+    await store.addCoins(2000);
     await store.unlockLevel(4);
-  }
+    return { store };
+  })();
   await import(`../web/districts.js?t=${Date.now()}`);
   for (let i = 0; i < 60; i++) await Promise.resolve();
   await new Promise((r) => setTimeout(r, 20));
@@ -100,22 +101,35 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     if (items.length !== 3) throw new Error(`expected 3 shop items, got ${items.length}`);
     // Buying the gun must debit exactly 500 and arrive loaded.
     const coins = () => Number(hubDom.byId.get('wallet-coins').textContent.replace(/,/g, ''));
+    const inv = () => app0.store.current().inventory;
     const before = coins();
     const buyRow = (card) => card.children.find((c) => c.classList.contains('buy-row'));
+
+    // Charges cannot be bought before the gun exists.
+    const reloadsFirst = hubDom.byId.get('shop-grid').children[1];
+    if (!buyRow(reloadsFirst).children.every((b) => b.disabled)) {
+      throw new Error('charges were purchasable without owning a gun');
+    }
+
     buyRow(items[0]).children[0].fire('click');          // the gun
     const afterGun = coins();
     if (before - afterGun !== 500) throw new Error(`gun cost ${before - afterGun}, expected 500`);
 
-    // Lightning: the smallest bundle is 5 seconds at 10 coins each.
-    const lightning = hubDom.byId.get('shop-grid').children[2];
-    buyRow(lightning).children[0].fire('click');
-    const afterBolt = coins();
-    if (afterGun - afterBolt !== 50) throw new Error(`5s of lightning cost ${afterGun - afterBolt}, expected 50`);
+    // The gun arrives EMPTY: a loaded one would make the charge price meaningless.
+    const invAfterGun = hubDom.byId.get('shop-grid').children[0]
+      .children.find((c) => c.classList.contains('owned')).textContent;
+    if (!invAfterGun.includes('0/6')) throw new Error(`gun arrived as "${invAfterGun}", expected 0/6`);
 
-    // And a purchase that cannot be afforded must be refused, not silently allowed.
-    const reloads = hubDom.byId.get('shop-grid').children[1];
-    const disabled = buyRow(reloads).children.filter((b) => b.disabled).length;
-    return `wallet ${before} -> ${afterBolt}; ${disabled} reload option(s) correctly disabled (gun is full)`;
+    buyRow(hubDom.byId.get('shop-grid').children[1]).children[2].fire('click');   // 6 charges
+    const afterCharges = coins();
+    if (afterGun - afterCharges !== 600) throw new Error(`6 charges cost ${afterGun - afterCharges}, expected 600`);
+
+    // Lightning: the smallest bundle is 5 seconds at 10 coins each.
+    buyRow(hubDom.byId.get('shop-grid').children[2]).children[0].fire('click');
+    const afterBolt = coins();
+    if (afterCharges - afterBolt !== 50) throw new Error(`5s of lightning cost ${afterCharges - afterBolt}, expected 50`);
+
+    return `wallet ${before} -> ${afterBolt}; gun arrived empty, armed for 600, 5s lightning for 50`;
   });
 
   // ---- the play page ----
@@ -146,8 +160,44 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
 
   await check('the loadout bought in the shop is carried into the district', () => {
     if (!app.game.loadout.stunGun) throw new Error('gun did not come through');
-    if (app.game.loadout.bullets !== 6) throw new Error(`bullets=${app.game.loadout.bullets}`);
+    if (app.game.loadout.bullets !== 6) throw new Error(`charges=${app.game.loadout.bullets}, expected the 6 bought`);
+    if (app.game.loadout.boltSeconds < 5) throw new Error(`lightning=${app.game.loadout.boltSeconds}s, expected 5`);
     return `gun with ${app.game.loadout.bullets} charges, ${app.game.loadout.boltSeconds}s lightning`;
+  });
+
+  await check('a stunned alien is inert — walking into one does not end the run', () => {
+    app.startLevel(1);
+    const g = app.game;
+    const a = g.patrols[0];
+    if (!a) throw new Error('district started with no aliens');
+    a.stunnedUntil = g.tick + g.params.stunTicks;
+    g.player.x = a.x; g.player.y = a.y;      // stand directly on it
+    g.step(-1);
+    if (g.over) throw new Error('a stunned alien still caught the player');
+    // And the same alien, awake, must still be lethal.
+    a.stunnedUntil = 0;
+    g.player.x = a.x; g.player.y = a.y;
+    g.step(-1);
+    if (!g.over || g.loseReason !== 'caught') throw new Error('an active alien failed to catch the player');
+    return 'stunned: survived · awake: caught';
+  });
+
+  await check('each belt of ten districts paints its own terrain', async () => {
+    const { themeFor } = await import('../web/themes.js');
+    const seen = new Map();
+    for (const d of [1, 11, 21, 51, 71, 91]) {
+      const th = themeFor(d);
+      seen.set(th.name, th.terrain.ground);
+    }
+    if (seen.size !== 6) throw new Error(`6 belts gave ${seen.size} distinct palettes`);
+    const grounds = new Set(seen.values());
+    if (grounds.size !== 6) throw new Error('two belts share a ground colour');
+    // Switching district must invalidate the cached terrain layer.
+    app.renderer.setDistrict(1);
+    app.renderer._mapKey = 'stale';
+    app.renderer.setDistrict(11);
+    if (app.renderer._mapKey !== null) throw new Error('terrain layer was not invalidated on a belt change');
+    return [...seen].map(([n, g]) => `${n} ${g}`).join(', ');
   });
 
   await check('E stuns only what can currently see the player, one charge each', () => {
