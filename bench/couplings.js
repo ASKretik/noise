@@ -33,6 +33,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { generateLevel } from '../sim/gen.js';
+import { levelParams } from '../sim/difficulty.js';
 import { Game } from '../sim/game.js';
 import { createSystem } from '../sim/system.js';
 import { Rng } from '../sim/prng.js';
@@ -66,7 +67,7 @@ export function recordCorpus({ seeds, levels = 6, scoreFrom = 3, k = 20, every =
     for (const s of seeds) {
       const dossier = new Dossier();
       for (let L = 1; L <= levels; L++) {
-        const lv = generateLevel(`c${s}`, L, { pool });
+        const lv = generateLevel(`c${s}`, L, { pool, params: levelParams(L, 'hard') });
         lv.regions.adjacency = regionAdjacency(lv.map, lv.regions);
         const sys = createSystem({ level: lv, mode: 'chain', dossier });
         const g = new Game({

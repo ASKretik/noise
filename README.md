@@ -12,9 +12,10 @@ speed; rubble stops you but not them; black boxes erase what they knew about whe
 went. Every ten to fifteen seconds one alien splits in two, and they hunt as a squad — one
 runs you down while the others post themselves on the routes you might break toward.
 
-Four difficulty tiers, picked once per save file and permanent. On the hardest, they are
-told which keys you have already taken; below it they model how you move and nothing else.
-Coins off the floor buy a stun gun and banked lightning from the shop.
+A hundred districts in ten belts, four difficulty tiers picked once per save file and
+permanent. On the hardest, the aliens are told which keys you have already taken; below it
+they model how you move and nothing else. Coins off the floor buy a stun gun and banked
+lightning from the shop.
 
 Your score is the Shannon entropy of your own movement: the system wins by turning you
 into signal, and you win by staying noise.

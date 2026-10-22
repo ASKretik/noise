@@ -20,6 +20,16 @@ import { makeBot, BOT_NAMES } from '../bots/policies.js';
 export { BOT_NAMES, TICKS_PER_SECOND };
 
 export const MODES = Object.freeze(['uniform', 'chain', 'chainDossier', 'full']);
+
+/**
+ * Every benchmark measures at HARD, explicitly.
+ *
+ * levelParams() defaults to MEDIUM because that is the sensible tier for a new player,
+ * and for a while the benchmarks inherited it -- which quietly slowed every alien by 25%
+ * and shifted results for a reason that has nothing to do with prediction. The predictor
+ * is the thing under test, so the curve under it is pinned to the unmodified one.
+ */
+export const BENCH_TIER = 'hard';
 export const K_AHEAD = 20;
 /** Predictions are sampled rather than taken every tick; this is the stride. */
 export const PREDICT_EVERY = 3;
@@ -34,7 +44,7 @@ export function level(profileId, n, params = null) {
   const key = `${profileId}|${n}|${params ? JSON.stringify(params) : ''}`;
   let lv = levelCache.get(key);
   if (!lv) {
-    lv = generateLevel(profileId, n, { pool, params: params || levelParams(n) });
+    lv = generateLevel(profileId, n, { pool, params: params || levelParams(n, BENCH_TIER) });
     lv.regions.adjacency = regionAdjacency(lv.map, lv.regions);
     levelCache.set(key, lv);
   }

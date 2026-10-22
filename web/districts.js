@@ -8,28 +8,9 @@ import { createProfileStore } from './persist.js';
 import { PROFILE_IDS } from '../sim/profile.js';
 import { difficultyOf, CURVE_CAP } from '../sim/difficulty.js';
 import { SHOP_ITEMS, canBuy, STUN_GUN_CAPACITY } from '../sim/shop.js';
+import { TOTAL_DISTRICTS, BLOCK_SIZE, DISTRICT_THEMES, blockOf, themeFor } from './themes.js';
 
 const $ = (id) => document.getElementById(id);
-
-/**
- * A new palette every ten districts, so depth is legible at a glance rather than only in
- * the number. Cycled, not generated: four hand-picked schemes read as deliberate, and a
- * procedurally rotated hue reads as a bug.
- */
-export const DISTRICT_THEMES = Object.freeze([
-  { name: 'RUST', accent: '#ffc93b', glow: 'rgba(255,201,59,0.30)', tint: '#2a1f14' },
-  { name: 'TIDE', accent: '#4fb6da', glow: 'rgba(79,182,218,0.30)', tint: '#122630' },
-  { name: 'MOSS', accent: '#7fc96b', glow: 'rgba(127,201,107,0.30)', tint: '#182617' },
-  { name: 'EMBER', accent: '#ff7a59', glow: 'rgba(255,122,89,0.30)', tint: '#2d1812' },
-]);
-
-export const themeFor = (level) =>
-  DISTRICT_THEMES[Math.floor((Math.max(1, level) - 1) / 10) % DISTRICT_THEMES.length];
-
-/** How many districts to show: everything unlocked, plus a block of locked ones ahead. */
-function districtsToShow(unlocked) {
-  return Math.min(60, Math.max(10, Math.ceil((unlocked + 3) / 10) * 10));
-}
 
 let store = null;
 let profile = null;
@@ -38,22 +19,23 @@ function renderDistricts() {
   const grid = $('district-grid');
   grid.innerHTML = '';
   const unlocked = profile.level || 1;
-  const total = districtsToShow(unlocked);
 
   $('districts-note').textContent =
-    `District ${unlocked} is the furthest you have opened. Clear one to unlock the next. ` +
-    `Replaying an earlier district still pays coins, but its score decays each attempt.`;
+    `District ${unlocked} of ${TOTAL_DISTRICTS} is the furthest you have opened. Clear one to ` +
+    `unlock the next. Replaying an earlier district still pays coins, but its score decays ` +
+    `each attempt. The difficulty curve tops out at district ${CURVE_CAP}; past that the ` +
+    `districts keep coming at full pressure and the file on you keeps thickening.`;
 
   let lastBlock = -1;
-  for (let L = 1; L <= total; L++) {
-    const block = Math.floor((L - 1) / 10);
+  for (let L = 1; L <= TOTAL_DISTRICTS; L++) {
+    const block = blockOf(L);
     if (block !== lastBlock) {
       lastBlock = block;
+      const theme = DISTRICT_THEMES[block % DISTRICT_THEMES.length];
       const head = document.createElement('h3');
       head.className = 'block-head';
-      const theme = DISTRICT_THEMES[block % DISTRICT_THEMES.length];
-      head.style.color = theme.accent;
-      head.textContent = `${theme.name} · districts ${block * 10 + 1}–${block * 10 + 10}`;
+      head.style.setProperty('color', theme.accent);
+      head.textContent = `${theme.name} · districts ${block * BLOCK_SIZE + 1}–${block * BLOCK_SIZE + BLOCK_SIZE}`;
       grid.appendChild(head);
     }
 

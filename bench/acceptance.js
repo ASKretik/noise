@@ -18,7 +18,7 @@ import { ProfileStore, memoryBackend, setActiveProfile, blankProfile, migrate } 
 import { levelParams, CURVE_CAP } from '../sim/difficulty.js';
 import { createDispatcher, templated, buildState, trimToTwoSentences, webgpuAvailable } from '../web/dispatch.js';
 import { makeBot, BOT_NAMES } from '../bots/policies.js';
-import { career, episode, level, mean, welch, fmtPct, clearLevelCache } from './harness.js';
+import { career, episode, level, mean, welch, fmtPct, clearLevelCache, BENCH_TIER } from './harness.js';
 import { isMain, args, num } from './cli.js';
 
 const PASS = 'PASS', FAIL = 'FAIL', ND = 'NOT DEMONSTRATED';
@@ -30,7 +30,7 @@ function criterion(n, text, fn) {
 
 // --------------------------------------------------------------------------- 1
 criterion(1, 'Same seed and same input sequence produce an identical run, verified by hashing the tick log', () => {
-  const lv = generateLevel('determinism', 4);
+  const lv = generateLevel('determinism', 4, { params: levelParams(4, BENCH_TIER) });
   lv.regions.adjacency = regionAdjacency(lv.map, lv.regions);
 
   const play = (seed, inputSeed) => {

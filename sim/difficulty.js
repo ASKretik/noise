@@ -127,19 +127,15 @@ export function levelParams(level, difficultyId = DEFAULT_DIFFICULTY) {
     caches: Math.round(lerp(3, 5, t)),
     maxPatrols: Math.round(lerp(3, 5, t)),
     /**
-     * Base arrival rate of the Poisson process, patrols per tick.
+     * Base arrival rate of the Poisson process, aliens per tick.
      *
-     * Paired with patrolLifetime below, because arrivals without departures is not a
-     * balance choice, it is a bug with a plausible-looking parameter. A pure arrival
-     * process saturates at maxPatrols within the first minute and stays there for the
-     * rest of the run, so "cap concurrent patrols at 3 to 5" stops describing a
-     * population and starts describing a floor. With departures this is a birth-death
-     * process whose steady state is lambda * lifetime, kept deliberately below the cap
-     * so the cap binds only during a bad stretch.
+     * Arrivals stop at maxPatrols and aliens never leave, so this governs how fast the
+     * district fills to its cap rather than a steady-state population. There used to be
+     * a matching departure rate here; it is gone, because retiring an alien on a map
+     * that is entirely on screen just makes it vanish in front of the player. See the
+     * note where _retirePatrols used to live in sim/game.js.
      */
     lambdaBase: lerp(0.0075, 0.0115, t),
-    /** Mean ticks a patrol stays on shift. Exponential, so retirement is memoryless. */
-    patrolLifetime: lerp(260, 300, t),
     /**
      * Patrols already walking the district when you arrive. Without these a competent
      * player clears level 1 in about seventy ticks, which is inside the arrival grace

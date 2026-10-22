@@ -23,7 +23,7 @@ import { Game } from '../sim/game.js';
 import { createSystem } from '../sim/system.js';
 import { Rng } from '../sim/prng.js';
 import { FieldPool } from '../sim/pathfind.js';
-import { CURVE_CAP } from '../sim/difficulty.js';
+import { CURVE_CAP, levelParams } from '../sim/difficulty.js';
 import { TRAIT_KEYS } from '../sim/predictor/traits.js';
 import { BOT_NAMES, makeBot } from '../bots/policies.js';
 
@@ -40,7 +40,7 @@ export function collectPopulation({ seeds = SEEDS, levels = CURVE_CAP } = {}) {
   for (const name of BOT_NAMES) {
     for (let s = 0; s < seeds; s++) {
       for (let L = 1; L <= levels; L++) {
-        const lv = generateLevel(`prior-${name}-${s}`, L, { pool });
+        const lv = generateLevel(`prior-${name}-${s}`, L, { pool, params: levelParams(L, 'hard') });
         const sys = createSystem({ level: lv, mode: 'chain' });
         const g = new Game({
           level: lv, seed: 1e6 + s * 1000 + L, pool,

@@ -20,11 +20,14 @@
 //
 // COUPLINGS-BEGIN
 export const REWEIGHT_TERMS = Object.freeze([
-  { trait: 'openGroundTolerance', feature: 'coverFrac',        sign: -1, w: 0.7, why: 'ignores cover' },
-  { trait: 'cacheOrdering',       feature: 'cacheProximity',   sign: -1, w: 0.7, why: 'takes the near cache' },
-  { trait: 'cacheOrdering',       feature: 'cacheRank',        sign: +1, w: 1.0, why: 'cache ordering' },
-  { trait: 'revisitRate',         feature: 'visitedFrac',      sign: +1, w: 0.4, why: 'retreads old ground' },
-  { trait: 'openGroundTolerance', feature: 'buildingEdgeFrac', sign: -1, w: 0.4, why: 'keeps clear of rubble' },
+  { trait: 'backtrackRate',       feature: 'visitedFrac',    sign: +1, w: 1.0, why: 'doubles back' },
+  { trait: 'cacheOrdering',       feature: 'cacheProximity', sign: -1, w: 1.4, why: 'takes the near cache' },
+  { trait: 'revisitRate',         feature: 'isCurrent',      sign: +1, w: 1.4, why: 'circles one district' },
+  { trait: 'objectiveDirectness', feature: 'cacheProximity', sign: -1, w: 1.4, why: 'runs straight at caches' },
+  { trait: 'revisitRate',         feature: 'visitedFrac',    sign: +1, w: 1.4, why: 'retreads old ground' },
+  { trait: 'openGroundTolerance', feature: 'openGroundFrac', sign: +1, w: 1.0, why: 'crosses open ground' },
+  { trait: 'corridorPreference',  feature: 'areaFrac',       sign: -1, w: 0.4, why: 'avoids big rooms' },
+  { trait: 'postAlertFreeze',     feature: 'isCurrent',      sign: +1, w: 0.4, why: 'freezes when seen' },
 ]);
 // COUPLINGS-END
 
