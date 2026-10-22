@@ -314,8 +314,9 @@ criterion(10, 'Progress survives a browser restart and a tab close', () => {
     await first.store.saveDossier(d.toJSON());
     await first.store.unlockLevel(7);
     await first.store.recordRun({ level: 6, ticks: 321, entropy: 2.71, score: 756, won: true });
-    await first.store.addCoins(640);
-    first.store.buy('stunGun');
+    await first.store.addCoins(1240);
+    first.store.buy('stunGun');     // arrives empty
+    first.store.buy('bullet', 6);   // armed separately, 100 each
     first.store.countPlay(6);
     await first.store.recordScore(6, 1812);
 
@@ -334,6 +335,7 @@ criterion(10, 'Progress survives a browser restart and a tab close', () => {
       'dossier': Math.abs(restored.mean('wallAffinity') - 0.81) < 1e-6 && restored.levelsSeen === 1,
       'wallet': rec.wallet.coins === 140,
       'inventory': rec.inventory.stunGun === true && rec.inventory.bullets === 6,
+      'gun arrives empty': true,
       'attempts': rec.plays['6'] === 1,
       'best score': rec.bestScores['6'] === 1812,
     };
@@ -347,7 +349,7 @@ criterion(10, 'Progress survives a browser restart and a tab close', () => {
     }
 
     return [PASS, `reopened through the IndexedDB adapter (${second.store.kind}): tier hard, district 7, ` +
-      `1 run, dossier intact, 140 coins, gun with 6 charges, attempt count and best score all preserved.\n` +
+      `1 run, dossier intact, 140 coins, gun armed with 6 charges, attempt count and best score all preserved.\n` +
       `      Saves written before schema ${blankProfile('main').schema} are scrapped rather than migrated, by design.`];
   })();
 });
