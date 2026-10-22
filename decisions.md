@@ -331,3 +331,256 @@ including the new keys tab, the hidden portal, the per-district difficulty freez
 division schedule — but nothing here has drawn a pixel, laid out a line of CSS, or loaded
 the language model. The art in C3 and C4 is the part most likely to need another pass, and
 it is the part I am least able to check.
+
+---
+
+# Round two — tiers, economy, shop, hub, black boxes, sound
+
+The second change round. Same markers. The headline: **the acceptance suite went from
+10 passed / 3 not demonstrated to 12 passed / 1 not demonstrated / 0 failed**, because two
+of the three gaps closed — criterion 6 recovered on its own once the seed count was raised
+enough to measure it, and criterion 10 is now genuinely demonstrated rather than deferred.
+
+---
+
+## R1 · Four difficulty tiers, fixed at creation
+
+**Asked:** easy = half alien speed, medium = three quarters, hard = current; chosen at the
+start of the save file and not changeable. Plus (R8) a fourth tier where the aliens are
+told which keys you have taken.
+
+**Built.** `DIFFICULTIES` in `sim/difficulty.js`. `speedFactor` divides the alien tick
+period, so EASY genuinely halves their movement rather than fudging detection:
+
+| tier | alien speed | chase period, D1 → D10 | knows which keys you took | score |
+|---|---|---|---|---|
+| EASY | 50% | 3.50 → 3.00 | no | ×0.75 |
+| MEDIUM | 75% | 2.33 → 2.00 | no | ×1.00 |
+| HARD | 100% | 1.75 → 1.50 | no | ×1.30 |
+| ULTRA | 100% | 1.75 → 1.50 | **yes** | ×1.70 |
+
+The tier is asked for once, on the launch screen, when a save file is created, and there
+is no path to change it afterwards — `chooseDifficulty` returns the existing value if one
+is already set, so even a double-click cannot reopen the question.
+
+**[ASSUMED]** Harder tiers multiply the score. Without that, a permanent choice would be
+a permanent penalty, and nobody would pick ULTRA.
+
+**[ASSUMED]** The tier **survives a profile reset**. It is a property of the save file
+rather than of progress — resetting wipes the dossier, wallet, attempts and unlocks, but
+you stay on the tier you chose.
+
+---
+
+## R2 · What the aliens are allowed to know (the ULTRA tier)
+
+**Asked:** "the aliens must not get notified that the user has taken the key... for the
+other three levels, the aliens will only predict the movement, but does not know which key
+has been taken."
+
+**Built.** `Game#belief`. Below ULTRA the predictor is handed a *frozen* copy of the key
+list in which nothing is ever collected, and `dropUnlocked` always reads false. The
+movement model is untouched — the chain and the dossier still learn exactly how you move —
+but the objective-shaped features (`cacheProximity`, `cacheRank`, `dropProximity`) are
+computed against what the aliens believe rather than what is true. At ULTRA they get the
+real state.
+
+**[ASSUMED]** Below ULTRA they also never learn the portal has opened, since that is a
+direct consequence of the last key being taken. Letting them infer it would be exactly the
+notification the brief says they must not get.
+
+---
+
+## R3 · Coins, and a score that is not coins
+
+**Asked:** coins on the map worth 1/2/5/10 in different colours, 10–15× the district number
+in total value, 5× for clearing. Score = speed bonus + coins bonus + stun bonus, decaying
+with replays.
+
+**Built.** `sim/score.js`:
+
+```
+speed = 400 × clamp(par ÷ ticks, 0, 2)        0 unless you actually finished
+coins = coin VALUE collected × 8
+stuns = aliens stunned × 120
+keys  = keys collected × 50                   partial credit on a loss
+
+score = (speed + coins + stuns + keys)
+        × (1 + 0.15 × (district − 1))          deeper is worth more
+        × 1 ÷ (1 + 0.35 × (attempts − 1))      1.00, 0.74, 0.59, 0.49, 0.42 …
+        × tier multiplier
+        × (won ? 1 : 0.25)
+
+coins paid = floor(score ÷ 60)
+```
+
+`par` is computed per run from a greedy nearest-key route plus the run to that run's
+portal, ×1.35 for slack — so it is a fair target rather than a speedrun record, and it
+moves with the portal.
+
+**Measured economy**, first clear of each district at par with every coin collected:
+
+| district | score | coins from score | + map | + clear | total |
+|---|---|---|---|---|---|
+| 1 | 850 | 14 | 13 | 5 | 32 |
+| 5 | 2,296 | 38 | 63 | 25 | 126 |
+| 10 | 5,041 | 84 | 125 | 50 | 259 |
+
+Districts 1, 3, 5, 8 and 10 cleared once come to **698 coins** — about one stun gun. That
+is the intended pace.
+
+**[ASSUMED]** Attempts are counted when a run **starts**, not when it ends. Counting on
+completion would make the replay decay trivially avoidable by quitting out of any run that
+was going badly.
+
+**[ASSUMED]** Only the score share decays with replays. Coins picked up off the floor and
+the clear bonus pay in full every time, because you asked for farming to be possible — what
+decays is the record, not the wage.
+
+---
+
+## R4 · The shop
+
+**Asked:** stun gun 500 coins, 6 bullets, 100 per bullet, stuns for five seconds. Lightning
+at 10 coins a second, used at will with **L**. Stun gun fires with **E** and stuns every
+alien whose visible range you are in, one bullet each.
+
+**Built.** `sim/shop.js` owns the rules; `districts.html` owns the buttons.
+
+- **Stun gun, 500** — arrives loaded with all six charges, which is why it costs five
+  bullets' worth rather than one.
+- **Charge, 100 each** — reloads up to six. The shop refuses and says why when the gun is
+  already full or not yet owned.
+- **Lightning, 10 per second** — banked, up to 60s. `L` toggles it; it drains only while
+  switched on, and the sim refuses the toggle when the bank is empty so the HUD can never
+  claim lightning you do not have.
+
+**E** stuns every alien **whose detection ring currently contains you**, nearest first, one
+charge each — not every alien in the district. It refuses cleanly when nothing is in range
+rather than wasting a charge.
+
+**[ASSUMED]** The run spends from a **copy** of the inventory and the profile is debited
+only when the run ends, so a closed tab mid-district does not silently eat someone's
+charges.
+
+**[ASSUMED]** A second bolt refreshes the timer rather than stacking it — two bolts are six
+seconds of double speed, not three seconds of quadruple.
+
+---
+
+## R5 · The district hub
+
+**Asked:** after choosing the save file, go to a district tab with all districts as widgets,
+unlocked and locked visible, and a colour theme change every 10 districts.
+
+**Built.** `districts.html`. Flow is now **profile → hub → district**, with the shop as a
+tab on the hub. Four themes — RUST, TIDE, MOSS, EMBER — cycling every ten districts, each
+block under its own heading, each card carrying its attempt count and best score.
+
+**[ASSUMED]** Themes **cycle** through four hand-picked palettes rather than being
+generated from the district number. A procedurally rotated hue reads as a bug by about
+district 30; four deliberate schemes read as deliberate forever.
+
+**[ASSUMED]** The grid shows every unlocked district plus the rest of the current block of
+ten, so there is always something visibly locked ahead to aim at.
+
+---
+
+## R6 · Black boxes
+
+**Asked:** two or three translucent black boxes per district; safe spots where the alien
+forgets where the user went, and which aliens cannot enter.
+
+**Built.** `TILE.SAFE`. Aliens cannot enter, and while you are inside: nothing can see you,
+the alert drops to zero, and `lastKnown` is erased. It is not better cover — it is erasure,
+which is what makes it a way *out* of a chase rather than a slightly better hiding place.
+The board dims and your cell is outlined while you are in one.
+
+**[ASSUMED]** Each box is placed provisionally and rolled back if it broke **alien**
+connectivity. Buildings only had to preserve the human's connectivity; a black box blocks
+aliens, so one laid across the single corridor between two halves of a map would leave half
+the district permanently unreachable by anything hunting you. The rollback checks the other
+side of the asymmetry.
+
+**[ASSUMED]** Aliens never spawn inside one. `isSharedGround` is the new predicate: an
+alien may only arrive where **both** can stand.
+
+---
+
+## R7 · The ambience
+
+**Asked:** an ominous background sound at three speeds — slow normally, faster when an
+alien spots you, very fast when you are inside half its visibility.
+
+**Built.** `web/sound.js`, entirely synthesised: two detuned sawtooths through a wobbling
+lowpass, plus a pulse whose **rate** is the actual information — 46 bpm calm, 104 when
+seen, 168 when you are well inside the ring. The drone opens up and the filter widens with
+each step, and the threat state is derived in one place from the same numbers the screen is
+showing, so the audio cannot disagree with the picture.
+
+**[ASSUMED]** No audio files. The tempo has to be continuous with the threat, and
+crossfading three loops at 8 Hz is heavier, worse, and would put binaries in a repository
+that currently deploys as a static upload with no dependencies.
+
+**[ASSUMED]** Audio starts on the first keypress or tap, because browsers refuse to start
+it any other way. There is a sound toggle in the top bar.
+
+---
+
+## R8 · Old saves were scrapped
+
+**Asked:** "scrap the save files that are already present. just create a fresh file for both
+main and guest."
+
+**Built.** The IndexedDB version is bumped and the object store is dropped and recreated on
+upgrade, and `migrate()` now **refuses** any record below the current schema rather than
+upgrading it. Both slots show as new files and ask for a tier.
+
+**[ASSUMED]** Refusal rather than migration is the right call beyond just doing as asked:
+every score and every settled district in an old file was produced under rules that no
+longer exist, and there is no honest answer to "which tier was this played on" for a file
+written before tiers. Carrying it forward would attach real history to an invented tier.
+
+---
+
+## What the measurements say now
+
+```
+npm test          12 passed · 1 not demonstrated · 0 failed
+npm run webcheck  27/27
+```
+
+**[FOUND] — criterion 6 recovered, and the earlier regression was partly a measurement
+problem.** Last round it read NOT DEMONSTRATED at 6 seeds. At 14 seeds it passes: the
+dossier improves 4 of 5 bots, beeline significantly (+5.4pp, t = 2.03). The per-bot margins
+are genuinely noisy at low seed counts and criterion 5 flips on seed choice alone, so the
+suite's default is now 14 rather than 10. The underlying finding from last round still
+stands — buildings made tier 1 stronger and the margins narrower — but "not demonstrated"
+was partly me under-sampling. The evader remains a real and reportable loss (−9.3pp,
+t = −4.03): a deliberately noisy player is exactly what trait-based reweighting cannot help
+with.
+
+**[FOUND] — criterion 10 is no longer deferred.** The DOM shim now implements enough
+IndexedDB to drive `web/persist.js` for real, shared across pages the way a browser origin
+is. That started as a bug fix — each page was getting its own memory store, so every
+cross-page check in the harness was meaningless — and ended up closing the one criterion
+that had been waiting on a browser. The suite now writes a tier, a dossier, a wallet, an
+inventory, an attempt count and a best score, reopens the store over the same storage, and
+checks all nine survive.
+
+**[YOU] — the alien population is still unbounded.** Unchanged from last round and now more
+pressing, because EASY and MEDIUM make runs last long enough to actually reach several
+divisions. A 60-second run ends with four or five extra aliens on top of arrivals. Still
+left as asked; the cap would go in `_maybeSplit` and I would suggest 8.
+
+**[YOU] — bolt density is still 1–2 per district × 12 districts ≈ 20 per map.** Unchanged
+and still one line. Now that lightning is also purchasable by the second, the free ones on
+the floor may be redundant enough to cut to `[0, 1]`.
+
+### Still not verified
+
+**Nothing in this round has been opened in a browser either.** The 27 headless checks cover
+the tier chooser, the hub, the shop's arithmetic, the loadout crossing into a district, E
+and L, black boxes and the score payout — but no pixel has been drawn, no CSS laid out, and
+the ambience has never made a sound, because there is no AudioContext in Node. The audio
+and the new art are the parts most likely to need another pass.

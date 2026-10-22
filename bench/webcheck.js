@@ -21,7 +21,7 @@ function check(name, fn) {
   }
 }
 
-export async function run({ webgpu = false, indexeddb = 'absent' } = {}) {
+export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
   const warnings = [];
   const errors = [];
   const realWarn = console.warn, realError = console.error;
@@ -34,18 +34,80 @@ export async function run({ webgpu = false, indexeddb = 'absent' } = {}) {
   for (let i = 0; i < 50; i++) await Promise.resolve();
   await new Promise((r) => setTimeout(r, 20));
 
-  check('launch page lists both profile slots, each linking to play.html', () => {
+  check('launch page offers both slots as new files needing a tier', () => {
     const slots = launchDom.byId.get('slots');
     if (!slots || slots.children.length !== 2) throw new Error(`expected 2 slots, got ${slots?.children.length}`);
-    const hrefs = slots.children.map((c) => c.href);
-    if (!hrefs.includes('play.html?p=main') || !hrefs.includes('play.html?p=guest')) {
-      throw new Error(`unexpected slot links: ${hrefs.join(', ')}`);
-    }
-    return hrefs.join(' · ');
+    // Saves were scrapped, so both slots are fresh and must ask for a tier rather than
+    // linking straight into a district.
+    const linked = slots.children.filter((c) => c.href);
+    if (linked.length !== 0) throw new Error(`a fresh slot linked straight through: ${linked.map((c) => c.href)}`);
+    const labels = slots.children.map((c) => (c.innerHTML.match(/<h2>(\w+)/) || [])[1]);
+    return `${labels.join(', ')} — both new, both must choose a tier first`;
+  });
+
+  check('choosing a tier offers all four and is permanent', () => {
+    launchDom.byId.get('slots').children[0].fire('click');
+    const tiers = launchDom.byId.get('tiers');
+    if (tiers.children.length !== 4) throw new Error(`expected 4 tiers, got ${tiers.children.length}`);
+    if (launchDom.byId.get('chooser').hidden) throw new Error('chooser stayed hidden');
+    return tiers.children.map((c) => c.dataset.tier).join(', ');
+  });
+
+  // ---- the hub ----
+  const hubDom = installDom({ webgpu, indexeddb, page: 'districts.html', search: '?p=main' });
+  // Seed a tier the way the chooser would, so the hub has a finished save to render.
+  {
+    const { createProfileStore } = await import(`../web/persist.js?t=${Date.now()}`);
+    const { store } = await createProfileStore();
+    await store.load('main');
+    store.chooseDifficulty('hard');
+    await store.addCoins(1200);
+    await store.unlockLevel(4);
+  }
+  await import(`../web/districts.js?t=${Date.now()}`);
+  for (let i = 0; i < 60; i++) await Promise.resolve();
+  await new Promise((r) => setTimeout(r, 20));
+
+  check('hub lists districts, locks the ones not yet unlocked, and themes by block', () => {
+    const grid = hubDom.byId.get('district-grid');
+    const cards = grid.children.filter((c) => c.classList.contains('district'));
+    const heads = grid.children.filter((c) => c.classList.contains('block-head'));
+    if (cards.length < 10) throw new Error(`only ${cards.length} district cards`);
+    if (heads.length < 1) throw new Error('no themed block heading');
+    const locked = cards.filter((c) => c.classList.contains('locked')).length;
+    if (locked === 0) throw new Error('nothing was locked');
+    const playable = cards.filter((c) => c.href);
+    if (playable.length === 0) throw new Error('nothing was playable');
+    if (!playable[0].href.includes('d=1')) throw new Error(`first card links to ${playable[0].href}`);
+    return `${cards.length} cards, ${locked} locked, ${heads.length} themed block(s)`;
+  });
+
+  check('shop sells the gun, charges and lightning, and refuses what is unaffordable', () => {
+    hubDom.byId.get('tab-shop').fire('click');
+    const items = hubDom.byId.get('shop-grid').children;
+    if (items.length !== 3) throw new Error(`expected 3 shop items, got ${items.length}`);
+    // Buying the gun must debit exactly 500 and arrive loaded.
+    const coins = () => Number(hubDom.byId.get('wallet-coins').textContent.replace(/,/g, ''));
+    const before = coins();
+    const buyRow = (card) => card.children.find((c) => c.classList.contains('buy-row'));
+    buyRow(items[0]).children[0].fire('click');          // the gun
+    const afterGun = coins();
+    if (before - afterGun !== 500) throw new Error(`gun cost ${before - afterGun}, expected 500`);
+
+    // Lightning: the smallest bundle is 5 seconds at 10 coins each.
+    const lightning = hubDom.byId.get('shop-grid').children[2];
+    buyRow(lightning).children[0].fire('click');
+    const afterBolt = coins();
+    if (afterGun - afterBolt !== 50) throw new Error(`5s of lightning cost ${afterGun - afterBolt}, expected 50`);
+
+    // And a purchase that cannot be afforded must be refused, not silently allowed.
+    const reloads = hubDom.byId.get('shop-grid').children[1];
+    const disabled = buyRow(reloads).children.filter((b) => b.disabled).length;
+    return `wallet ${before} -> ${afterBolt}; ${disabled} reload option(s) correctly disabled (gun is full)`;
   });
 
   // ---- the play page ----
-  const dom = installDom({ webgpu, indexeddb, page: 'play.html', search: '?p=main' });
+  const dom = installDom({ webgpu, indexeddb, page: 'play.html', search: '?p=main&d=1' });
   // Cache-bust so repeated runs in one process get a fresh module graph.
   await import(`../web/play.js?t=${Date.now()}`);
   // boot() is async and started at import time; let its microtasks drain.
@@ -65,8 +127,64 @@ export async function run({ webgpu = false, indexeddb = 'absent' } = {}) {
     if (app.level.level !== 1) throw new Error(`expected district 1, got ${app.level.level}`);
     if (app.profileId !== 'main') throw new Error(`wrong profile: ${app.profileId}`);
     return `${app.level.rooms.length} rooms, ${app.level.caches.length} keys, ` +
-      `${app.level.stats.buildingCount} buildings, ${app.level.stats.boltCount} bolts, ` +
-      `${app.level.regions.count} districts`;
+      `${app.level.stats.buildingCount} buildings, ${app.level.stats.safeBoxCount} black boxes, ` +
+      `${app.level.stats.coinCount} coins worth ${app.level.stats.coinValue}, ` +
+      `tier ${app.difficultyId}`;
+  });
+
+  check('the loadout bought in the shop is carried into the district', () => {
+    if (!app.game.loadout.stunGun) throw new Error('gun did not come through');
+    if (app.game.loadout.bullets !== 6) throw new Error(`bullets=${app.game.loadout.bullets}`);
+    return `gun with ${app.game.loadout.bullets} charges, ${app.game.loadout.boltSeconds}s lightning`;
+  });
+
+  check('E stuns only what can currently see the player, one charge each', () => {
+    // Walk an alien into range by stepping the sim, then fire.
+    let t = performance.now();
+    for (let i = 0; i < 400 && !app.game.over; i++) {
+      t += 125;
+      app._frame(t);
+      if (app.game.patrols.some((p) => Math.hypot(p.x - app.game.player.x, p.y - app.game.player.y) <= app.game.effectiveRadius)) break;
+    }
+    const before = app.game.loadout.bullets;
+    const res = app.game.fireStun();
+    if (res.fired > 0) {
+      if (app.game.loadout.bullets !== before - res.fired) throw new Error('charge accounting is wrong');
+      const stunned = app.game.patrols.filter((p) => (p.stunnedUntil || 0) > app.game.tick);
+      if (stunned.length !== res.fired) throw new Error('stun count does not match charges spent');
+      return `${res.fired} stunned, ${app.game.loadout.bullets} charges left`;
+    }
+    // Nothing was in range; the gun must have refused rather than wasted a charge.
+    if (app.game.loadout.bullets !== before) throw new Error('spent a charge on nothing');
+    return `nothing in range, refused cleanly (${res.reason})`;
+  });
+
+  check('L only drains lightning while it is switched on', () => {
+    app.startLevel(1);
+    const start = app.game.boltBankTicks;
+    let t = performance.now();
+    for (let i = 0; i < 8 && !app.game.over; i++) { t += 125; app._frame(t); }
+    if (app.game.boltBankTicks !== start) throw new Error('lightning drained while switched off');
+    app.boltOn = true;
+    for (let i = 0; i < 8 && !app.game.over; i++) { t += 125; app._frame(t); }
+    if (app.game.boltBankTicks >= start) throw new Error('lightning did not drain while on');
+    return `${start} ticks banked, ${start - app.game.boltBankTicks} drained once switched on`;
+  });
+
+  check('a black box hides the player and erases the trail', () => {
+    const g = app.game;
+    const safe = [];
+    for (let i = 0; i < g.map.tiles.length; i++) if (g.map.tiles[i] === 5) safe.push(i);
+    if (safe.length === 0) throw new Error('district generated no black boxes');
+    // Teleport onto one and raise an alert, then step: it must be gone.
+    g.player.x = safe[0] % g.map.w;
+    g.player.y = Math.floor(safe[0] / g.map.w);
+    g.alertTicks = 20;
+    g.lastKnown = { x: 1, y: 1 };
+    g.step(-1);
+    if (g.alertTicks !== 0 || g.lastKnown !== null) throw new Error('alert survived the black box');
+    if (!g.inSafeBox) throw new Error('inSafeBox was false while standing in one');
+    return `${safe.length} black-box cells; alert and last-known both cleared`;
   });
 
   check('the portal is hidden until every key is collected', () => {
@@ -150,6 +268,20 @@ export async function run({ webgpu = false, indexeddb = 'absent' } = {}) {
     const traits = Object.keys(rec.dossier.traits || {}).length;
     if (traits === 0) throw new Error('dossier has no traits');
     return `${rec.runs.length} run(s), ${traits} traits, updates=${rec.dossier.updates}`;
+  });
+
+  check('score and coins are paid out, and replaying decays the score', () => {
+    const sc = app.lastScore;
+    if (!sc) throw new Error('no score computed');
+    if (!Number.isFinite(sc.score) || !Number.isFinite(sc.earned)) throw new Error('score or coins not a number');
+    if (sc.earned < sc.picked) throw new Error('earned less than was picked up');
+    // Same district, same outcome, more attempts: the multiplier must shrink.
+    const a = app.lastScore.factors.replay;
+    const plays = app.store.playsOf(app.level.level);
+    if (plays < 1) throw new Error('attempts were not counted');
+    if (a > 1.0001) throw new Error(`replay factor ${a} should never exceed 1`);
+    return `score ${sc.score}, +${sc.earned} coins (${sc.picked} picked up, ${sc.coins} from score), ` +
+      `attempt ${plays} at x${a.toFixed(2)}`;
   });
 
   check('outcome overlay shown with stats', () => {
@@ -258,7 +390,7 @@ export async function run({ webgpu = false, indexeddb = 'absent' } = {}) {
 
 if (isMain(import.meta.url)) {
   const a = args();
-  const indexeddb = a.indexeddb || 'absent';
+  const indexeddb = a.indexeddb || 'working';
   const webgpu = !!a.webgpu;
   const { results: rs, warnings } = await run({ webgpu, indexeddb });
   let failed = 0;

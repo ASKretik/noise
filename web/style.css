@@ -414,3 +414,247 @@ canvas { display: block; image-rendering: pixelated; }
 @media (hover: none) and (pointer: coarse) {
   .touchpad { display: block; }
 }
+
+/* ===================================================================== */
+/* the hub: district grid and shop                                       */
+/* ===================================================================== */
+
+.hub-body { min-height: 100vh; }
+
+.hubbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-2);
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.hub { max-width: 1080px; margin: 0 auto; padding: 24px 16px 72px; }
+.hub-note { color: var(--fg-dim); max-width: 74ch; margin: 0 0 20px; }
+
+.tabs { display: flex; gap: 4px; }
+
+.tab {
+  font: inherit;
+  background: transparent;
+  color: var(--fg-dim);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 5px 12px;
+  cursor: pointer;
+  letter-spacing: 0.08em;
+}
+
+.tab:hover { color: var(--fg); }
+.tab.active { color: var(--bg); background: var(--fg-dim); border-color: var(--fg-dim); }
+
+/* ---- wallet ---- */
+
+.wallet {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-3);
+  color: var(--fg-dim);
+}
+
+.wallet b { color: var(--warn); font-size: 14px; }
+
+.coin-pip {
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: var(--warn);
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.35);
+  flex: none;
+}
+
+.coin-run { font-style: normal; color: #7fc96b; }
+
+/* ---- district grid ---- */
+
+.block-head {
+  grid-column: 1 / -1;
+  margin: 22px 0 2px;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.block-head:first-child { margin-top: 0; }
+
+.district-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 10px;
+}
+
+.district {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 94px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: linear-gradient(160deg, var(--d-tint, var(--bg-3)), var(--bg-2));
+  color: var(--fg);
+  text-decoration: none;
+  transition: transform 120ms, border-color 120ms, box-shadow 120ms;
+}
+
+a.district:hover, a.district:focus-visible {
+  border-color: var(--d-accent);
+  box-shadow: 0 0 0 1px var(--d-accent), 0 6px 20px var(--d-glow);
+  transform: translateY(-2px);
+  outline: none;
+}
+
+.district .d-num {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--d-accent);
+}
+
+.district .d-state { color: var(--fg-dim); font-size: 11.5px; }
+.district .d-best { color: var(--fg-faint); font-size: 11.5px; margin-top: auto; }
+
+.district .d-flag {
+  position: absolute;
+  top: 9px; right: 9px;
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--bg);
+  background: var(--d-accent);
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+
+.district.locked {
+  opacity: 0.4;
+  background: var(--bg-2);
+  cursor: not-allowed;
+}
+
+.district.locked .d-num { color: var(--fg-faint); }
+
+/* ---- shop ---- */
+
+.shop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 12px;
+}
+
+.shop-item {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shop-item h4 {
+  margin: 0;
+  font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.shop-item .price { color: var(--warn); font-size: 12px; font-weight: 600; }
+.shop-item p { margin: 0; font-size: 12px; }
+.shop-item .owned { color: var(--accent); font-size: 12px; }
+.buy-row { display: flex; gap: 6px; margin-top: auto; }
+.buy-row .btn:disabled { opacity: 0.35; cursor: not-allowed; border-color: var(--line); }
+
+/* ===================================================================== */
+/* the one-time difficulty chooser                                        */
+/* ===================================================================== */
+
+.chooser {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  padding: 20px;
+}
+
+.chooser h2 { margin: 0 0 6px; font-size: 18px; letter-spacing: 0.12em; }
+.chooser p { margin: 0 0 16px; }
+
+.tiers { display: grid; gap: 8px; }
+
+.tier {
+  appearance: none;
+  display: grid;
+  gap: 3px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-3);
+  color: var(--fg);
+  transition: border-color 120ms, transform 120ms;
+}
+
+.tier:hover, .tier:focus-visible {
+  border-color: var(--warn);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.tier-name { font-size: 15px; font-weight: 700; letter-spacing: 0.16em; }
+.tier-speed { color: var(--danger); font-size: 12px; }
+.tier-blurb { color: var(--fg-dim); font-size: 12px; }
+.tier-mult { color: var(--warn); font-size: 11.5px; }
+
+.tier[data-tier="ultra"] .tier-name { color: var(--danger); }
+
+.chooser-actions { margin-top: 14px; }
+
+.slot-new {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--bg);
+  background: var(--warn);
+  padding: 2px 6px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+/* ===================================================================== */
+/* in-district additions                                                  */
+/* ===================================================================== */
+
+#hud-bullets[data-state="ready"] { color: var(--water); }
+#hud-bullets[data-state="empty"] { color: var(--danger); }
+#hud-bullets[data-state="none"] { color: var(--fg-faint); }
+#hud-bolt[data-state="on"] { color: var(--bolt); }
+#hud-bolt[data-state="off"] { color: var(--fg-dim); }
+#hud-bolt[data-state="none"] { color: var(--fg-faint); }
+
+.k.safe { background: #15131a; color: #cfd8e3; box-shadow: inset 0 0 0 1px #3a3542; }
+
+.touchpad .row.acts { margin-top: 10px; }
+.touchpad .row.acts button { width: 94px; font-size: 14px; letter-spacing: 0.1em; }
+
+/* The score breakdown makes the overlay taller than the board on small screens. */
+.overlay-card { max-height: 86vh; overflow-y: auto; }
+.overlay-stats span b { white-space: nowrap; }

@@ -19,6 +19,18 @@
 
     <div class="slots" id="slots"></div>
 
+    <!-- Shown only when a save file is being created. The tier is permanent, so it is
+         asked once, up front, instead of hidden in a settings menu. -->
+    <section class="chooser" id="chooser" hidden>
+      <h2>New file — <span id="chooser-slot">MAIN</span></h2>
+      <p class="muted">Pick a tier. This is fixed for the life of the save file: every
+        score you log is measured against it, so it cannot be changed later.</p>
+      <div class="tiers" id="tiers"></div>
+      <div class="chooser-actions">
+        <button class="btn ghost" id="chooser-cancel">back</button>
+      </div>
+    </section>
+
     <p class="storage-note" id="storage-note"></p>
 
     <details class="brief" open>
@@ -43,6 +55,15 @@
           district this profile has ever played, and decides where aliens are sent next.
           District 1 faces a system that knows nothing about you. District 6 faces one that
           has watched five districts of your habits.</p>
+        <p><b>Coins and score are different things.</b> Coins are currency: picked up off the
+          floor, paid out for clearing a district, and spent in the shop on a stun gun or
+          banked lightning. Score judges the run &mdash; how fast, how much you collected,
+          how many aliens you put down &mdash; and it decays each time you replay the same
+          district, so farming fills your wallet without inflating your record.</p>
+        <p><b>In a district:</b> <span class="k safe">black boxes</span> are shelters aliens
+          cannot enter, and stepping into one erases what they knew about where you went.
+          <b>E</b> fires the stun gun at everything that can currently see you.
+          <b>L</b> toggles banked lightning on and off.</p>
       </div>
     </details>
   </div>

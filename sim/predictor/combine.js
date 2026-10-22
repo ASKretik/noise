@@ -53,13 +53,20 @@ const proximity = (d, scale) => (d === UNREACHABLE || d == null || d < 0 ? 0 : 1
  * Static features (wallAdjFrac, coverFrac, ...) come from regions.features.
  */
 export function regionDynamics(view) {
-  const { map, regions, player, caches, drop, dropUnlocked, visited, fields, kAhead } = view;
+  const { map, regions, player, drop, visited, fields, kAhead } = view;
   const R = regions.count;
   const out = [];
 
-  // Rank each uncollected cache by the player's own path distance, so "nearest-first"
-  // versus "furthest-first" becomes a per-region number.
-  const live = caches.filter((c) => !c.collected);
+  // Objectives are read from what the aliens BELIEVE, not from the truth. Below the
+  // ultra tier they are never told which keys have been taken, so every key still reads
+  // as live here and the portal never reads as open. The movement model is unaffected --
+  // they still learn how you move; they just do not get the objective state for free.
+  const belief = view.belief || { caches: view.caches, dropUnlocked: view.dropUnlocked };
+  const dropUnlocked = belief.dropUnlocked;
+
+  // Rank each believed-uncollected key by the player's own path distance, so
+  // "nearest-first" versus "furthest-first" becomes a per-region number.
+  const live = belief.caches.filter((c) => !c.collected);
   const ranked = live
     .map((c) => ({ c, d: fields.player ? fields.player[c.y * map.w + c.x] : 0 }))
     .filter((e) => e.d !== UNREACHABLE)

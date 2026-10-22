@@ -9,7 +9,8 @@ import { Game } from '../sim/game.js';
 import { createSystem, resolveDifficulty } from '../sim/system.js';
 import { Dossier } from '../sim/predictor/dossier.js';
 import { SPAWNER_MODES } from '../sim/predictor/combine.js';
-import { levelParams, TICKS_PER_SECOND, CURVE_CAP } from '../sim/difficulty.js';
+import { levelParams, TICKS_PER_SECOND, CURVE_CAP, difficultyOf } from '../sim/difficulty.js';
+import { scoreRun, scoreBreakdown } from '../sim/score.js';
 import { PROFILE_IDS } from '../sim/profile.js';
 import { hashString } from '../sim/prng.js';
 import { regionAdjacency } from '../sim/regions.js';
@@ -20,6 +21,7 @@ import { Renderer } from './render.js';
 import { Input } from './input.js';
 import { Hud } from './hud.js';
 import { createDispatcher, buildState, webgpuAvailable } from './dispatch.js';
+import { Ambience } from './sound.js';
 
 const STEP_MS = 1000 / TICKS_PER_SECOND;
 /** Dispatch is asked for a line this often, plus on events. Fire-and-forget either way. */
@@ -30,8 +32,9 @@ const MODEL_LOAD_DELAY_MS = 2500;
 const $ = (id) => document.getElementById(id);
 
 class Play {
-  constructor(profileId) {
+  constructor(profileId, startDistrict) {
     this.profileId = profileId;
+    this.startDistrict = startDistrict;
     this.pool = new FieldPool(32 * 20);
     this.renderer = new Renderer($('board'));
     this.input = new Input();
@@ -62,6 +65,11 @@ class Play {
     this.seenSpawns = 0;
     this.attempt = 0;
     this.modelLoadTimer = null;
+    this.sound = new Ambience();
+    /** Set for exactly one tick when E or L is pressed; consumed by the next sim step. */
+    this.pendingStun = false;
+    this.boltOn = false;
+    this.lastScore = null;
 
     this.dispatcher = createDispatcher({
       onStatus: (s, d) => this.hud.dispatchStatus(s, d),
@@ -79,7 +87,15 @@ class Play {
     this.storeKind = store.kind;
 
     this.profile = await this.store.load(this.profileId);
+
+    // A save file with no tier has not finished being created.
+    if (!this.profile.difficulty) {
+      window.location.replace(`index.html?new=${encodeURIComponent(this.profileId)}`);
+      return;
+    }
+    this.difficultyId = this.profile.difficulty;
     this.dossier = Dossier.fromJSON(this.profile.dossier);
+    $('btn-hub').href = `districts.html?p=${encodeURIComponent(this.profileId)}`;
     this.mode = SPAWNER_MODES.includes(this.profile.settings.spawnerMode)
       ? this.profile.settings.spawnerMode
       : 'full';
@@ -95,6 +111,17 @@ class Play {
     this.input.on('pause', () => this.togglePause());
     this.input.on('restart', () => { if (this.running) this.startLevel(this.level.level); });
     this.input.on('toggle', (what) => this.toggleOverlayLayer(what));
+    this.input.on('stun', () => { this.pendingStun = true; });
+    this.input.on('bolt', () => { this.boltOn = !this.boltOn; });
+    // Audio can only start from a genuine gesture; the first keypress or tap is it.
+    this.input.on('any', () => this.sound.start());
+    $('btn-sound').addEventListener('click', () => {
+      this.soundOn = !this.soundOn;
+      this.sound.start();
+      this.sound.setEnabled(this.soundOn);
+      $('btn-sound').textContent = this.soundOn ? 'sound on' : 'sound off';
+    });
+    this.soundOn = true;
     window.addEventListener('resize', () => {
       if (this.level) this.renderer.resize(this.level.map);
     });
@@ -102,7 +129,9 @@ class Play {
       if (document.hidden && this.running && !this.paused) this.togglePause(true);
     });
 
-    this.startLevel(Math.min(this.profile.level, 99));
+    // The hub picks the district; fall back to the furthest unlocked one.
+    const wanted = this.startDistrict ?? this.profile.level;
+    this.startLevel(Math.max(1, Math.min(wanted, this.profile.level)));
 
     if (!this.modelLoadTimer && this.profile.settings.dispatchEnabled) {
       this.modelLoadTimer = setTimeout(() => this.dispatcher.load(), MODEL_LOAD_DELAY_MS);
@@ -160,7 +189,7 @@ class Play {
    * settles the NEXT district the first time you walk into it.
    */
   resolveFor(level) {
-    const params = levelParams(level);
+    const params = levelParams(level, this.difficultyId);
     if (this.mode !== 'full') {
       return { tau: params.tauBase, lambdaScale: 1, controller: null, settled: false };
     }
@@ -186,8 +215,11 @@ class Play {
   // ------------------------------------------------------------------ district
 
   startLevel(n) {
-    const params = levelParams(n);
+    const params = levelParams(n, this.difficultyId);
     this.attempt++;
+    // Counted when the run STARTS, so quitting out of a district you were losing still
+    // costs you the replay decay. Otherwise the decay is trivially avoidable.
+    this.playsOfLevel = this.store.countPlay(n);
     this.level = generateLevel(this.profile.id, n, { pool: this.pool, params });
     this.level.regions.adjacency ||= regionAdjacency(this.level.map, this.level.regions);
 
@@ -219,7 +251,16 @@ class Play {
       tau: this.difficulty.tau,
       lambdaScale: this.difficulty.lambdaScale,
       logLevel: 'player',
+      // A copy of what was bought. The profile is debited only when the run ends, so a
+      // crash or a closed tab mid-district does not quietly eat someone's charges.
+      loadout: {
+        stunGun: this.profile.inventory.stunGun,
+        bullets: this.profile.inventory.bullets,
+        boltSeconds: this.profile.inventory.boltSeconds,
+      },
     });
+    this.boltOn = false;
+    this.pendingStun = false;
 
     this.seenSpawns = 0;
     this.prevSnapshot = this.snapshot();
@@ -227,6 +268,7 @@ class Play {
 
     this.renderer.resize(this.level.map);
     this.hud.setLevel(n, params);
+    this.hud.setWallet(this.profile.wallet.coins);
     this.hud.setMode(this.mode, this.difficulty);
     this.hud.clearSpawns();
     this.hud.dossier(this.dossier, this.system.chain);
@@ -284,7 +326,12 @@ class Play {
   simStep() {
     const dir = this.input.consume();
     const alertBefore = this.game.alertTicks > 0;
-    this.game.step(dir);
+    const actions = { stun: this.pendingStun, bolt: this.boltOn };
+    this.pendingStun = false;
+    this.game.step(dir, actions);
+    // The sim refuses the toggle when the bank is empty; keep the UI honest about it.
+    this.boltOn = this.game.boltOn;
+    if (this.soundOn) this.sound.follow(this.game);
 
     // The predictor is queried once per tick for the panels and the heatmap. The spawner
     // and the squad query it independently when they need a cell.
@@ -330,14 +377,37 @@ class Play {
   async finishRun() {
     const summary = this.game.summary();
     const traits = this.system.traits || this.system.liveTraits();
+    const tier = difficultyOf(this.difficultyId);
+
+    const scored = scoreRun({
+      ticks: summary.ticks,
+      par: summary.par,
+      won: summary.won,
+      coinValue: summary.coinValue,
+      stuns: summary.stuns,
+      keys: summary.collected,
+      level: this.level.level,
+      plays: this.playsOfLevel,
+      difficultyMult: tier.scoreMult,
+    });
+    // Coins earned = what you picked up, plus a flat award for clearing, plus a share of
+    // the score. Only the last of those decays with replays.
+    const clearBonus = summary.won ? this.level.params.clearBonusCoins : 0;
+    const earned = summary.coinValue + clearBonus + scored.coins;
+    this.lastScore = { ...scored, earned, clearBonus, picked: summary.coinValue };
+    summary.score = scored.score;
 
     // Write on run end, not every tick, and only ever to the active profile.
     this.dossier.update(traits, { levelCompleted: summary.won });
     try {
       await this.store.saveDossier(this.dossier.toJSON());
       await this.store.recordRun(summary);
+      await this.store.addCoins(earned);
+      await this.store.recordScore(this.level.level, scored.score);
+      await this.store.returnLoadout(summary.loadoutLeft);
       if (summary.won) await this.store.unlockLevel(this.level.level + 1);
       this.profile = this.store.current();
+      this.hud.setWallet(this.profile.wallet.coins);
     } catch (err) {
       console.warn('[play] persistence failed on run end:', err?.message);
     }
@@ -375,25 +445,35 @@ class Play {
 
   runStats(summary = null) {
     const s = summary || this.game.summary();
-    const c = this.difficulty.controller;
-    const rows = [
-      ['noise index', `${s.score} / 1000`],
-      ['visit entropy', `${s.entropy.toFixed(2)} bits`],
-      ['survived', `${(s.ticks / TICKS_PER_SECOND).toFixed(1)}s`],
+    const sc = this.lastScore;
+    const rows = [];
+
+    if (sc) {
+      const { rows: parts, mults } = scoreBreakdown(sc);
+      rows.push(['SCORE', sc.score.toLocaleString()]);
+      for (const [label, value, note] of parts) {
+        if (value === 0 && label !== 'speed') continue;
+        rows.push([`· ${label}`, `${value} — ${note}`]);
+      }
+      for (const [label, , note] of mults) rows.push([`· ${label}`, note]);
+      rows.push(['COINS EARNED', `+${sc.earned}`]);
+      rows.push(['· picked up', `+${sc.picked}`]);
+      if (sc.clearBonus) rows.push(['· clear bonus', `+${sc.clearBonus}`]);
+      rows.push(['· from score', `+${sc.coins}`]);
+      rows.push(['wallet', String(this.profile?.wallet?.coins ?? 0)]);
+    }
+
+    rows.push(
+      ['noise index', `${s.score ?? this.game.score} / 1000`],
+      ['survived', `${(s.ticks / TICKS_PER_SECOND).toFixed(1)}s of ${(s.par / TICKS_PER_SECOND).toFixed(0)}s par`],
       ['keys', `${s.collected}/${s.caches}`],
-      ['times seen', String(s.detections)],
+      ['aliens stunned', String(s.stuns ?? 0)],
       ['aliens at peak', String(s.peakAliens ?? 0)],
       ['divisions', String(s.splits ?? 0)],
-      ['bolts used', String(s.boostsUsed ?? 0)],
+      ['hidden in a box', `${((s.safeTicks ?? 0) / TICKS_PER_SECOND).toFixed(1)}s`],
       ['file depth', `${this.dossier.levelsSeen} districts`],
       ['temperature τ', this.difficulty.tau.toFixed(2)],
-    ];
-    if (this.mode !== 'full') rows.push(['controller', 'off in this mode']);
-    else if (!c || c.meanSurvival == null) rows.push(['controller', 'no history yet']);
-    else {
-      rows.push(['settled from', `${(c.meanSurvival / TICKS_PER_SECOND).toFixed(0)}s survival` +
-        (c.meanEntropy != null ? `, noise ${Math.round(c.meanEntropy * 1000)}` : '')]);
-    }
+    );
     return rows;
   }
 
@@ -433,10 +513,13 @@ class Play {
   }
 }
 
-const requested = new URLSearchParams(window.location.search).get('p');
+const query = new URLSearchParams(window.location.search);
+const requested = query.get('p');
 const profileId = PROFILE_IDS.includes(requested) ? requested : 'main';
+const districtParam = Number.parseInt(query.get('d') || '', 10);
+const startDistrict = Number.isFinite(districtParam) && districtParam >= 1 ? districtParam : null;
 
-const app = new Play(profileId);
+const app = new Play(profileId, startDistrict);
 app.boot().catch((err) => {
   console.error('[noise] boot failed', err);
   document.body.innerHTML =

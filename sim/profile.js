@@ -12,7 +12,10 @@
 // the isolation rule testable under Node at all, and it is why this file lives in /sim
 // rather than /web despite being "persistence".
 
-export const SCHEMA = 3;
+export const SCHEMA = 4;
+import { blankWallet, blankInventory, applyPurchase } from './shop.js';
+import { DEFAULT_DIFFICULTY, DIFFICULTY_IDS } from './difficulty.js';
+
 export const PROFILE_IDS = Object.freeze(['main', 'guest']);
 export const MAX_RUNS = 50;
 
@@ -33,6 +36,20 @@ export function blankProfile(id, displayName = null) {
   return {
     id,
     displayName: displayName ?? (id === 'main' ? 'MAIN' : 'GUEST'),
+    /**
+     * Chosen once, when the save file is created, and never editable afterwards.
+     * null means "not chosen yet", which is how the launcher knows to ask. Every logged
+     * score, the settled per-district difficulty and the dossier itself are all measured
+     * under this tier, so allowing a mid-save change would quietly corrupt all three.
+     */
+    difficulty: null,
+    wallet: blankWallet(),
+    inventory: blankInventory(),
+    /** Attempts per district. Feeds the score's replay decay -- farming is allowed, but
+     *  the score for a district you have ground ten times is not the same score. */
+    plays: {},
+    /** Best score per district, which is the thing farming is NOT allowed to inflate. */
+    bestScores: {},
     level: 1,
     dossier: { traits: {}, updates: 0, levelsSeen: 0 },
     runs: [],
@@ -54,8 +71,18 @@ export function blankProfile(id, displayName = null) {
  * rather than discarded: throwing away someone's dossier because a field was added is
  * the worst possible failure mode for the one piece of state this project is about.
  */
+/**
+ * Rehydrate a stored record, or reject it.
+ *
+ * Records written before schema 4 are DISCARDED rather than upgraded. Earlier migrations
+ * filled in fields that had an obvious default; the difficulty tier does not have one --
+ * every score and every settled district in an old file was produced under rules that are
+ * no longer recorded anywhere, so carrying the file forward would attach real history to
+ * an invented tier. A clean save file is the honest outcome.
+ */
 export function migrate(record) {
   if (!record || typeof record !== 'object') return null;
+  if ((record.schema || 0) < SCHEMA) return null;
   const out = { ...blankProfile(record.id || 'main'), ...record };
   out.schema = SCHEMA;
   if (!out.dossier || typeof out.dossier !== 'object') out.dossier = { traits: {}, updates: 0, levelsSeen: 0 };
@@ -65,6 +92,13 @@ export function migrate(record) {
     out.dossier = { traits: rest, updates, levelsSeen };
   }
   if (!out.difficultyByLevel || typeof out.difficultyByLevel !== 'object') out.difficultyByLevel = {};
+  if (out.difficulty !== null && !DIFFICULTY_IDS.includes(out.difficulty)) out.difficulty = DEFAULT_DIFFICULTY;
+  if (!out.wallet || typeof out.wallet !== 'object') out.wallet = blankWallet();
+  if (!Number.isFinite(out.wallet.coins)) out.wallet.coins = 0;
+  if (!out.inventory || typeof out.inventory !== 'object') out.inventory = blankInventory();
+  out.inventory = { ...blankInventory(), ...out.inventory };
+  if (!out.plays || typeof out.plays !== 'object') out.plays = {};
+  if (!out.bestScores || typeof out.bestScores !== 'object') out.bestScores = {};
   if (!Array.isArray(out.runs)) out.runs = [];
   out.runs = out.runs.slice(-MAX_RUNS);
   if (!out.settings || typeof out.settings !== 'object') out.settings = blankProfile(out.id).settings;
@@ -190,6 +224,72 @@ export class ProfileStore {
     return rec?.difficultyByLevel?.[String(level)] || null;
   }
 
+  /**
+   * Set the tier, once. Returns the tier actually in force, so a caller that races a
+   * second write still ends up agreeing with storage rather than with itself.
+   */
+  chooseDifficulty(id) {
+    const rec = this.current();
+    if (rec.difficulty) return rec.difficulty;
+    const chosen = DIFFICULTY_IDS.includes(id) ? id : DEFAULT_DIFFICULTY;
+    this._commit((r) => { r.difficulty = chosen; }).catch(() => {});
+    return chosen;
+  }
+
+  difficulty() {
+    const rec = this.cache.get(activeId);
+    return rec?.difficulty || null;
+  }
+
+  /** Count an attempt at a district. Called when a run STARTS, not when it ends. */
+  countPlay(level) {
+    const rec = this.current();
+    const key = String(level);
+    rec.plays[key] = (rec.plays[key] || 0) + 1;
+    this._commit(() => {}).catch(() => {});
+    return rec.plays[key];
+  }
+
+  playsOf(level) {
+    const rec = this.cache.get(activeId);
+    return rec?.plays?.[String(level)] || 0;
+  }
+
+  bestScoreOf(level) {
+    const rec = this.cache.get(activeId);
+    return rec?.bestScores?.[String(level)] || 0;
+  }
+
+  addCoins(n) {
+    return this._commit((rec) => {
+      rec.wallet.coins = Math.max(0, Math.round((rec.wallet.coins || 0) + n));
+    });
+  }
+
+  recordScore(level, score) {
+    return this._commit((rec) => {
+      const key = String(level);
+      if (!(rec.bestScores[key] >= score)) rec.bestScores[key] = score;
+    });
+  }
+
+  /** Spend from the wallet. All purchase rules live in sim/shop.js. */
+  buy(itemId, qty = 1) {
+    const rec = this.current();
+    const res = applyPurchase(rec.wallet, rec.inventory, itemId, qty);
+    if (!res.ok) return res;
+    this._commit((r) => { r.wallet = res.wallet; r.inventory = res.inventory; }).catch(() => {});
+    return res;
+  }
+
+  /** Write back whatever the run did not consume. */
+  returnLoadout(left) {
+    return this._commit((rec) => {
+      rec.inventory.bullets = Math.max(0, Math.round(left.bullets ?? rec.inventory.bullets));
+      rec.inventory.boltSeconds = Math.max(0, Math.round((left.boltSeconds ?? rec.inventory.boltSeconds) * 10) / 10);
+    });
+  }
+
   unlockLevel(level) {
     return this._commit((rec) => { rec.level = Math.max(rec.level, level); });
   }
@@ -206,6 +306,11 @@ export class ProfileStore {
       rec.dossier = fresh.dossier;
       rec.runs = fresh.runs;
       rec.difficultyByLevel = {};
+      rec.wallet = fresh.wallet;
+      rec.inventory = fresh.inventory;
+      rec.plays = {};
+      rec.bestScores = {};
+      // The tier survives a reset: it is a property of the save file, not of progress.
       rec.createdAt = Date.now();
     });
   }

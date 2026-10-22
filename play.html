@@ -16,8 +16,10 @@
 <main id="game" class="screen">
   <header class="topbar">
     <a class="logo small" href="index.html" title="Back to profiles">NOISE</a>
+    <a class="btn ghost" id="btn-hub" href="districts.html">districts</a>
     <span class="chip">district <b id="hud-level">1</b></span>
     <span class="chip">subject <b id="hud-profile">—</b></span>
+    <span class="chip">tier <b id="hud-difficulty">—</b></span>
 
     <!-- The keys tab: the one thing a player needs at a glance. -->
     <span class="keytab" id="keytab" data-state="locked">
@@ -25,7 +27,11 @@
       <span class="keytab-text"><b id="keytab-count">0 / 0</b> <i id="keytab-note">keys to open the portal</i></span>
     </span>
 
+    <span class="wallet" title="Coins banked, plus what you have picked up this run">
+      <i class="coin-pip"></i><b id="hud-coins">0</b><i class="coin-run" id="hud-coins-run"></i>
+    </span>
     <span class="spacer"></span>
+    <button id="btn-sound" class="btn ghost" title="Toggle the ambience">sound on</button>
     <label class="field">
       <span>spawner</span>
       <select id="mode-select" title="Switch the spawner live. Same code path, four configurations.">
@@ -62,6 +68,8 @@
         <span class="stat"><i>elapsed</i><b id="hud-time">0.0s</b></span>
         <span class="stat state"><i>status</i><b id="hud-alert" data-state="calm">unseen</b></span>
         <span class="stat state"><i>boost</i><b id="hud-boost" data-state="off">—</b></span>
+        <span class="stat state"><i>stun gun [E]</i><b id="hud-bullets" data-state="none">—</b></span>
+        <span class="stat state"><i>lightning [L]</i><b id="hud-bolt" data-state="off">—</b></span>
       </div>
 
       <div class="touchpad" id="touchpad" aria-hidden="true">
@@ -70,6 +78,10 @@
           <button data-dir="3" aria-label="left">◀</button>
           <button data-dir="2" aria-label="down">▼</button>
           <button data-dir="1" aria-label="right">▶</button>
+        </div>
+        <div class="row acts">
+          <button data-act="stun" aria-label="stun">E</button>
+          <button data-act="bolt" aria-label="lightning">L</button>
         </div>
       </div>
     </div>
@@ -108,6 +120,7 @@
       </section>
 
       <p class="keyhint muted">
+        <b>E</b> stun everything that can see you · <b>L</b> toggle banked lightning ·
         <b>H</b> prediction heatmap · <b>V</b> visited · <b>I</b> alien targets ·
         <b>Space</b> pause · <b>R</b> restart district
       </p>

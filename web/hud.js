@@ -20,6 +20,11 @@ export class Hud {
       keytabCount: $('keytab-count'),
       keytabNote: $('keytab-note'),
       boost: $('hud-boost'),
+      bullets: $('hud-bullets'),
+      bolt: $('hud-bolt'),
+      coins: $('hud-coins'),
+      coinsRun: $('hud-coins-run'),
+      difficulty: $('hud-difficulty'),
       settled: $('hud-settled'),
       score: $('hud-score'),
       bits: $('hud-bits'),
@@ -55,6 +60,17 @@ export class Hud {
   setLevel(level, params) {
     this.params = params;
     if (this.el.level) this.el.level.textContent = String(level);
+    if (this.el.difficulty) {
+      this.el.difficulty.textContent = params.difficultyLabel || '—';
+      this.el.difficulty.title = params.aliensKnowKeys
+        ? 'They are told which keys you have taken.'
+        : 'They model how you move, but are never told which keys you have taken.';
+    }
+  }
+
+  /** Banked coins, which only change between runs. */
+  setWallet(coins) {
+    if (this.el.coins) this.el.coins.textContent = Number(coins || 0).toLocaleString();
   }
 
   setMode(mode, difficulty) {
@@ -102,6 +118,19 @@ export class Hud {
       const b = game.boostTicks;
       this.el.boost.textContent = b > 0 ? `${(b / TICKS_PER_SECOND).toFixed(1)}s` : '—';
       this.el.boost.dataset.state = b > 0 ? 'on' : 'off';
+    }
+    if (this.el.bullets) {
+      const inv = game.loadout;
+      this.el.bullets.textContent = inv.stunGun ? `${inv.bullets}` : 'none';
+      this.el.bullets.dataset.state = !inv.stunGun ? 'none' : (inv.bullets > 0 ? 'ready' : 'empty');
+    }
+    if (this.el.bolt) {
+      const left = game.boltSecondsLeft;
+      this.el.bolt.textContent = left > 0 ? `${left.toFixed(1)}s` : 'none';
+      this.el.bolt.dataset.state = left <= 0 ? 'none' : (game.boltOn ? 'on' : 'off');
+    }
+    if (this.el.coinsRun) {
+      this.el.coinsRun.textContent = game.coinValue > 0 ? ` +${game.coinValue}` : '';
     }
   }
 

@@ -50,7 +50,14 @@ class El {
     this.children = [];
     this.parentElement = null;
     this.dataset = {};
-    this.style = {};
+    // CSS custom properties are set through setProperty, not assignment, so a bare
+    // object is not enough of a style declaration to run the district grid.
+    const vars = {};
+    this.style = {
+      setProperty(k, v) { vars[k] = String(v); },
+      getPropertyValue(k) { return vars[k] ?? ''; },
+      removeProperty(k) { delete vars[k]; },
+    };
     this.className = '';
     this.id = '';
     this.hidden = false;
@@ -120,9 +127,78 @@ class El {
 }
 
 /**
+ * A minimal in-process IndexedDB.
+ *
+ * The pages share storage through IndexedDB, and in a browser that is what lets the
+ * launcher, the hub and the district all see the same save file. Handing each page its
+ * own memory backend instead made every cross-page check meaningless -- the hub found no
+ * profile and redirected, and everything downstream failed for the wrong reason.
+ *
+ * This implements only what web/persist.js actually calls, and it deliberately lives
+ * OUTSIDE installDom so the data survives from one page to the next inside one run, the
+ * way a real origin's storage does. It also means the real IndexedDB adapter is exercised
+ * rather than permanently falling back.
+ */
+const fakeStores = new Map();   // dbName -> Map(storeName -> Map(key -> record))
+let fakeVersion = 0;
+
+export function resetFakeStorage() { fakeStores.clear(); fakeVersion = 0; }
+
+function makeFakeIndexedDB() {
+  const later = (fn) => setTimeout(fn, 0);
+  return {
+    open(name, version) {
+      const req = { result: null, error: null, onsuccess: null, onerror: null, onupgradeneeded: null, onblocked: null };
+      later(() => {
+        if (!fakeStores.has(name)) fakeStores.set(name, new Map());
+        const stores = fakeStores.get(name);
+        const db = {
+          name,
+          objectStoreNames: { contains: (s) => stores.has(s) },
+          createObjectStore(storeName) { stores.set(storeName, new Map()); return {}; },
+          deleteObjectStore(storeName) { stores.delete(storeName); },
+          transaction(storeName) {
+            const data = stores.get(storeName) || new Map();
+            const store = {
+              get(key) {
+                const r = { result: undefined, onsuccess: null };
+                later(() => { r.result = data.get(key); r.onsuccess?.(); });
+                return r;
+              },
+              put(record) {
+                const r = { onsuccess: null };
+                data.set(record.id, JSON.parse(JSON.stringify(record)));
+                later(() => r.onsuccess?.());
+                return r;
+              },
+              getAllKeys() {
+                const r = { result: [], onsuccess: null };
+                later(() => { r.result = [...data.keys()]; r.onsuccess?.(); });
+                return r;
+              },
+            };
+            const tx = { objectStore: () => store, oncomplete: null, onerror: null, onabort: null };
+            // Two hops, so any get/put scheduled by the caller resolves before complete.
+            later(() => later(() => tx.oncomplete?.()));
+            return tx;
+          },
+        };
+        req.result = db;
+        if (version > fakeVersion) {
+          fakeVersion = version;
+          req.onupgradeneeded?.({ target: req });
+        }
+        req.onsuccess?.();
+      });
+      return req;
+    },
+  };
+}
+
+/**
  * @param {object} [opts]
  * @param {boolean} [opts.webgpu]  pretend navigator.gpu exists
- * @param {boolean} [opts.indexeddb] pretend IndexedDB exists but throws on open
+ * @param {'absent'|'throwing'|'working'} [opts.indexeddb]
  */
 export function installDom(opts = {}) {
   const page = opts.page || 'play.html';
@@ -215,6 +291,8 @@ export function installDom(opts = {}) {
   if (!globalThis.performance) define('performance', { now: () => Date.now() });
   if (opts.indexeddb === 'throwing') {
     define('indexedDB', { open() { throw new Error('access denied (simulated private browsing)'); } });
+  } else if (opts.indexeddb === 'working') {
+    define('indexedDB', makeFakeIndexedDB());
   } else {
     define('indexedDB', undefined);
   }

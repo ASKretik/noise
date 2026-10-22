@@ -11,7 +11,15 @@
 import { ProfileStore, memoryBackend } from '../sim/profile.js';
 
 const DB_NAME = 'noise';
-const DB_VERSION = 1;
+/**
+ * Bumped to 2 to scrap every save written before the difficulty tier, the wallet and the
+ * inventory existed. Those records predate choices that cannot be inferred -- there is no
+ * honest answer to "which tier was this played on" for a file written before tiers -- so
+ * they are dropped rather than guessed at. The upgrade deletes the old object store
+ * outright; sim/profile.js refuses anything below the current schema as a second line of
+ * defence for the in-memory path.
+ */
+const DB_VERSION = 2;
 const STORE = 'profiles';
 
 function openDB() {
@@ -25,7 +33,8 @@ function openDB() {
     }
     req.onupgradeneeded = () => {
       const db = req.result;
-      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' });
+      if (db.objectStoreNames.contains(STORE)) db.deleteObjectStore(STORE);
+      db.createObjectStore(STORE, { keyPath: 'id' });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error || new Error('IndexedDB open failed'));
