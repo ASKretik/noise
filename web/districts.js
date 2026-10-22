@@ -71,7 +71,9 @@ function renderShop() {
   for (const item of SHOP_ITEMS) {
     const quantities = item.kind === 'once' ? [1] : (item.id === 'bullet' ? [1, 3, 6] : [5, 10, 30]);
     const owned = item.id === 'stunGun'
-      ? (inv.stunGun ? `owned · ${inv.bullets}/${STUN_GUN_CAPACITY} charges loaded` : 'not owned')
+      ? (inv.stunGun
+        ? `owned · ${inv.bullets}/${STUN_GUN_CAPACITY} charges loaded${inv.bullets === 0 ? ' — buy charges to use it' : ''}`
+        : 'not owned')
       : item.id === 'bullet'
         ? `${inv.bullets}/${STUN_GUN_CAPACITY} loaded`
         : `${inv.boltSeconds.toFixed(0)}s banked`;

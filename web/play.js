@@ -266,6 +266,7 @@ class Play {
     this.prevSnapshot = this.snapshot();
     this.prediction = this.system.predictNow(this.game.view);
 
+    this.renderer.setDistrict(n);
     this.renderer.resize(this.level.map);
     this.hud.setLevel(n, params);
     this.hud.setWallet(this.profile.wallet.coins);
