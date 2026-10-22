@@ -32,6 +32,15 @@ export const COLORS = {
   buildingCrack: '#15110d',
   key: '#ffc93b',
   bolt: '#ffe66d',
+  /** Coin colours by denomination. Worth is readable without counting. */
+  coin1: '#c8803c',
+  coin2: '#cfd8e3',
+  coin5: '#ffc93b',
+  coin10: '#c87bff',
+  safeFill: 'rgba(6,5,4,0.76)',
+  safeEdge: 'rgba(180,196,214,0.38)',
+  stunned: '#6d6a74',
+  spark: '#9fd8ff',
   human: '#f2f6ff',
   humanHidden: '#8fd9ff',
   alien: '#ff4d5e',
@@ -145,6 +154,18 @@ export class Renderer {
           c.stroke();
         }
 
+        if (tile === TILE.SAFE) {
+          // A translucent black box. Deliberately drawn as a hole rather than an object:
+          // it is the one place on the map nothing can see into.
+          c.fillStyle = COLORS.safeFill;
+          c.fillRect(px, py, t, t);
+          c.strokeStyle = COLORS.safeEdge;
+          c.lineWidth = 1;
+          c.setLineDash([3, 3]);
+          c.strokeRect(px + 0.5, py + 0.5, t - 1, t - 1);
+          c.setLineDash([]);
+        }
+
         if (tile === TILE.BUILDING) {
           // --- broken building: a slab with a chipped top edge and a crack ---
           c.fillStyle = COLORS.building;
@@ -226,6 +247,34 @@ export class Renderer {
     ctx.restore();
   }
 
+  /** A coin: a disc with a rim and its value stamped on it. Colour carries the worth. */
+  _drawCoin(ctx, cx, cy, r, value, pulse) {
+    const fill = value >= 10 ? COLORS.coin10 : value >= 5 ? COLORS.coin5 : value >= 2 ? COLORS.coin2 : COLORS.coin1;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.fillStyle = fill;
+    ctx.shadowColor = fill;
+    ctx.shadowBlur = 4 + pulse * 3;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.66, 0, Math.PI * 2);
+    ctx.stroke();
+    // The number only fits once tiles are reasonably large; colour carries it below that.
+    if (r >= 6) {
+      ctx.fillStyle = 'rgba(0,0,0,0.65)';
+      ctx.font = `600 ${Math.round(r * 1.1)}px ui-monospace, monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(value), 0, 0.5);
+    }
+    ctx.restore();
+  }
+
   /** A lightning bolt: the classic two-triangle zigzag. */
   _drawBolt(ctx, cx, cy, r, pulse) {
     ctx.save();
@@ -270,12 +319,12 @@ export class Renderer {
   }
 
   /** An alien: bulbous body, three eyes, trailing tendrils. Not a circle. */
-  _drawAlien(ctx, cx, cy, t, hunting, phase) {
+  _drawAlien(ctx, cx, cy, t, hunting, phase, stunned = false) {
     const s = t / 26;
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.fillStyle = hunting ? COLORS.alien : COLORS.alienCalm;
-    if (hunting) { ctx.shadowColor = COLORS.alien; ctx.shadowBlur = 11; }
+    ctx.fillStyle = stunned ? COLORS.stunned : (hunting ? COLORS.alien : COLORS.alienCalm);
+    if (hunting && !stunned) { ctx.shadowColor = COLORS.alien; ctx.shadowBlur = 11; }
 
     ctx.beginPath();                                   // tendrils
     for (let i = -1; i <= 1; i++) {
@@ -291,6 +340,25 @@ export class Renderer {
     ctx.ellipse(0, -0.9 * s, 5.2 * s, 5.8 * s, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
+
+    if (stunned) {
+      // Eyes shut, and a couple of sparks arcing off it.
+      ctx.strokeStyle = '#2b2930';
+      ctx.lineWidth = 1.5 * s;
+      ctx.beginPath();
+      ctx.moveTo(-3.3 * s, -1.6 * s); ctx.lineTo(-1.1 * s, -1.6 * s);
+      ctx.moveTo(1.1 * s, -1.6 * s); ctx.lineTo(3.3 * s, -1.6 * s);
+      ctx.stroke();
+      ctx.strokeStyle = COLORS.spark;
+      ctx.lineWidth = 1.4 * s;
+      const w = Math.sin(phase * 7) * 1.6 * s;
+      ctx.beginPath();
+      ctx.moveTo(-6 * s, -5 * s); ctx.lineTo(-4 * s + w, -7 * s); ctx.lineTo(-5 * s, -8.6 * s);
+      ctx.moveTo(6 * s, -4 * s); ctx.lineTo(4.2 * s - w, -6.4 * s); ctx.lineTo(5.4 * s, -8 * s);
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
 
     ctx.fillStyle = COLORS.alienEye;                   // eyes
     for (const [ex, ey, er] of [[-2.2, -1.6, 1.35], [2.2, -1.6, 1.35], [0, 1.3, 1.0]]) {
@@ -394,6 +462,10 @@ export class Renderer {
       if (b.taken) continue;
       this._drawBolt(ctx, b.x * t + t / 2, b.y * t + t / 2, Math.max(4, t * 0.24), pulse);
     }
+    for (const c of game.coins) {
+      if (c.taken) continue;
+      this._drawCoin(ctx, c.x * t + t / 2, c.y * t + t / 2, Math.max(3.5, t * 0.21), c.value, pulse);
+    }
 
     // --- aliens, each ringed at the radius that applies RIGHT NOW ---
     // Drawing the effective radius rather than the nominal one is what makes the water
@@ -404,17 +476,22 @@ export class Renderer {
       const pp = prev?.patrols?.[p.id];
       const px = (pp ? pp.x + (p.x - pp.x) * alpha : p.x) * t + t / 2;
       const py = (pp ? pp.y + (p.y - pp.y) * alpha : p.y) * t + t / 2;
-      const hunting = p.mode === 'hunt' || p.mode === 'cutoff';
+      const stunned = (p.stunnedUntil || 0) > game.tick;
+      const hunting = !stunned && (p.mode === 'hunt' || p.mode === 'cutoff');
 
-      ctx.fillStyle = COLORS.ring;
-      ctx.beginPath();
-      ctx.arc(px, py, radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = hidden ? COLORS.ringHidden : COLORS.ringEdge;
-      ctx.lineWidth = hunting ? 1.6 : 1;
-      ctx.setLineDash(hunting ? [] : [3, 4]);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      // A stunned alien sees nothing, so it is drawn without a detection ring at all --
+      // the clearest possible signal that the charge did something.
+      if (!stunned) {
+        ctx.fillStyle = COLORS.ring;
+        ctx.beginPath();
+        ctx.arc(px, py, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = hidden ? COLORS.ringHidden : COLORS.ringEdge;
+        ctx.lineWidth = hunting ? 1.6 : 1;
+        ctx.setLineDash(hunting ? [] : [3, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
 
       if (this.showIntercepts && p.target && p.mode !== 'hunt') {
         ctx.strokeStyle = COLORS.intercept;
@@ -428,7 +505,15 @@ export class Renderer {
         ctx.fillRect(p.target.x * t + t / 2 - 2, p.target.y * t + t / 2 - 2, 4, 4);
       }
 
-      this._drawAlien(ctx, px, py, t, hunting, phase + p.id);
+      this._drawAlien(ctx, px, py, t, hunting, phase + p.id, stunned);
+      if (stunned) {
+        const left = ((p.stunnedUntil - game.tick) / (game.params.stunTicks || 40));
+        ctx.strokeStyle = COLORS.spark;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(px, py, t * 0.42, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left);
+        ctx.stroke();
+      }
     }
 
     // --- the human ---
@@ -455,6 +540,17 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(plx, ply, radius, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // --- standing in a black box: the whole board dims except you ---
+    if (game.inSafeBox) {
+      ctx.fillStyle = 'rgba(4,4,6,0.34)';
+      ctx.fillRect(0, 0, map.w * t, map.h * t);
+      ctx.strokeStyle = COLORS.safeEdge;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeRect(plx - t * 0.7, ply - t * 0.7, t * 1.4, t * 1.4);
       ctx.setLineDash([]);
     }
 

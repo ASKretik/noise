@@ -10,6 +10,53 @@
 export const TICKS_PER_SECOND = 8;
 export const CURVE_CAP = 10;
 
+/**
+ * The four difficulty tiers, chosen once when a save file is created and never editable.
+ *
+ * Permanence is the point: the dossier, the settled per-district difficulty and every
+ * logged score are all measured against the tier they were produced under, and letting
+ * someone drop to EASY for one district would quietly corrupt all three. It also makes
+ * the choice mean something.
+ *
+ * `speedFactor` scales how fast an alien MOVES, so it divides the tick period: 0.5 is
+ * half speed (twice as long between steps), 0.75 is three-quarters.
+ *
+ * `knowsKeys` is the ultra tier's whole content. Below it the aliens model where you are
+ * going from how you move and nothing else -- they do not know which keys you have
+ * already taken, so the predictor's objective features treat every key as still out
+ * there. At ULTRA they are told, and the interception gets noticeably sharper near the
+ * keys you have left.
+ */
+export const DIFFICULTIES = Object.freeze({
+  easy: {
+    id: 'easy', label: 'EASY', order: 0,
+    speedFactor: 0.5, knowsKeys: false, scoreMult: 0.75,
+    blurb: 'Aliens move at half speed. They learn how you move, but not which keys you have taken.',
+  },
+  medium: {
+    id: 'medium', label: 'MEDIUM', order: 1,
+    speedFactor: 0.75, knowsKeys: false, scoreMult: 1.0,
+    blurb: 'Aliens move at three-quarter speed. They learn how you move, but not which keys you have taken.',
+  },
+  hard: {
+    id: 'hard', label: 'HARD', order: 2,
+    speedFactor: 1.0, knowsKeys: false, scoreMult: 1.3,
+    blurb: 'Aliens move at full speed. They learn how you move, but not which keys you have taken.',
+  },
+  ultra: {
+    id: 'ultra', label: 'ULTRA', order: 3,
+    speedFactor: 1.0, knowsKeys: true, scoreMult: 1.7,
+    blurb: 'Full speed, and they know exactly which keys you have taken. Every route you have left is modelled.',
+  },
+});
+
+export const DIFFICULTY_IDS = Object.freeze(Object.keys(DIFFICULTIES));
+export const DEFAULT_DIFFICULTY = 'medium';
+
+export function difficultyOf(id) {
+  return DIFFICULTIES[id] || DIFFICULTIES[DEFAULT_DIFFICULTY];
+}
+
 /** Survival-time band the controller steers toward, in ticks. */
 export const SURVIVAL_BAND = Object.freeze({
   lo: 30 * TICKS_PER_SECOND,
@@ -52,11 +99,21 @@ export const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 /**
  * The authored difficulty curve. `t` runs 0 at level 1 to 1 at CURVE_CAP and then stops.
  */
-export function levelParams(level) {
+/**
+ * @param {number} level
+ * @param {string} [difficultyId] one of DIFFICULTY_IDS; shapes alien speed and what they know
+ */
+export function levelParams(level, difficultyId = DEFAULT_DIFFICULTY) {
   const capped = clamp(level, 1, CURVE_CAP);
   const t = (capped - 1) / (CURVE_CAP - 1);
+  const tier = difficultyOf(difficultyId);
   return {
     level,
+    difficulty: tier.id,
+    difficultyLabel: tier.label,
+    /** Aliens are told which keys are already collected. ULTRA only. */
+    aliensKnowKeys: tier.knowsKeys,
+    scoreMult: tier.scoreMult,
     curveT: t,
     rooms: Math.round(lerp(6, 10, t)),
     /**
@@ -111,8 +168,19 @@ export function levelParams(level) {
     buildings: Math.round(lerp(3, 7, t)),
     /** Lightning bolts per district, [min, max]. */
     boltsPerDistrict: [1, 2],
-    /** Ticks of double speed a bolt grants. 3 seconds at 8 ticks/s. */
+    /** Ticks of double speed a bolt picked up off the map grants. 3 seconds at 8 ticks/s. */
     boostTicks: 24,
+    /** Ticks an alien stays stunned when shot. 5 seconds. */
+    stunTicks: 5 * TICKS_PER_SECOND,
+    /** Translucent black boxes: aliens cannot enter, and lose your trail when you do. */
+    safeBoxes: 3,
+    /**
+     * Total coin VALUE scattered per district, 10 to 15 times the district number.
+     * Denominations are 1, 2, 5 and 10, so the count is well below the value.
+     */
+    coinValuePerLevel: [10 * level, 15 * level],
+    /** Flat coin award for clearing the district. */
+    clearBonusCoins: 5 * level,
     /** Cells per tick while boosted. */
     boostSpeed: 2,
     /**
@@ -147,8 +215,8 @@ export function levelParams(level) {
      * rather than a sentence in a design document. The level-10 value is tighter but
      * still beatable.
      */
-    chaseMovePeriod: lerp(1.75, 1.5, t),
-    patrolMovePeriod: 2.5,
+    chaseMovePeriod: lerp(1.75, 1.5, t) / tier.speedFactor,
+    patrolMovePeriod: 2.5 / tier.speedFactor,
     /** How often the squad re-plans who covers which district. */
     coordEvery: 6,
     /** Spawner rejection-sampling constraints. */

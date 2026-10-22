@@ -9,7 +9,7 @@
 // Seeded from hash(profileId, levelNumber), so a level is content rather than data:
 // reproducible, infinite, and a difficulty parameter instead of drawn geometry.
 
-import { GRID_W, GRID_H, TILE, createMap, setTile, isWalkable, blocksHuman, DIRS } from './grid.js';
+import { GRID_W, GRID_H, TILE, createMap, setTile, isWalkable, blocksHuman, blocksAlien, DIRS } from './grid.js';
 import { FieldPool, bfsField, bfsFrom, UNREACHABLE, HUMAN } from './pathfind.js';
 import { buildRegions, REGION_COUNT } from './regions.js';
 import { Rng, levelSeed } from './prng.js';
@@ -240,6 +240,105 @@ function scatterBolts(map, rng, regions, perDistrict, taken) {
   return bolts;
 }
 
+/**
+ * Pass 3d: black boxes. Two or three per district, each a small translucent shelter the
+ * player can stand in and an alien cannot enter.
+ *
+ * Placed like buildings -- provisionally, then rolled back if they stranded anything --
+ * but with an extra check the buildings do not need: a black box blocks ALIENS, so one
+ * laid across the only corridor between two halves of the map would leave half the
+ * district permanently unreachable by anything hunting you. The rollback therefore tests
+ * alien connectivity, not the human's.
+ */
+function scatterSafeBoxes(map, rng, count, rooms, protectedCells, mustReach, pool) {
+  const placed = [];
+  let attempts = 0;
+  while (placed.length < count && attempts++ < count * 10) {
+    const room = rooms[rng.int(rooms.length)];
+    if (room.w < 4 || room.h < 4) continue;
+    const bw = rng.range(2, Math.min(3, room.w - 2));
+    const bh = rng.range(1, Math.min(2, room.h - 2));
+    const x0 = room.x0 + 1 + rng.int(Math.max(1, room.w - bw - 1));
+    const y0 = room.y0 + 1 + rng.int(Math.max(1, room.h - bh - 1));
+
+    const cluster = [];
+    let blocked = false;
+    for (let y = y0; y < y0 + bh && !blocked; y++) {
+      for (let x = x0; x < x0 + bw; x++) {
+        const i = y * map.w + x;
+        if (map.tiles[i] !== TILE.FLOOR || protectedCells.has(i)) { blocked = true; break; }
+        cluster.push({ i, was: map.tiles[i] });
+      }
+    }
+    if (blocked || cluster.length === 0) continue;
+    for (const c of cluster) map.tiles[c.i] = TILE.SAFE;
+
+    const buf = pool.take();
+    const alienDist = bfsField(map, mustReach.from.x, mustReach.from.y, buf, (t) => blocksAlien(t));
+    let ok = true;
+    // Everything an alien could previously stand on must still be reachable by one.
+    let total = 0, reached = 0;
+    for (let i = 0; i < map.tiles.length; i++) {
+      if (blocksAlien(map.tiles[i]) || blocksHuman(map.tiles[i])) continue;
+      total++;
+      if (alienDist[i] !== UNREACHABLE) reached++;
+    }
+    if (total !== reached) ok = false;
+    pool.give(buf);
+
+    if (!ok) {
+      for (const c of cluster) map.tiles[c.i] = c.was;
+      continue;
+    }
+    placed.push({ x0, y0, w: bw, h: bh, cells: cluster.map((c) => c.i) });
+  }
+  return placed;
+}
+
+/** The coin denominations, smallest first. Colour is the renderer's business. */
+export const COIN_VALUES = Object.freeze([1, 2, 5, 10]);
+
+/**
+ * Pass 3e: coins. The district's total VALUE is the budget (10-15 times the district
+ * number); denominations are drawn to fill it, so a deep district is not merely a bigger
+ * pile of pennies -- it has tens in it.
+ */
+function scatterCoins(map, rng, regions, budget, taken) {
+  const target = rng.range(budget[0], budget[1]);
+  const open = [];
+  for (let r = 0; r < regions.count; r++) {
+    for (const i of regions.cells[r]) {
+      if (map.tiles[i] !== TILE.FLOOR || taken.has(i)) continue;
+      open.push({ i, region: r });
+    }
+  }
+  rng.shuffle(open);
+
+  const coins = [];
+  let value = 0;
+  let cursor = 0;
+  while (value < target && cursor < open.length) {
+    const remaining = target - value;
+    // Prefer the largest denomination that still fits, with some spread so a district is
+    // not a neat row of tens.
+    const usable = COIN_VALUES.filter((v) => v <= remaining);
+    if (usable.length === 0) break;
+    const weights = usable.map((v) => (v >= 5 ? 1 : 3));
+    const pick = usable[rng.categorical(weights)];
+    const spot = open[cursor++];
+    taken.add(spot.i);
+    coins.push({
+      x: spot.i % map.w,
+      y: Math.floor(spot.i / map.w),
+      value: pick,
+      district: spot.region,
+      taken: false,
+    });
+    value += pick;
+  }
+  return { coins, value };
+}
+
 /** Pass 2: is every walkable cell reachable from the first room centre? */
 function fullyConnected(map, from, pool) {
   const buf = pool.take();
@@ -375,10 +474,15 @@ function furnish(cand, profileId, level, baseSeed, params, pool) {
     cells: [...caches, ...rooms.map((r) => ({ x: r.cx, y: r.cy }))],
   }, pool);
 
+  const safeBoxes = scatterSafeBoxes(map, rng, params.safeBoxes, rooms, protectedCells, {
+    from: spawn,
+  }, pool);
+
   const regions = buildRegions(map, rooms.map((r) => ({ x: r.cx, y: r.cy })), REGION_COUNT, pool);
 
   const taken = new Set(protectedCells);
   const bolts = scatterBolts(map, rng, regions, params.boltsPerDistrict, taken);
+  const { coins, value: coinValue } = scatterCoins(map, rng, regions, params.coinValuePerLevel, taken);
 
   // The portal is NOT placed here. Its location is drawn fresh from the run's own stream
   // at the start of every attempt (see sim/game.js), so restarting a district does not
@@ -405,13 +509,18 @@ function furnish(cand, profileId, level, baseSeed, params, pool) {
     caches,
     portalCandidates,
     bolts,
+    coins,
     buildings,
+    safeBoxes,
     regions,
     stats: {
       walkable: conn.total,
       coverCount,
       buildingCount: buildings.length,
+      safeBoxCount: safeBoxes.length,
       boltCount: bolts.length,
+      coinCount: coins.length,
+      coinValue,
       furthestPortal: portalCandidates[0].dist,
     },
   };
@@ -430,6 +539,9 @@ export function verifyLevel(level, pool) {
   }
   for (const b of level.bolts || []) {
     if (dist[b.y * level.map.w + b.x] === UNREACHABLE) bad.push({ kind: 'bolt', ...b });
+  }
+  for (const c of level.coins || []) {
+    if (dist[c.y * level.map.w + c.x] === UNREACHABLE) bad.push({ kind: 'coin', ...c });
   }
   let portalOk = false;
   for (const q of level.portalCandidates || []) {

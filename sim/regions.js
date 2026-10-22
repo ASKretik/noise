@@ -11,7 +11,7 @@
 // contiguous, room-aligned regions on any map the generator can produce, including
 // the degenerate ones.
 
-import { DIRS, TILE, isWalkable, blocksHuman, blocksAlien } from './grid.js';
+import { DIRS, TILE, isWalkable, blocksHuman, blocksAlien, isSolid } from './grid.js';
 import { FieldPool, bfsFrom, UNREACHABLE, HUMAN } from './pathfind.js';
 
 export const REGION_COUNT = 12;
@@ -86,7 +86,10 @@ export function buildRegions(map, roomCenters = [], count = REGION_COUNT, pool =
       const nx = cx + DIRS[k].dx, ny = cy + DIRS[k].dy;
       if (nx < 0 || ny < 0 || nx >= map.w || ny >= map.h) continue;
       const ni = ny * map.w + nx;
-      if (blocksAlien(map.tiles[ni]) || dist[ni] !== -1) continue;
+      // Painted over everything that is not solid wall, so building cells AND black-box
+      // cells both belong to a district. Both are places an agent of one kind or the
+      // other can stand, and regionOf has to be total for every one of them.
+      if (isSolid(map.tiles[ni]) || dist[ni] !== -1) continue;
       dist[ni] = dist[cur] + 1;
       owned[ni] = owned[cur];
       queue[tail++] = ni;
@@ -95,7 +98,7 @@ export function buildRegions(map, roomCenters = [], count = REGION_COUNT, pool =
   // Any cell the paint could not reach (a sealed pocket the connectivity gate missed)
   // falls back to region 0 rather than NO_REGION, so no tick can log an invalid region.
   for (let i = 0; i < n; i++) {
-    if (!blocksAlien(map.tiles[i]) && owned[i] === NO_REGION) owned[i] = 0;
+    if (!isSolid(map.tiles[i]) && owned[i] === NO_REGION) owned[i] = 0;
   }
 
   // cells[] is human-walkable only: it is what the spawner draws candidate cells from,

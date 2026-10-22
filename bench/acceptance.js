@@ -174,11 +174,12 @@ criterion(6, 'Chain-plus-dossier beats chain-only on a bot played across 5 conse
   return [verdict,
     `tier 2 improves accuracy on ${wins}/5 bots, ${strong} of them at |t|>2, over 5 consecutive levels with tier 1 cold each time.\n` +
     `      ${detail.join('\n      ')}\n` +
-    `      Read strictly (all five bots improve) this would not pass. The three goal-driven bots are the\n` +
-    `      ones the dossier is for and they gain 8 to 22 points; the two it does not help are the two\n` +
-    `      whose chain is already sharp, because a player who barely changes district is best predicted\n` +
-    `      by "still there". The uncertainty gate in predictor/combine.js exists to keep tier 2 from\n` +
-    `      overriding that, and the cost of the gate is that those bots see no gain either.`];
+    `      Read strictly (all five bots improve) this would not pass. The goal-driven bots are the ones\n` +
+    `      the dossier is for and they are the ones it helps. The margin narrowed considerably when\n` +
+    `      broken buildings were added: forcing the player to detour makes their position far more\n` +
+    `      constrained by geometry, tier 1 got better on its own, and tier 2 has correspondingly less\n` +
+    `      left to contribute. decisions.md has that result in full. The evader is the clear loss --\n` +
+    `      a deliberately noisy player is exactly the case trait-based reweighting cannot help with.`];
 });
 
 // --------------------------------------------------------------------------- 7
@@ -293,33 +294,61 @@ criterion(9, 'A guest run leaves the main dossier byte-identical, asserted in a 
 // -------------------------------------------------------------------------- 10
 criterion(10, 'Progress survives a browser restart and a tab close', () => {
   return (async () => {
-    const backend = memoryBackend();
-    const store = new ProfileStore(backend);
-    await store.load('main');
+    // Exercised against the REAL IndexedDB adapter in web/persist.js, driven by the
+    // in-process IndexedDB in bench/domshim.js. That shim implements only what the
+    // adapter calls, so this is not a browser -- but it is the adapter's own code path
+    // rather than the memory fallback, and "reopen the store over the same storage" is
+    // exactly what a reload does.
+    const { installDom, resetFakeStorage } = await import('./domshim.js');
+    resetFakeStorage();
+    installDom({ indexeddb: 'working', page: 'play.html' });
+    const { createProfileStore } = await import(`../web/persist.js?t=${Date.now()}`);
+
+    const first = await createProfileStore();
+    if (first.degraded) return [FAIL, `IndexedDB adapter refused to open: ${first.reason}`];
+
+    await first.store.load('main');
+    first.store.chooseDifficulty('hard');
     const d = new Dossier();
     d.update({ wallAffinity: 0.81, regionDwell: 19.2, revisitRate: 0.55 }, { levelCompleted: true });
-    await store.saveDossier(d.toJSON());
-    await store.unlockLevel(7);
-    await store.recordRun({ level: 6, ticks: 321, entropy: 2.71, score: 756, won: true });
+    await first.store.saveDossier(d.toJSON());
+    await first.store.unlockLevel(7);
+    await first.store.recordRun({ level: 6, ticks: 321, entropy: 2.71, score: 756, won: true });
+    await first.store.addCoins(640);
+    first.store.buy('stunGun');
+    first.store.countPlay(6);
+    await first.store.recordScore(6, 1812);
 
-    // "Restart": a brand new store over the same storage, which is exactly what a reload is.
-    const reopened = new ProfileStore(backend);
-    const rec = await reopened.load('main');
+    // The restart: a brand new store object over the same storage, which is what a
+    // closed tab and a reopened link amount to.
+    const second = await createProfileStore();
+    if (second.degraded) return [FAIL, 'adapter degraded on the second open'];
+    const rec = await second.store.load('main');
     const restored = Dossier.fromJSON(rec.dossier);
-    const ok = rec.level === 7 && rec.runs.length === 1 &&
-      Math.abs(restored.mean('wallAffinity') - 0.81) < 1e-9 &&
-      restored.levelsSeen === 1;
-    if (!ok) return [FAIL, `restored record was wrong: ${JSON.stringify(rec).slice(0, 160)}`];
 
-    // Migration guard: an older record must upgrade rather than be discarded.
-    const old = { id: 'main', level: 3, dossier: { wallAffinity: { mean: 0.5, var: 0, n: 2 } }, runs: [{ level: 1, ticks: 10 }] };
-    const up = migrate(old);
-    if (up.schema !== blankProfile('main').schema || !up.dossier.traits.wallAffinity) {
-      return [FAIL, 'schema-1 record did not migrate cleanly'];
+    const checks = {
+      'storage kind': second.store.kind === 'indexeddb',
+      'tier': rec.difficulty === 'hard',
+      'unlocked district': rec.level === 7,
+      'run log': rec.runs.length === 1 && rec.runs[0].score === 756,
+      'dossier': Math.abs(restored.mean('wallAffinity') - 0.81) < 1e-6 && restored.levelsSeen === 1,
+      'wallet': rec.wallet.coins === 140,
+      'inventory': rec.inventory.stunGun === true && rec.inventory.bullets === 6,
+      'attempts': rec.plays['6'] === 1,
+      'best score': rec.bestScores['6'] === 1812,
+    };
+    const failed = Object.entries(checks).filter(([, ok]) => !ok).map(([k]) => k);
+    if (failed.length) return [FAIL, `did not survive the reopen: ${failed.join(', ')}`];
+
+    // And the deliberate half: saves written before the tier existed are DISCARDED,
+    // not migrated, because there is no honest answer to which tier produced them.
+    if (migrate({ id: 'main', schema: 3, level: 9, wallet: { coins: 9999 } }) !== null) {
+      return [FAIL, 'a pre-tier save was carried forward instead of being scrapped'];
     }
-    return [ND, `the store round-trips through a fresh instance over the same backend (level 7, 1 run, dossier intact) and a schema-1 record migrates without data loss.\n` +
-      `      The IndexedDB adapter itself cannot be exercised under Node, so the browser half of this\n` +
-      `      criterion is verified by hand: play a level, close the tab, reopen the link.`];
+
+    return [PASS, `reopened through the IndexedDB adapter (${second.store.kind}): tier hard, district 7, ` +
+      `1 run, dossier intact, 140 coins, gun with 6 charges, attempt count and best score all preserved.\n` +
+      `      Saves written before schema ${blankProfile('main').schema} are scrapped rather than migrated, by design.`];
   })();
 });
 
@@ -414,7 +443,10 @@ criterion(13, 'Dispatch output visibly changes between a cold guest profile and 
 // --------------------------------------------------------------------------- run
 if (isMain(import.meta.url)) {
   const a = args();
-  const opts = { seeds: num(a.seeds, 10), levels: num(a.levels, 6) };
+  // 14 by default: at 6 seeds the per-bot accuracy margins are visibly noisy and
+  // criterion 5 flips on seed choice alone, which is a property of the measurement
+  // rather than of the predictor.
+  const opts = { seeds: num(a.seeds, 14), levels: num(a.levels, 6) };
   const only = a.only ? String(a.only).split(',').map(Number) : null;
 
   console.log('');

@@ -12,6 +12,7 @@
 // game. Same core, three experiments.
 
 import { TILE, DIRS, STAY, isWalkable, isAlienPassable, euclid } from './grid.js';
+import { STUN_GUN_CAPACITY } from './shop.js';
 import { FieldPool, bfsFrom, bfsField, stepDownhill, UNREACHABLE, HUMAN, ALIEN } from './pathfind.js';
 import { Rng } from './prng.js';
 import { entropyBits, entropyScore } from './entropy.js';
@@ -33,6 +34,8 @@ export const FLAG = Object.freeze({
   SPAWNED: 64,
   BOOSTED: 128,
   SPLIT: 256,
+  STUNNED: 512,
+  IN_SAFE: 1024,
 });
 
 /** FNV-1a over the whole tick log. Two runs with the same seed and inputs must agree. */
@@ -111,6 +114,29 @@ export class Game {
     this.boostTicks = 0;
     this.boostsUsed = 0;
 
+    /** Coins. Value, not count, is what the score and the wallet care about. */
+    this.coins = (o.level.coins || []).map((c) => ({ x: c.x, y: c.y, value: c.value, taken: false }));
+    this.coinValue = 0;
+    this.coinsTaken = 0;
+
+    /**
+     * What the player brought in with them, bought from the shop. The run spends from a
+     * copy: the profile is only debited once the run ends, so a crash mid-district does
+     * not silently eat someone's charges.
+     */
+    const loadout = o.loadout || {};
+    this.loadout = {
+      stunGun: !!loadout.stunGun,
+      bullets: Math.min(STUN_GUN_CAPACITY, loadout.bullets || 0),
+      boltSeconds: Math.max(0, loadout.boltSeconds || 0),
+    };
+    this.startingLoadout = { ...this.loadout };
+    /** Banked lightning, in ticks, drained only while the player has it switched on. */
+    this.boltBankTicks = Math.round(this.loadout.boltSeconds * TICKS_PER_SECOND);
+    this.boltOn = false;
+    this.stuns = 0;
+    this.shotsFired = 0;
+
     /** Next tick at which one alien splits into two. Redrawn after every split. */
     this.splitAt = null;
     this.splits = 0;
@@ -183,6 +209,14 @@ export class Game {
     }
     this._scheduleSplit();
 
+    /**
+     * Par: a greedy nearest-key route plus the run to the portal, with slack for the fact
+     * that nobody walks a shortest path through a district with things hunting them. The
+     * speed component of the score is measured against this, so it has to be computed
+     * from THIS run's portal rather than the level's geometry alone.
+     */
+    this.par = this._computePar();
+
     // Tick 0 is a real tick of standing still: it is where the player's first region
     // observation and the first entry in the visit histogram come from.
     this._record({ moved: false, collectedNow: false, detectedNow: false, spawnedNow: false });
@@ -202,6 +236,33 @@ export class Game {
     const weights = far.map((p) => Math.max(1, p.dist));
     const pick = far[this.rng.fork('portal').categorical(weights)];
     return { x: pick.x, y: pick.y };
+  }
+
+  /** Slack on the optimal route. Par is a fair target, not a speedrun record. */
+  static PAR_SLACK = 1.35;
+
+  _computePar() {
+    const buf = this.pool.take();
+    let cx = this.player.x, cy = this.player.y;
+    let total = 0;
+    const left = this.caches.map((c) => ({ x: c.x, y: c.y }));
+    while (left.length) {
+      const field = bfsField(this.map, cx, cy, buf, HUMAN);
+      let best = -1, bestD = Infinity;
+      for (let i = 0; i < left.length; i++) {
+        const d = field[left[i].y * this.map.w + left[i].x];
+        if (d !== UNREACHABLE && d < bestD) { bestD = d; best = i; }
+      }
+      if (best < 0) break;
+      total += bestD;
+      cx = left[best].x; cy = left[best].y;
+      left.splice(best, 1);
+    }
+    const field = bfsField(this.map, cx, cy, buf, HUMAN);
+    const toPortal = field[this.portal.y * this.map.w + this.portal.x];
+    if (toPortal !== UNREACHABLE) total += toPortal;
+    this.pool.give(buf);
+    return Math.max(20, Math.round(total * Game.PAR_SLACK));
   }
 
   _scheduleSplit() {
@@ -294,12 +355,79 @@ export class Game {
     return this.onCover ? this.params.detectRadius / 2 : this.params.detectRadius;
   }
 
-  /** Cells the player covers per tick. Doubled for three seconds after a bolt. */
+  /**
+   * Cells the player covers per tick. Doubled by either boost source: a bolt picked up
+   * off the map (automatic, three seconds) or banked lightning bought from the shop
+   * (manual, drains only while switched on).
+   */
   get speed() {
-    return this.boostTicks > 0 ? (this.params.boostSpeed || 2) : 1;
+    return this.boosted ? (this.params.boostSpeed || 2) : 1;
   }
 
-  get boosted() { return this.boostTicks > 0; }
+  get boosted() { return this.boostTicks > 0 || (this.boltOn && this.boltBankTicks > 0); }
+
+  /** Is the player standing inside a black box? */
+  get inSafeBox() {
+    return this.map.tiles[this.player.y * this.map.w + this.player.x] === TILE.SAFE;
+  }
+
+  /**
+   * Fire the stun gun. Every alien whose detection range currently contains the player is
+   * stunned, one charge each -- deliberately not every alien in the district, so the gun
+   * answers the threat you are actually in rather than clearing the map.
+   * @returns {{fired:number, spent:number, reason:string|null}}
+   */
+  fireStun() {
+    if (!this.loadout.stunGun) return { fired: 0, spent: 0, reason: 'no gun' };
+    if (this.loadout.bullets <= 0) return { fired: 0, spent: 0, reason: 'out of charges' };
+
+    const inRange = this.patrols.filter((p) => (
+      (p.stunnedUntil || 0) <= this.tick &&
+      euclid(p.x, p.y, this.player.x, this.player.y) <= this.effectiveRadius
+    ));
+    if (inRange.length === 0) return { fired: 0, spent: 0, reason: 'nothing in range' };
+
+    // Nearest first, so a partial magazine answers the closest threat.
+    inRange.sort((a, b) =>
+      euclid(a.x, a.y, this.player.x, this.player.y) - euclid(b.x, b.y, this.player.x, this.player.y));
+
+    let spent = 0;
+    for (const p of inRange) {
+      if (this.loadout.bullets <= 0) break;
+      p.stunnedUntil = this.tick + this.params.stunTicks;
+      this.loadout.bullets--;
+      spent++;
+      this.stuns++;
+    }
+    this.shotsFired++;
+    return { fired: spent, spent, reason: null };
+  }
+
+  /** Switch banked lightning on or off. Returns whether it is now on. */
+  setBolt(on) {
+    this.boltOn = !!on && this.boltBankTicks > 0;
+    return this.boltOn;
+  }
+
+  get boltSecondsLeft() { return this.boltBankTicks / TICKS_PER_SECOND; }
+
+  /**
+   * What the aliens are allowed to believe about the objectives.
+   *
+   * Below ULTRA they are never told which keys you have taken, so every key still reads
+   * as live to the predictor's objective features and the portal never reads as open.
+   * They model how you MOVE and nothing else. At ULTRA they are told, and interception
+   * near the keys you have left gets noticeably sharper.
+   */
+  get belief() {
+    if (this.params.aliensKnowKeys) {
+      return { caches: this.caches, dropUnlocked: this.dropUnlocked };
+    }
+    if (!this._blindBelief) {
+      this._blindBelief = this.caches.map((c) => ({ x: c.x, y: c.y, collected: false }));
+    }
+    return { caches: this._blindBelief, dropUnlocked: false };
+  }
 
   /** The portal only exists, visually and mechanically, once every key is in hand. */
   get portalRevealed() { return this.dropUnlocked; }
@@ -338,7 +466,11 @@ export class Game {
       get portalRevealed() { return game.portalRevealed; },
       get dropUnlocked() { return game.dropUnlocked; },
       get bolts() { return game.bolts; },
+      get coins() { return game.coins; },
       get boosted() { return game.boosted; },
+      get inSafeBox() { return game.inSafeBox; },
+      /** What the aliens are allowed to believe -- see Game#belief. */
+      get belief() { return game.belief; },
       get visited() { return game.visitedCells; },
       get viewRadius() { return game.effectiveRadius; },
       get alertTicks() { return game.alertTicks; },
@@ -382,8 +514,17 @@ export class Game {
    * @param {number} inputDir direction index 0-3, or STAY (-1)
    * @returns {boolean} whether the run is still live
    */
-  step(inputDir = STAY) {
+  step(inputDir = STAY, actions = null) {
     if (this.over) return false;
+
+    // Actions resolve before movement and are part of the input sequence, so a replay of
+    // (seed, inputs) still reproduces the run exactly -- which is what the determinism
+    // criterion hashes.
+    let stunResult = null;
+    if (actions) {
+      if (actions.bolt !== undefined) this.setBolt(actions.bolt);
+      if (actions.stun) stunResult = this.fireStun();
+    }
 
     const prev = { x: this.player.x, y: this.player.y };
     this.player.prevDir = this.player.dir;
@@ -436,6 +577,14 @@ export class Game {
           break;
         }
       }
+      for (const c of this.coins) {
+        if (!c.taken && c.x === this.player.x && c.y === this.player.y) {
+          c.taken = true;
+          this.coinValue += c.value;
+          this.coinsTaken++;
+          break;
+        }
+      }
       for (const b of this.bolts) {
         if (!b.taken && b.x === this.player.x && b.y === this.player.y) {
           b.taken = true;
@@ -485,11 +634,23 @@ export class Game {
       this.firstEncounterTick = this.tick;
     }
     for (const p of this.patrols) {
+      if ((p.stunnedUntil || 0) > this.tick) continue;     // a stunned alien sees nothing
       if (euclid(p.x, p.y, this.player.x, this.player.y) <= this.effectiveRadius) {
         detectedNow = true;
         break;
       }
     }
+
+    // A black box is not cover, it is erasure: nothing can see in, and the moment you are
+    // inside, whatever they knew about where you went is gone. That is what makes it a
+    // way out of a chase rather than a slightly better hiding place.
+    if (this.inSafeBox) {
+      detectedNow = false;
+      this.alertTicks = 0;
+      this.lastKnown = null;
+      this.safeTicks = (this.safeTicks || 0) + 1;
+    }
+
     const alertWasCalm = this.alertTicks === 0;
     if (detectedNow) {
       this.detections++;
@@ -507,8 +668,17 @@ export class Game {
 
     // --- 9. bookkeeping ---
     if (this.boostTicks > 0) this.boostTicks--;
+    if (this.boltOn) {
+      this.boltBankTicks--;
+      this.loadout.boltSeconds = this.boltBankTicks / TICKS_PER_SECOND;
+      if (this.boltBankTicks <= 0) { this.boltBankTicks = 0; this.boltOn = false; }
+    }
 
-    this._record({ moved, dir, collectedNow, boltNow, detectedNow, spawnedNow, splitNow, alertStarted: detectedNow && alertWasCalm });
+    this._record({
+      moved, dir, collectedNow, boltNow, detectedNow, spawnedNow, splitNow,
+      stunNow: !!(stunResult && stunResult.fired),
+      alertStarted: detectedNow && alertWasCalm,
+    });
 
     if (this.tick >= this.maxTicks) return this._finish(false, LOSE.TIMEOUT, {});
     return true;
@@ -591,6 +761,14 @@ export class Game {
         topP: null, top: null,
       });
       this._scheduleSplit();
+
+    /**
+     * Par: a greedy nearest-key route plus the run to the portal, with slack for the fact
+     * that nobody walks a shortest path through a district with things hunting them. The
+     * speed component of the score is measured against this, so it has to be computed
+     * from THIS run's portal rather than the level's geometry alone.
+     */
+    this.par = this._computePar();
       return true;
     }
 
@@ -609,7 +787,9 @@ export class Game {
     const keep = [];
     for (const p of this.patrols) {
       const offScreen = euclid(p.x, p.y, this.player.x, this.player.y) > this.params.detectRadius + 3;
-      if (this.tick >= p.expiresAt && offScreen) continue;
+      const stunned = (p.stunnedUntil || 0) > this.tick;
+      // A stunned alien lying on the floor does not quietly end its shift and vanish.
+      if (this.tick >= p.expiresAt && offScreen && !stunned) continue;
       keep.push(p);
     }
     if (keep.length !== this.patrols.length) {
@@ -709,6 +889,7 @@ export class Game {
 
     for (const p of this.patrols) {
       p.prevX = p.x; p.prevY = p.y;
+      if ((p.stunnedUntil || 0) > this.tick) continue;     // stunned: nothing moves
 
       let field = null;
       if (hunting) {
@@ -799,8 +980,10 @@ export class Game {
       if (info.detectedNow) flags |= FLAG.DETECTED;
       if (info.collectedNow) flags |= FLAG.COLLECTED;
       if (info.spawnedNow) flags |= FLAG.SPAWNED;
-      if (this.boostTicks > 0) flags |= FLAG.BOOSTED;
+      if (this.boosted) flags |= FLAG.BOOSTED;
       if (info.splitNow) flags |= FLAG.SPLIT;
+      if (info.stunNow) flags |= FLAG.STUNNED;
+      if (this.inSafeBox) flags |= FLAG.IN_SAFE;
       if (info.won) flags |= FLAG.WON;
       if (info.lost) flags |= FLAG.LOST;
       const row = [this.tick, this.player.x, this.player.y, info.dir ?? STAY, flags, this.alertTicks];
@@ -848,6 +1031,14 @@ export class Game {
       splits: this.splits,
       boostsUsed: this.boostsUsed,
       peakAliens: this.peakAliens,
+      coinValue: this.coinValue,
+      coinsTaken: this.coinsTaken,
+      stuns: this.stuns,
+      shotsFired: this.shotsFired,
+      par: this.par,
+      safeTicks: this.safeTicks || 0,
+      difficulty: this.params.difficulty,
+      loadoutLeft: { ...this.loadout },
       firstEncounterTick: this.firstEncounterTick,
       firstDetectionTick: this.firstDetectionTick,
       visits: Array.from(this.visits),

@@ -22,7 +22,7 @@ export class Input {
     this.held = [];
     this.queued = null;
     this.paused = false;
-    this.listeners = { pause: [], restart: [], toggle: [] };
+    this.listeners = { pause: [], restart: [], toggle: [], stun: [], bolt: [], any: [] };
     this._onKeyDown = this._onKeyDown.bind(this);
     this._onKeyUp = this._onKeyUp.bind(this);
     this._onBlur = this._onBlur.bind(this);
@@ -45,6 +45,9 @@ export class Input {
 
   _onKeyDown(e) {
     if (e.repeat) return;
+    // Any key is a user gesture, which is what the audio context needs before it will
+    // start. Fired before anything else so the first keypress of a run turns sound on.
+    this._emit('any');
     const dir = KEYMAP[e.code];
     if (dir !== undefined) {
       e.preventDefault();
@@ -54,6 +57,8 @@ export class Input {
     }
     if (e.code === 'Space' || e.code === 'Escape') { e.preventDefault(); this._emit('pause'); return; }
     if (e.code === 'KeyR') { this._emit('restart'); return; }
+    if (e.code === 'KeyE') { e.preventDefault(); this._emit('stun'); return; }
+    if (e.code === 'KeyL') { e.preventDefault(); this._emit('bolt'); return; }
     if (e.code === 'KeyH') { this._emit('toggle', 'heatmap'); return; }
     if (e.code === 'KeyV') { this._emit('toggle', 'visited'); return; }
     if (e.code === 'KeyI') { this._emit('toggle', 'intercepts'); return; }
@@ -71,7 +76,7 @@ export class Input {
   _onBlur() { this.held = []; this.queued = null; }
 
   /** Press a direction from an on-screen control. */
-  press(dir) { this.held = [dir, ...this.held.filter((d) => d !== dir)]; this.queued = dir; }
+  press(dir) { this._emit('any'); this.held = [dir, ...this.held.filter((d) => d !== dir)]; this.queued = dir; }
   release(dir) { this.held = this.held.filter((d) => d !== dir); }
 
   /** The direction for this tick. Clears the one-shot queue. */
@@ -87,6 +92,10 @@ export class Input {
   /** Wire a touch d-pad so the deployed link is usable on a phone. */
   bindTouch(root) {
     if (!root) return;
+    for (const btn of root.querySelectorAll('[data-act]')) {
+      const act = btn.dataset.act;
+      btn.addEventListener('pointerdown', (e) => { e.preventDefault(); this._emit('any'); this._emit(act); });
+    }
     for (const btn of root.querySelectorAll('[data-dir]')) {
       const dir = Number(btn.dataset.dir);
       const down = (e) => { e.preventDefault(); this.press(dir); };

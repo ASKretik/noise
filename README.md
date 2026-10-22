@@ -7,10 +7,14 @@ you arrive.
 no install, no backend, no build step
 
 Find every key, open the portal, get out. Water halves how far you can be seen and every
-alien's detection ring visibly shrinks when you step into it; lightning gives you three
-seconds at double speed; rubble stops you but not them. Every ten to fifteen seconds one
-alien splits in two, and they hunt as a squad — one runs you down while the others post
-themselves on the routes you might break toward.
+alien's detection ring visibly shrinks when you step into it; lightning gives you double
+speed; rubble stops you but not them; black boxes erase what they knew about where you
+went. Every ten to fifteen seconds one alien splits in two, and they hunt as a squad — one
+runs you down while the others post themselves on the routes you might break toward.
+
+Four difficulty tiers, picked once per save file and permanent. On the hardest, they are
+told which keys you have already taken; below it they model how you move and nothing else.
+Coins off the floor buy a stun gun and banked lightning from the shop.
 
 Your score is the Shannon entropy of your own movement: the system wins by turning you
 into signal, and you win by staying noise.
@@ -50,11 +54,12 @@ npm run couplings # re-select the trait-to-geometry couplings by measurement
 ### Controls
 
 Arrow keys or WASD, one cell per tick, eight ticks a second.
+`E` stun everything that can currently see you · `L` toggle banked lightning ·
 `H` prediction heatmap · `V` visited cells · `I` alien targets · `Space` pause ·
 `R` restart the district.
 
-The game runs on its own page (`play.html`) so the arrow keys never fight the document
-for scroll.
+Profile → district hub (and shop) → district. The game runs on its own page
+(`play.html`) so the arrow keys never fight the document for scroll.
 
 ---
 
@@ -75,13 +80,12 @@ Chance is 1 in 12. Time-to-first-encounter is lower under the full spawner than 
 uniform for **all five** bot policies — the clearest single result in the project, and the
 one a player can actually feel.
 
-**Three of the thirteen acceptance criteria come back NOT DEMONSTRATED** rather than
-passed, and the suite says so in those words rather than quietly rounding up. One of them
-— whether the behavioural dossier adds anything on top of the geometric model — regressed
-when broken buildings were added, because forcing the player to detour around rubble made
-the geometric model much better on its own. That is written up honestly in
-**[decisions.md](decisions.md)**; it is a more interesting result than a number that only
-ever went up.
+`npm test` reports **12 passed · 1 not demonstrated · 0 failed**. The suite has three
+verdicts rather than two, and the one that is not demonstrated says why: whether an
+adaptive spawner pushes a player toward unpredictability cannot be settled with
+fixed-policy bots, because a fixed policy cannot respond to pressure at all. That is a
+human's question. The full history of what moved and why — including a regression that
+broken buildings caused and how it was diagnosed — is in **[decisions.md](decisions.md)**.
 
 ---
 
@@ -93,7 +97,9 @@ sim/        the pure core. Zero DOM, zero imports outside /sim, runs under Node
   grid      32x20, four tile types, one flat typed array
   gen       BSP level generator: rooms, corridors, connectivity, cover, objectives
   regions   the 12-district partition tier 1 reasons over
-  game      the tick loop: movement, keys, aliens, detection, alert, division, win/lose
+  game      the tick loop: movement, keys, coins, aliens, stun, alert, division, win/lose
+  score     the score equation and what it pays out in coins
+  shop      what coins buy, and whether a purchase is legal
   poisson   alien arrivals and departures as a birth-death process
   spawner   rejection sampling from a truncated distribution
   squad     the aliens decide together: roles, and one district each
@@ -106,8 +112,8 @@ sim/        the pure core. Zero DOM, zero imports outside /sim, runs under Node
     priors     GENERATED -- population reference values for z-scoring
     couplings  GENERATED -- which trait pulls on which piece of geometry
     combine    how the two tiers become one distribution
-web/        browser-only leaves: canvas, input, HUD, IndexedDB, dispatch
-              launch.js drives index.html; play.js drives play.html
+web/        browser-only leaves: canvas, input, HUD, IndexedDB, dispatch, ambience
+              launch.js → index.html · districts.js → districts.html · play.js → play.html
 bots/       five scripted policies spanning the legibility axis
 bench/      the Node harness, the acceptance suite, and the two generators
 docs/       the benchmark report and its figures

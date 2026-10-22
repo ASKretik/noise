@@ -21,14 +21,23 @@ export const TILE = Object.freeze({
    * are the only legitimate way to ask.
    */
   BUILDING: 4,
+  /**
+   * A translucent black box. The human can stand in it; an alien cannot enter, and loses
+   * the trail entirely the moment you do -- alert cleared, last-known position forgotten.
+   * The exact inverse of a building, which is why the two movement predicates below now
+   * genuinely disagree in both directions rather than one.
+   */
+  SAFE: 5,
 });
 
-export const TILE_NAME = ['floor', 'wall', 'water', 'portal', 'building'];
+export const TILE_NAME = ['floor', 'wall', 'water', 'portal', 'building', 'safe'];
 
 /** What stops the human. */
 export const blocksHuman = (t) => t === TILE.WALL || t === TILE.BUILDING;
-/** What stops an alien. Rubble is not an obstacle to something that flows through it. */
-export const blocksAlien = (t) => t === TILE.WALL;
+/** What stops an alien. Rubble is no obstacle to it; a black box is absolute. */
+export const blocksAlien = (t) => t === TILE.WALL || t === TILE.SAFE;
+/** Solid for everyone. Used where a cell just has to exist, e.g. district painting. */
+export const isSolid = (t) => t === TILE.WALL;
 
 /**
  * Directions, in a fixed order that must never be reshuffled: the index is written
@@ -91,6 +100,13 @@ export function isAlienPassable(map, x, y) {
   return inBounds(map, x, y) && !blocksAlien(map.tiles[y * map.w + x]);
 }
 
+/** Can BOTH stand here? Where an alien may legally arrive and the player can see it. */
+export function isSharedGround(map, x, y) {
+  if (!inBounds(map, x, y)) return false;
+  const t = map.tiles[y * map.w + x];
+  return !blocksHuman(t) && !blocksAlien(t);
+}
+
 export function isAlienPassableIdx(map, i) {
   return !blocksAlien(map.tiles[i]);
 }
@@ -128,7 +144,7 @@ export const euclid = (ax, ay, bx, by) => Math.sqrt(dist2(ax, ay, bx, by));
 
 /** Serialise a map to a compact string -- used by the determinism tests and the bench cache. */
 export function mapToString(map) {
-  const glyph = ['.', '#', '~', 'O', 'B'];
+  const glyph = ['.', '#', '~', 'O', 'B', '■'];
   const rows = [];
   for (let y = 0; y < map.h; y++) {
     let r = '';

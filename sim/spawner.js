@@ -15,7 +15,7 @@
 // and nothing about how the distribution was produced beyond calling predict().
 
 import { UNREACHABLE } from './pathfind.js';
-import { blocksHuman } from './grid.js';
+import { isSharedGround } from './grid.js';
 import { predict } from './predictor/combine.js';
 import { euclid } from './grid.js';
 
@@ -32,8 +32,10 @@ export const REJECT = Object.freeze({
 /** The four constraints, in one place so the spawn path and the fallback path agree. */
 export function checkCell(view, i, params) {
   const { map, player, fields } = view;
-  // Aliens arrive on ground the player can see and walk, never inside rubble.
-  if (blocksHuman(map.tiles[i])) return REJECT.UNWALKABLE;
+  // Aliens arrive on ground BOTH can occupy: never inside rubble the player cannot see
+  // into, and never inside a black box they are not allowed to enter at all.
+  const x0 = i % map.w;
+  if (!isSharedGround(map, x0, (i - x0) / map.w)) return REJECT.UNWALKABLE;
   // Measured as the ALIEN travels, because the honest question behind "at least 8 cells
   // away" is how many ticks until it can reach you -- and it cuts through buildings.
   const d = fields.alienToPlayer[i];
@@ -112,7 +114,8 @@ export function sampleIntercept({ view, chain, dossier, tau, mode, rng, params, 
     const cells = regions.cells[r];
     if (!cells || cells.length === 0) continue;
     const i = cells[rng.int(cells.length)];
-    if (blocksHuman(view.map.tiles[i])) continue;
+    const ix = i % view.map.w;
+    if (!isSharedGround(view.map, ix, (i - ix) / view.map.w)) continue;
     if (view.fields.alienToPlayer[i] === UNREACHABLE) continue;
     const x = i % view.map.w, y = (i - x) / view.map.w;
     return { x, y, region: r, prediction: pred };
