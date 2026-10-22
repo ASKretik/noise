@@ -622,9 +622,8 @@ export class Game {
       spawnedNow = true;
     }
 
-    // --- 6. one alien splits in two, then they retire and move ---
+    // --- 6. one alien splits in two, then they all move ---
     const splitNow = this._maybeSplit();
-    this._retirePatrols();
     this._movePatrols();
 
     // --- 7. detection ---
@@ -743,8 +742,6 @@ export class Game {
         field: null,
         moveAcc: 0,
         spawnedAt: this.tick,
-        // Inherits the parent's shift clock: dividing must not buy immortality.
-        expiresAt: parent.expiresAt,
         spawnRegion: this.regions.regionOf[at.y * this.map.w + at.x],
         reason: `division of unit ${parent.id}`,
         fallback: false,
@@ -778,25 +775,19 @@ export class Game {
   }
 
   /**
-   * End of shift. Nobody rotates out mid-hunt, and nobody disappears in plain sight:
-   * a patrol vanishing in front of the player reads as a glitch and costs more
-   * credibility than the balance is worth.
+   * ALIENS NEVER LEAVE, and this used to be the opposite.
+   *
+   * There was a birth-death process here: each alien drew an exponential shift length and
+   * retired once it was calm and "off-screen", where off-screen meant more than a detection
+   * radius or so from the player. That guard is nonsense in this game. The whole 32x20
+   * district is on screen at all times, so there is no off-screen -- every retirement
+   * happened in full view, and from the player's side an alien simply blinked out of
+   * existence and another blinked in somewhere else a few seconds later.
+   *
+   * The population is bounded by the arrival cap instead: arrivals stop at maxPatrols, so
+   * the Poisson process fills up to the cap and then waits. Division deliberately ignores
+   * that cap (see _maybeSplit), which is the only way the count grows past it.
    */
-  _retirePatrols() {
-    if (this.alertTicks > 0 || this.patrols.length === 0) return;
-    const keep = [];
-    for (const p of this.patrols) {
-      const offScreen = euclid(p.x, p.y, this.player.x, this.player.y) > this.params.detectRadius + 3;
-      const stunned = (p.stunnedUntil || 0) > this.tick;
-      // A stunned alien lying on the floor does not quietly end its shift and vanish.
-      if (this.tick >= p.expiresAt && offScreen && !stunned) continue;
-      keep.push(p);
-    }
-    if (keep.length !== this.patrols.length) {
-      this.patrols = keep;
-      this._memo.patrols.tick = -1;
-    }
-  }
 
   _collides() {
     for (const p of this.patrols) if (p.x === this.player.x && p.y === this.player.y) return true;
@@ -821,9 +812,6 @@ export class Game {
       field: null,
       moveAcc: 0,
       spawnedAt: this.tick,
-      // Memoryless shift length. Retirement is checked only when the patrol is calm and
-      // off-screen, so a patrol never evaporates while the player is watching it.
-      expiresAt: this.tick + this.rngArrival.exponential(1 / Math.max(1, this.params.patrolLifetime)),
       spawnRegion: spawn.region,
       reason: spawn.reason || '',
       fallback: !!spawn.fallback,

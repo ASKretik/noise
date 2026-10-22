@@ -54,9 +54,9 @@ class El {
     // object is not enough of a style declaration to run the district grid.
     const vars = {};
     this.style = {
-      setProperty(k, v) { vars[k] = String(v); },
+      setProperty(k, v) { vars[k] = String(v); this[k] = String(v); },
       getPropertyValue(k) { return vars[k] ?? ''; },
-      removeProperty(k) { delete vars[k]; },
+      removeProperty(k) { delete vars[k]; delete this[k]; },
     };
     this.className = '';
     this.id = '';

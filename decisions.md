@@ -584,3 +584,113 @@ the tier chooser, the hub, the shop's arithmetic, the loadout crossing into a di
 and L, black boxes and the score payout — but no pixel has been drawn, no CSS laid out, and
 the ambience has never made a sound, because there is no AudioContext in Node. The audio
 and the new art are the parts most likely to need another pass.
+
+---
+
+# Round three — the whole city, and aliens that stay
+
+Two reported bugs, one of which had a clean root cause worth writing down.
+
+## R9 · Aliens were vanishing and reappearing — fixed
+
+**Reported:** "the aliens randomly vanish and reappear. why does this happen? fix that.
+they need to stay on the map all the time."
+
+**Cause, exactly.** Every alien drew an exponential shift length and retired through
+`_retirePatrols()` once it was *calm* and *off-screen*, where off-screen meant more than a
+detection radius or so from the player. That guard is nonsense in this game: the entire
+32×20 district is on screen at all times, so **there is no off-screen**. Every retirement
+happened in plain view. From the player's side an alien simply blinked out and another
+blinked in somewhere else a few seconds later — which is exactly what was reported.
+
+The mechanic itself was added for a real reason (see A4 in dna.md): a pure arrival process
+saturates at the concurrent cap and stays there. But the cap already does that job on its
+own — arrivals stop at `maxPatrols` — and a population pinned at its cap is a design
+choice, not a bug. The guard was the mistake, not the cap.
+
+**Built.** `_retirePatrols` is gone, along with `patrolLifetime` and the per-alien
+`expiresAt`. Aliens now never leave. The population is: one at the start, arrivals up to
+the cap, plus divisions, which deliberately ignore the cap. Verified over a long run —
+**the alien count never decreases, at any point, for any reason**. The bench's old `E[N]`
+column (λ × lifetime) is replaced by `fill`, the expected ticks for arrivals to take a
+district from its first alien to the cap.
+
+**[ASSUMED]** Arrivals still appear from nothing, at least 11 cells away and outside your
+detection range. That is a deliberate constraint rather than an oversight — there is no map
+edge for them to walk in from — and it is what acceptance criterion 4 checks.
+
+---
+
+## R10 · All 100 districts, ten belts of ten
+
+**Asked:** "only 10 districts are visible, there needs to be 100 districts visible, 10 each
+in same colour palette."
+
+**Built.** `web/themes.js`: `TOTAL_DISTRICTS = 100`, ten palettes — RUST, TIDE, MOSS,
+EMBER, VIOLET, ASH, CORAL, JADE, SOLAR, COBALT — one per belt of ten, each belt under its
+own named heading. Everything is visible from the first run; districts past the furthest
+you have opened render locked.
+
+**[ASSUMED]** Ten hand-picked palettes rather than a hue rotated by block number. A
+generated hue lands on muddy olive or near-black somewhere around belt seven and reads as a
+bug. Each belt also names its palette in the heading, so the grouping never rests on colour
+alone.
+
+**[ASSUMED]** The themes moved out of `districts.js` into `web/themes.js`. The page
+controller boots itself on import, so anything wanting just the constants — the harness,
+for one — could not touch them without running a whole page. That was a real failure while
+writing the test for this.
+
+**Worth knowing:** the difficulty curve still caps at district 10, per the original spec's
+"cap the curve so it stays playable rather than becoming a wall". Districts 11 through 100
+are all generated at full pressure and are all different maps (the seed is the real district
+number), but they do not get progressively harder. What does keep changing is the file on
+you. The hub says this in as many words.
+
+---
+
+## [FOUND] The generated constants had gone stale, and that was the real regression
+
+Criterion 6 read NOT DEMONSTRATED again after this round, and the honest first move was to
+get more data rather than lower the bar. At 40 seeds the picture was clear and bad: the
+dossier helped 4 of 5 bots but none significantly, while its *cost* on the evader was
+strongly significant (−7.6pp, t = −3.41).
+
+The cause was not the predictor. `sim/predictor/priors.js` and `couplings.js` are
+**generated** from the bot population, and they had last been generated before black boxes,
+coins, persistent aliens and the difficulty tiers existed. They were describing a game that
+no longer ran. Regenerating both against the current game:
+
+| bot | chain only | chain + dossier | before regeneration |
+|---|---|---|---|
+| beeline | 7.8% | **24.2%** (+16.4pp) | +4.5pp |
+| wallHugger | 10.9% | **25.7%** (+14.9pp) | +1.4pp |
+| coverCrawler | 13.7% | **19.7%** (+6.1pp) | +3.1pp |
+| evader | 29.2% | 28.4% (−0.7pp) | **−7.6pp** |
+| drunk | 83.8% | 83.5% (−0.3pp) | +2.7pp |
+
+Held-out macro accuracy went 29.1% → 36.3%, and the evader's loss shrank from significant
+to noise. Criterion 6 is back to **PASS**.
+
+The lesson is about the project rather than the model: once constants are derived from
+measurement, they are a build artefact of the game as it stood, and changing the game
+invalidates them as surely as changing the code. `npm run priors && npm run couplings`
+belongs in the routine after any mechanical change, and it is now the first thing to try
+when a prediction result moves for no visible reason.
+
+**[FOUND] — the benchmarks had quietly started measuring at MEDIUM.** `levelParams()`
+defaults to MEDIUM because that is the right default for a new player, and the harness
+inherited it the moment tiers were added — slowing every alien by 25% in every benchmark,
+for a reason with nothing to do with prediction. All of `/bench` now pins `BENCH_TIER =
+'hard'` explicitly. This did not turn out to be what moved criterion 6, but it was wrong
+regardless and would have made every future comparison incomparable with every past one.
+
+## Current state
+
+```
+npm test          12 passed · 1 not demonstrated · 0 failed
+npm run webcheck  27/27
+```
+
+The single not-demonstrated criterion is #8, which needs a human: fixed-policy bots cannot
+become less predictable under pressure because they cannot perceive pressure at all.

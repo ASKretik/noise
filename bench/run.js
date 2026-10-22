@@ -9,7 +9,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-import { career, episode, level, MODES, BOT_NAMES, mean, sem, welch, fmtPct, pad, padL, TICKS_PER_SECOND, clearLevelCache } from './harness.js';
+import { career, episode, level, MODES, BOT_NAMES, mean, sem, welch, fmtPct, pad, padL, TICKS_PER_SECOND, clearLevelCache, BENCH_TIER } from './harness.js';
 import { Dossier } from '../sim/predictor/dossier.js';
 import { LevelChain } from '../sim/predictor/chain.js';
 import { REWEIGHT_TERMS } from '../sim/predictor/couplings.js';
@@ -107,15 +107,17 @@ if (isMain(import.meta.url)) {
   console.log(`seeds ${seeds} | levels 1-${levels} | attempts per level ${attempts}`);
 
   // ---------------------------------------------------------------- 1
-  heading(1, 'difficulty curve');
-  console.log('  lvl keys units  init   lambda  E[N]  radius  chase   tau  bldgs  split window');
+  heading(1, `difficulty curve (measured at ${BENCH_TIER.toUpperCase()})`);
+  console.log('  lvl keys  cap  init   lambda  fill  radius  chase   tau  bldgs  split window');
   for (let L = 1; L <= CURVE_CAP; L++) {
-    const p = levelParams(L);
+    const p = levelParams(L, BENCH_TIER);
     console.log(`  ${padL(L, 3)} ${padL(p.caches, 4)} ${padL(p.maxPatrols, 6)} ${padL(p.initialPatrols, 5)} ` +
-      `${padL(p.lambdaBase.toFixed(4), 8)} ${padL((p.lambdaBase * p.patrolLifetime).toFixed(2), 5)} ` +
+      `${padL(p.lambdaBase.toFixed(4), 8)} ${padL(`${Math.round((p.maxPatrols - p.initialPatrols) / p.lambdaBase)}t`, 5)} ` +
       `${padL(p.detectRadius.toFixed(1), 7)} ${padL(p.chaseMovePeriod.toFixed(2), 6)} ${padL(p.tauBase.toFixed(2), 5)} ` +
       `${padL(p.buildings, 6)} ${padL(`${p.splitIntervalTicks[0]}-${p.splitIntervalTicks[1]}t`, 13)}`);
   }
+  console.log('  "fill" is the expected ticks for arrivals to take the district from its initial alien to the cap.');
+  console.log('  Aliens never leave; only division takes the count past the cap.');
   console.log(`  survival band ${SURVIVAL_BAND.lo}-${SURVIVAL_BAND.hi} ticks (${SURVIVAL_BAND.lo / TICKS_PER_SECOND}-${SURVIVAL_BAND.hi / TICKS_PER_SECOND}s); a win counts as right-censored at the horizon`);
 
   // ---------------------------------------------------------------- 2
@@ -255,7 +257,7 @@ if (isMain(import.meta.url)) {
     ['mixed, 2 of 5 won', [{ ticks: 40, won: false }, { ticks: 300, won: true }, { ticks: 50, won: false }, { ticks: 260, won: true }, { ticks: 45, won: false }]],
     ['all wins', Array.from({ length: 5 }, () => ({ ticks: 120, won: true }))],
   ];
-  const p6 = levelParams(6);
+  const p6 = levelParams(6, BENCH_TIER);
   console.log(`  ${pad('history', 26)}${padL('mean survival', 15)}${padL('tau', 8)}${padL('lambda x', 10)}${padL('action', 12)}`);
   for (const [label, runs] of scenarios) {
     const c = adaptDifficulty(runs, p6);

@@ -12,9 +12,9 @@ import { Dossier } from '../sim/predictor/dossier.js';
 import { isMain, args } from './cli.js';
 
 const results = [];
-function check(name, fn) {
+async function check(name, fn) {
   try {
-    const detail = fn();
+    const detail = await fn();
     results.push({ name, ok: true, detail: detail == null ? '' : String(detail) });
   } catch (err) {
     results.push({ name, ok: false, detail: err?.stack || String(err) });
@@ -34,7 +34,7 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
   for (let i = 0; i < 50; i++) await Promise.resolve();
   await new Promise((r) => setTimeout(r, 20));
 
-  check('launch page offers both slots as new files needing a tier', () => {
+  await check('launch page offers both slots as new files needing a tier', () => {
     const slots = launchDom.byId.get('slots');
     if (!slots || slots.children.length !== 2) throw new Error(`expected 2 slots, got ${slots?.children.length}`);
     // Saves were scrapped, so both slots are fresh and must ask for a tier rather than
@@ -45,7 +45,7 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     return `${labels.join(', ')} — both new, both must choose a tier first`;
   });
 
-  check('choosing a tier offers all four and is permanent', () => {
+  await check('choosing a tier offers all four and is permanent', () => {
     launchDom.byId.get('slots').children[0].fire('click');
     const tiers = launchDom.byId.get('tiers');
     if (tiers.children.length !== 4) throw new Error(`expected 4 tiers, got ${tiers.children.length}`);
@@ -68,21 +68,33 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
   for (let i = 0; i < 60; i++) await Promise.resolve();
   await new Promise((r) => setTimeout(r, 20));
 
-  check('hub lists districts, locks the ones not yet unlocked, and themes by block', () => {
+  await check('hub shows all 100 districts in ten themed belts, locked past the furthest unlocked', async () => {
+    const { TOTAL_DISTRICTS, BLOCK_SIZE, DISTRICT_THEMES } = await import('../web/themes.js');
     const grid = hubDom.byId.get('district-grid');
     const cards = grid.children.filter((c) => c.classList.contains('district'));
     const heads = grid.children.filter((c) => c.classList.contains('block-head'));
-    if (cards.length < 10) throw new Error(`only ${cards.length} district cards`);
-    if (heads.length < 1) throw new Error('no themed block heading');
-    const locked = cards.filter((c) => c.classList.contains('locked')).length;
-    if (locked === 0) throw new Error('nothing was locked');
+
+    if (cards.length !== TOTAL_DISTRICTS) throw new Error(`${cards.length} district cards, expected ${TOTAL_DISTRICTS}`);
+    if (heads.length !== TOTAL_DISTRICTS / BLOCK_SIZE) throw new Error(`${heads.length} belt headings, expected ${TOTAL_DISTRICTS / BLOCK_SIZE}`);
+
+    // Every belt must carry a distinct accent, and name it rather than rely on colour.
+    const accents = new Set(cards.map((c) => c.style.getPropertyValue('--d-accent')));
+    if (accents.size !== DISTRICT_THEMES.length) throw new Error(`${accents.size} distinct accents, expected ${DISTRICT_THEMES.length}`);
+    const named = heads.every((h) => DISTRICT_THEMES.some((t) => h.textContent.startsWith(t.name)));
+    if (!named) throw new Error('a belt heading did not name its palette');
+
+    // Unlocked through 4 (seeded above), so exactly 4 playable and the rest locked.
     const playable = cards.filter((c) => c.href);
-    if (playable.length === 0) throw new Error('nothing was playable');
+    const locked = cards.filter((c) => c.classList.contains('locked'));
+    if (playable.length !== 4) throw new Error(`${playable.length} playable, expected 4`);
+    if (locked.length !== TOTAL_DISTRICTS - 4) throw new Error(`${locked.length} locked, expected ${TOTAL_DISTRICTS - 4}`);
     if (!playable[0].href.includes('d=1')) throw new Error(`first card links to ${playable[0].href}`);
-    return `${cards.length} cards, ${locked} locked, ${heads.length} themed block(s)`;
+
+    return `${cards.length} cards across ${heads.length} belts (${[...accents].length} palettes), ` +
+      `${playable.length} playable, ${locked.length} locked`;
   });
 
-  check('shop sells the gun, charges and lightning, and refuses what is unaffordable', () => {
+  await check('shop sells the gun, charges and lightning, and refuses what is unaffordable', () => {
     hubDom.byId.get('tab-shop').fire('click');
     const items = hubDom.byId.get('shop-grid').children;
     if (items.length !== 3) throw new Error(`expected 3 shop items, got ${items.length}`);
@@ -116,13 +128,13 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
 
   const app = globalThis.window.NOISE || globalThis.NOISE;
 
-  check('boot completed without throwing', () => {
+  await check('boot completed without throwing', () => {
     if (errors.length) throw new Error(errors.join('\n'));
     if (!app) throw new Error('window.NOISE was never set');
     return `store=${app.storeKind}`;
   });
 
-  check('district 1 generated and game constructed', () => {
+  await check('district 1 generated and game constructed', () => {
     if (!app.game) throw new Error('no game');
     if (app.level.level !== 1) throw new Error(`expected district 1, got ${app.level.level}`);
     if (app.profileId !== 'main') throw new Error(`wrong profile: ${app.profileId}`);
@@ -132,13 +144,13 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
       `tier ${app.difficultyId}`;
   });
 
-  check('the loadout bought in the shop is carried into the district', () => {
+  await check('the loadout bought in the shop is carried into the district', () => {
     if (!app.game.loadout.stunGun) throw new Error('gun did not come through');
     if (app.game.loadout.bullets !== 6) throw new Error(`bullets=${app.game.loadout.bullets}`);
     return `gun with ${app.game.loadout.bullets} charges, ${app.game.loadout.boltSeconds}s lightning`;
   });
 
-  check('E stuns only what can currently see the player, one charge each', () => {
+  await check('E stuns only what can currently see the player, one charge each', () => {
     // Walk an alien into range by stepping the sim, then fire.
     let t = performance.now();
     for (let i = 0; i < 400 && !app.game.over; i++) {
@@ -159,7 +171,7 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     return `nothing in range, refused cleanly (${res.reason})`;
   });
 
-  check('L only drains lightning while it is switched on', () => {
+  await check('L only drains lightning while it is switched on', () => {
     app.startLevel(1);
     const start = app.game.boltBankTicks;
     let t = performance.now();
@@ -171,7 +183,7 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     return `${start} ticks banked, ${start - app.game.boltBankTicks} drained once switched on`;
   });
 
-  check('a black box hides the player and erases the trail', () => {
+  await check('a black box hides the player and erases the trail', () => {
     const g = app.game;
     const safe = [];
     for (let i = 0; i < g.map.tiles.length; i++) if (g.map.tiles[i] === 5) safe.push(i);
@@ -187,7 +199,7 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     return `${safe.length} black-box cells; alert and last-known both cleared`;
   });
 
-  check('the portal is hidden until every key is collected', () => {
+  await check('the portal is hidden until every key is collected', () => {
     if (app.game.portalRevealed) throw new Error('portal revealed with keys outstanding');
     if (!app.game.portal) throw new Error('no portal chosen');
     // And it moves between attempts on the same district.
@@ -197,14 +209,14 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     return `${sites.size} distinct portal sites across 12 restarts of the same district`;
   });
 
-  check('keys tab reports what is needed', () => {
+  await check('keys tab reports what is needed', () => {
     const txt = `${dom.byId.get('keytab-count').textContent} ${dom.byId.get('keytab-note').textContent}`;
     if (!/\d+ \/ \d+/.test(txt)) throw new Error(`keys tab reads "${txt}"`);
     if (dom.byId.get('keytab').dataset.state !== 'locked') throw new Error('portal shown open at the start');
     return txt;
   });
 
-  check('HUD and panels populated on district start', () => {
+  await check('HUD and panels populated on district start', () => {
     const bars = dom.byId.get('prediction-list');
     if (bars.children.length !== app.level.regions.count) {
       throw new Error(`prediction bars ${bars.children.length} != regions ${app.level.regions.count}`);
@@ -214,7 +226,7 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     return `dispatch: "${dom.byId.get('dispatch-text').textContent.slice(0, 48)}..."`;
   });
 
-  check('fixed-timestep loop advances the sim', () => {
+  await check('fixed-timestep loop advances the sim', () => {
     const before = app.game.tick;
     // Drive frames by hand: 40 frames of 125 ms is 40 ticks.
     let t = performance.now();
@@ -226,7 +238,7 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     return `tick ${app.game.tick}, patrols ${app.game.patrols.length}`;
   });
 
-  check('live spawner mode switch takes effect without restarting', () => {
+  await check('live spawner mode switch takes effect without restarting', () => {
     const tickBefore = app.game.tick;
     const levelBefore = app.level.level;
     for (const mode of ['uniform', 'chain', 'chainDossier', 'full']) {
@@ -239,7 +251,7 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     return 'all four modes switched in place';
   });
 
-  check('input: a queued tap survives to the next tick', () => {
+  await check('input: a queued tap survives to the next tick', () => {
     app.input.press(1);
     const d = app.input.consume();
     if (d !== 1) throw new Error(`expected dir 1, got ${d}`);
@@ -255,12 +267,12 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     await new Promise((r) => setTimeout(r, 20));
   }
 
-  check('terminal state reached', () => {
+  await check('terminal state reached', () => {
     if (!app.game.over) throw new Error('run never ended');
     return `${app.game.won ? 'won' : `lost (${app.game.loseReason})`} at tick ${app.game.tick}, score ${app.game.score}`;
   });
 
-  check('dossier folded and run persisted to the active profile', () => {
+  await check('dossier folded and run persisted to the active profile', () => {
     const rec = app.store.current();
     if (rec.id !== 'main') throw new Error(`active profile is ${rec.id}`);
     if (rec.runs.length < 1) throw new Error('no run recorded');
@@ -270,7 +282,7 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     return `${rec.runs.length} run(s), ${traits} traits, updates=${rec.dossier.updates}`;
   });
 
-  check('score and coins are paid out, and replaying decays the score', () => {
+  await check('score and coins are paid out, and replaying decays the score', () => {
     const sc = app.lastScore;
     if (!sc) throw new Error('no score computed');
     if (!Number.isFinite(sc.score) || !Number.isFinite(sc.earned)) throw new Error('score or coins not a number');
@@ -284,14 +296,14 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
       `attempt ${plays} at x${a.toFixed(2)}`;
   });
 
-  check('outcome overlay shown with stats', () => {
+  await check('outcome overlay shown with stats', () => {
     if (dom.byId.get('overlay').hidden) throw new Error('overlay hidden after run end');
     const stats = dom.byId.get('overlay-stats').innerHTML;
     if (!stats.includes('noise index')) throw new Error('overlay stats missing');
     return dom.byId.get('overlay-title').textContent;
   });
 
-  check('overlay primary button advances or retries', () => {
+  await check('overlay primary button advances or retries', () => {
     const was = app.level.level;
     const wonRun = app.game.won;
     dom.byId.get('overlay-primary').fire('click');
@@ -302,7 +314,7 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     return `level ${was} -> ${now}`;
   });
 
-  check('difficulty is settled once per district and reused on retry', () => {
+  await check('difficulty is settled once per district and reused on retry', () => {
     const lvl = app.level.level;
     const first = app.store.settledDifficulty(lvl);
     if (app.mode === 'full' && !first) throw new Error('nothing settled for the current district');
@@ -315,7 +327,7 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     return `tau ${tauBefore.toFixed(3)} held across a retry of district ${lvl}`;
   });
 
-  check('tier 1 persists across runs of the same district, not across districts', () => {
+  await check('tier 1 persists across runs of the same district, not across districts', () => {
     const lvl = app.level.level;
     const chain = app.chains.get(lvl);
     if (!chain) throw new Error('no chain cached for the current level');
@@ -347,7 +359,7 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
   }
   const mainAfter = JSON.stringify(await app.store.peek('main'));
 
-  check('isolation rule holds through the real UI path', () => {
+  await check('isolation rule holds through the real UI path', () => {
     if (mainBefore !== mainAfter) throw new Error('a guest run modified the main profile');
     const guest = app.store.current();
     if (guest.id !== 'guest') throw new Error('active profile is not guest');
@@ -355,7 +367,7 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     return 'main byte-identical; guest dossier written';
   });
 
-  check('alien division is scheduled in the 10-15 second window', () => {
+  await check('alien division is scheduled in the 10-15 second window', () => {
     app.startLevel(1);
     const [lo, hi] = app.game.params.splitIntervalTicks;
     const at = app.game.splitAt;
@@ -371,14 +383,14 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
       `${s.splits} division(s), peak ${s.peakAliens} aliens, log: ${[...roles].join(',') || 'none'}`;
   });
 
-  check('dispatch degrades to templates without WebGPU', () => {
+  await check('dispatch degrades to templates without WebGPU', () => {
     const text = dom.byId.get('dispatch-text').textContent;
     if (!text || text === '—') throw new Error('dispatch panel is empty');
     if (app.dispatcher.usingModel) throw new Error('claims a model without WebGPU');
     return `"${text.slice(0, 60)}..."`;
   });
 
-  check('no unexpected console errors', () => {
+  await check('no unexpected console errors', () => {
     if (errors.length) throw new Error(errors.join('\n'));
     return `${warnings.length} warning(s)`;
   });
