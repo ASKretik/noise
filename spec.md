@@ -434,6 +434,11 @@ The board is 32 × 20 and wants landscape; portrait shows a rotate hint rather t
   `vh` includes the collapsible address bar, so a `100vh` layout is taller than the screen
   and the board slides off the bottom.
 
+The outcome overlay is fixed to the viewport rather than to the board, and puts its buttons
+above the score breakdown on a small screen. Positioned inside the board's wrapper it was
+clipped by that element's `overflow: hidden`, which painted "enter district N" outside the
+visible box and soft-locked the game after a win.
+
 None of it engages for a mouse — the controls are behind
 `(hover: none) and (pointer: coarse)`.
 

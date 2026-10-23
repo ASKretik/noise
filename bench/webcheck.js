@@ -412,14 +412,26 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
       `attempt ${plays} at x${a.toFixed(2)}`;
   });
 
-  await check('outcome overlay shown with stats', () => {
+  await check('outcome overlay is shown, reachable, and releases the thumb controls', () => {
     if (dom.byId.get('overlay').hidden) throw new Error('overlay hidden after run end');
     const stats = dom.byId.get('overlay-stats').innerHTML;
     if (!stats.includes('noise index')) throw new Error('overlay stats missing');
-    return dom.byId.get('overlay-title').textContent;
+
+    // The phone bug: the card was clipped by .canvas-wrap's overflow and the primary
+    // button was rendered outside the visible box. Both halves of the fix are asserted
+    // here -- the body class that hides the thumb controls, and a primary button that is
+    // present, labelled and enabled.
+    if (!globalThis.document.body.classList.contains('overlay-open')) {
+      throw new Error('overlay-open was not set, so the thumb controls still cover the card');
+    }
+    const primary = dom.byId.get('overlay-primary');
+    if (primary.hidden || primary.disabled) throw new Error('primary action is not usable');
+    if (!primary.textContent.trim()) throw new Error('primary action has no label');
+
+    return `"${dom.byId.get('overlay-title').textContent}" → "${primary.textContent}"`;
   });
 
-  await check('overlay primary button advances or retries', () => {
+  await check('overlay primary button advances or retries, and clears the overlay state', () => {
     const was = app.level.level;
     const wonRun = app.game.won;
     dom.byId.get('overlay-primary').fire('click');
@@ -427,7 +439,10 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     if (wonRun && now !== was + 1) throw new Error(`won run did not advance (${was} -> ${now})`);
     if (!wonRun && now !== was) throw new Error(`lost run changed level (${was} -> ${now})`);
     if (!app.game || app.game.over) throw new Error('new run not started');
-    return `level ${was} -> ${now}`;
+    if (globalThis.document.body.classList.contains('overlay-open')) {
+      throw new Error('overlay-open survived the new run, so the thumb controls stay hidden');
+    }
+    return `district ${was} -> ${now}, overlay state cleared`;
   });
 
   await check('difficulty is settled once per district and reused on retry', () => {

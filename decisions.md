@@ -26,6 +26,7 @@ Three markers throughout:
 | [Seven](#round-seven) | ULTRA exempt from the speed cap, score x3 | The one round where the regenerate-the-constants rule correctly did **not** apply |
 | [Eight](#round-eight) | mobile layout · floating thumbstick · RUN and STUN buttons · landscape hint | `100vh` is a lie on a phone; four separate causes, none of them the obvious one |
 | [Nine](#round-nine) | phone tab crashes fixed | Android Chrome has `navigator.gpu`, so phones were downloading 250MB of weights — and round eight's own resize fix was churning canvases |
+| [Ten](#round-ten) | win overlay was a soft lock on phones | The card was clipped by the canvas wrapper, so "enter district N" was painted outside the visible box |
 
 ## Where things stand
 
@@ -1254,6 +1255,72 @@ canvas and rebuild no terrain layer.
 measurement at load time. `deviceMemory` is coarse (Chrome caps it at 8) and absent on
 Safari entirely, so a measurement would be a guess dressed up as a number. A phone not
 downloading a 250 MB model is the right default regardless of how much RAM it claims.
+
+## Current state
+
+```
+npm test          12 passed · 1 not demonstrated · 0 failed
+npm run webcheck  35/35
+```
+
+---
+
+<a id="round-ten"></a>
+# Round ten — the next district was unreachable on a phone
+
+**Reported, with a screenshot:** "i am unable to go to the next level."
+
+The screenshot showed the win overlay on a landscape phone: the headline **THROUGH THE
+PORTAL** sliced off at the top, the score breakdown overflowing its card, the RUN and STUN
+buttons floating on top of it — and no sign of *enter district 2*.
+
+## [FOUND] The card was being clipped, not scrolled
+
+`.overlay` was `position: absolute; inset: 0` **inside `.canvas-wrap`**, which carries
+`overflow: hidden` to keep the board's rounded corners. On a landscape phone the card —
+title, body, fifteen rows of score itemisation and two buttons — is far taller than the
+board. So it was centred, it overflowed, and it was then **clipped**. The title was cut off
+at the top and the primary button was rendered outside the visible box entirely.
+
+Not a styling nitpick: it is a **soft lock**. Winning a district on a phone left no way to
+advance, and the only escape was the browser back button.
+
+**Fixed:**
+
+1. **The overlay is `position: fixed` to the viewport**, out of that clip, with
+   `overflow-y: auto` so a card taller than the screen scrolls instead of being silently
+   truncated.
+2. **The buttons come before the breakdown on small screens**, via flex `order`. Fifteen
+   rows of itemisation is desktop content; on a phone it pushes the only two controls that
+   matter off the bottom. Now "enter district N" is the first thing under the headline,
+   every time, without scrolling.
+3. **`white-space: nowrap` removed from stat values on small screens.** It is right on a
+   wide screen and wrong here — these are phrases like "par 7s, took 7.4s", and forbidding
+   them to wrap pushed them out of the card. That is the overflow visible in the shot.
+4. **`body.overlay-open` hides the thumb controls**, which were sitting on top of the card
+   and swallowing taps meant for its buttons.
+
+## [FOUND] The landscape rule was missing by a hair
+
+The status strip was still visible in the screenshot even though round eight was meant to
+hide it in landscape. The rule was `(max-height: 540px) and (pointer: coarse)`, and a phone
+reporting roughly 603 CSS pixels tall in landscape at dpr 2 falls just outside it.
+
+Dropping the orientation requirement and raising the threshold to 700px fixes it. A short
+viewport is a short viewport; the extra condition was only ever a guess about which devices
+would be short.
+
+**[ASSUMED]** The stylesheet link now carries `?v=<commit count>`. GitHub Pages serves CSS
+with a cache lifetime, so a phone that already loaded the broken layout would keep it for
+several minutes after the fix shipped — which looks exactly like the fix not working.
+
+### What this round says about the process
+
+Nine rounds of headless checks did not catch a soft lock on the win screen, and one
+screenshot did in seconds. The harness verifies that the primary button **exists, is
+enabled and is wired** — all true here. It cannot know the button was painted outside a
+clipping container, because it draws nothing. That limitation has been stated every round;
+this is the round where it cost something real.
 
 ## Current state
 

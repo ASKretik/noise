@@ -335,7 +335,7 @@ class Play {
     this.syncSpawnLog();
     this.requestDispatch();
 
-    $('overlay').hidden = true;
+    this.hideOverlay();
     this.paused = false;
     this.acc = 0;
     this.lastFrame = performance.now();
@@ -431,8 +431,13 @@ class Play {
         secondary: 'restart district',
       });
     } else {
-      $('overlay').hidden = true;
+      this.hideOverlay();
     }
+  }
+
+  hideOverlay() {
+    $('overlay').hidden = true;
+    document.body.classList.remove('overlay-open');
   }
 
   // --------------------------------------------------------------- run end
@@ -543,6 +548,9 @@ class Play {
   showOverlay({ kind, title, body, stats, primary, secondary }) {
     const el = $('overlay');
     el.hidden = false;
+    // Lets the stylesheet hide the thumb controls, which would otherwise sit on top of
+    // the card and swallow taps meant for its buttons.
+    document.body.classList.add('overlay-open');
     el.querySelector('.overlay-card').className = `overlay-card ${kind}`;
     $('overlay-title').textContent = title;
     $('overlay-body').textContent = body;
