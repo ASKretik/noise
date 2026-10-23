@@ -12,7 +12,8 @@
     "plots": "node bench/plots.js",
     "priors": "node bench/priors.js",
     "couplings": "node bench/couplings.js",
-    "build:docs": "node tools/build-docs.mjs"
+    "build:docs": "node tools/build-docs.mjs",
+    "stamp": "node tools/stamp-build.mjs"
   },
   "engines": {
     "node": ">=18"

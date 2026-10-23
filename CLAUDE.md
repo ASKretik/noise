@@ -9,12 +9,17 @@ as this project is concerned.
 The loop for any change, in order:
 
 ```sh
+npm run stamp     # bump the build: new IndexedDB namespace + stylesheet cache-buster
 npm test          # 13 acceptance criteria — must stay 12 passed / 1 ND / 0 failed
-npm run webcheck  # 32 browser-layer checks against the DOM shim
+npm run webcheck  # browser-layer checks against the DOM shim
 git add -A && git commit
 git push origin main
 gh run watch <id> --exit-status     # the deploy gate runs the suites again
 ```
+
+`npm run stamp` goes first and is not optional: the build stamp namespaces the save
+database, so every published update starts every save fresh. A test fails if the
+stylesheet `?v=` has drifted from it.
 
 Read the suite output **before** committing, not after. This has bitten once already: a
 stale assertion in criterion 10 went in green-looking and had to be fixed a commit later.

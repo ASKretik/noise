@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="web/style.css?v=17">
+<link rel="stylesheet" href="web/style.css?v=2">
 </head>
 <!-- The game lives on its own page. On a combined page the arrow keys fight the document
      for scroll the moment the panels overflow, and the fix is structural rather than a
@@ -50,6 +50,7 @@
     </label>
     <button id="btn-switch" class="btn ghost desktop-only" title="Back to the profile picker">switch profile</button>
     <button id="btn-panels" class="btn ghost touch-only" aria-expanded="false">readouts</button>
+    <button id="btn-theme" class="btn ghost theme-toggle" data-theme-toggle aria-pressed="false" title="Switch theme"><span class="theme-icon" aria-hidden="true"></span><span data-theme-label>Dark</span></button>
   </header>
 
   <div class="stage">
@@ -82,9 +83,9 @@
         <span class="stat"><i>aliens</i><b id="hud-patrols">0</b></span>
         <span class="stat"><i>elapsed</i><b id="hud-time">0.0s</b></span>
         <span class="stat state"><i>status</i><b id="hud-alert" data-state="calm">unseen</b></span>
-        <span class="stat state"><i>boost</i><b id="hud-boost" data-state="off">—</b></span>
+        <span class="stat state"><i>sprint [shift]</i><b id="hud-boost" data-state="none">—</b></span>
         <span class="stat state"><i>stun gun [E]</i><b id="hud-bullets" data-state="none">—</b></span>
-        <span class="stat state"><i>lightning [L]</i><b id="hud-bolt" data-state="off">—</b></span>
+        <span class="stat state"><i>charge</i><b id="hud-bolt" data-state="none">—</b></span>
       </div>
 
 
@@ -124,7 +125,7 @@
       </section>
 
       <p class="keyhint muted">
-        <b>E</b> stun everything that can see you · <b>L</b> toggle banked lightning ·
+        <b>Shift</b> hold to sprint (spends lightning) · <b>E</b> stun everything that can see you ·
         <b>H</b> prediction heatmap · <b>V</b> visited · <b>I</b> alien targets ·
         <b>Space</b> pause · <b>R</b> restart district
       </p>

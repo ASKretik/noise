@@ -259,6 +259,11 @@ export function installDom(opts = {}) {
     if (info) {
       const cls = info.attrs.match(/\sclass="([^"]*)"/);
       if (cls) el.className = cls[1];
+      // data-* attributes, so [data-theme-toggle] and friends are findable by selector.
+      for (const m of info.attrs.matchAll(/\sdata-([a-z0-9-]+)(?:="([^"]*)")?/g)) {
+        const key = m[1].replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+        el.dataset[key] = m[2] ?? '';
+      }
     }
     byId.set(id, el);
     root.appendChild(el);

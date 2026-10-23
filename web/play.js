@@ -23,6 +23,7 @@ import { Hud } from './hud.js';
 import { createDispatcher, buildState, webgpuAvailable } from './dispatch.js';
 import { Ambience } from './sound.js';
 import { TouchControls } from './touch.js';
+import { install as installTheme } from './theme.js';
 
 const STEP_MS = 1000 / TICKS_PER_SECOND;
 /** Dispatch is asked for a line this often, plus on events. Fire-and-forget either way. */
@@ -84,6 +85,7 @@ class Play {
   // ------------------------------------------------------------------ boot
 
   async boot() {
+    installTheme();
     const { store, degraded } = await createProfileStore();
     this.store = store;
     this.storeKind = store.kind;
@@ -125,6 +127,8 @@ class Play {
     this.input.on('restart', () => { if (this.running) this.startLevel(this.level.level); });
     this.input.on('toggle', (what) => this.toggleOverlayLayer(what));
     this.input.on('stun', () => { this.pendingStun = true; });
+    // On touch the RUN button latches, because holding a thumb on it while steering with
+    // the other is awkward. On a keyboard Shift is momentary, which is the request.
     this.input.on('bolt', () => { this.boltOn = !this.boltOn; });
     // Audio can only start from a genuine gesture; the first keypress or tap is it.
     this.input.on('any', () => { if (this.soundOn) this.sound.start(); });
@@ -384,7 +388,7 @@ class Play {
     });
     this.hud.tick(this.game);
     if (this.touch?.enabled) {
-      this.touch.setRunActive(this.game.boltOn);
+      this.touch.setRunActive(this.game.sprinting);
       this.touch.setStunReady(this.game.loadout.stunGun && this.game.loadout.bullets > 0,
         this.game.loadout.stunGun ? this.game.loadout.bullets : 0);
     }
@@ -394,11 +398,12 @@ class Play {
   simStep() {
     const dir = this.input.consume();
     const alertBefore = this.game.alertTicks > 0;
-    const actions = { stun: this.pendingStun, bolt: this.boltOn };
+    const sprint = this.input.sprintHeld || (this.touch?.enabled && this.boltOn);
+    const actions = { stun: this.pendingStun, sprint };
     this.pendingStun = false;
     this.game.step(dir, actions);
-    // The sim refuses the toggle when the bank is empty; keep the UI honest about it.
-    this.boltOn = this.game.boltOn;
+    // The sim refuses sprint when the charge is empty; keep the touch latch honest.
+    if (this.touch?.enabled && !this.game.sprinting) this.boltOn = false;
     if (this.soundOn) this.sound.follow(this.game);
 
     // The predictor is queried once per tick for the panels and the heatmap. The spawner

@@ -28,12 +28,13 @@ Three markers throughout:
 | [Nine](#round-nine) | phone tab crashes fixed | Android Chrome has `navigator.gpu`, so phones were downloading 250MB of weights — and round eight's own resize fix was churning canvases |
 | [Ten](#round-ten) | win overlay was a soft lock on phones | The card was clipped by the canvas wrapper, so "enter district N" was painted outside the visible box |
 | [Eleven](#round-eleven) | product-grade visual pass · opening freeze · `YOU` beacon | The freeze hung the benchmark harness: a frozen world never changes, so a bot that answers STAY once answers it forever |
+| [Twelve](#round-twelve) | Shift to sprint · light/dark · vibrancy · fresh saves per build | An automatic boost had removed the player's ability to move exactly one square |
 
 ## Where things stand
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
-npm run webcheck  36/36
+npm run webcheck  39/39
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -1423,4 +1424,116 @@ the token ramp and the hero are reasoned, not observed.
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  36/36
+```
+
+---
+
+<a id="round-twelve"></a>
+# Round twelve — sprint on Shift, two themes, and a fresh link every build
+
+## R24 · Sprinting is held, and a bolt no longer fires itself
+
+**Reported:** "when you take a lightning bolt and run fast, a single tap makes you run two
+boxes at the same time. that feature would be very counterproductive if the player wanted
+to run only one box."
+
+**That is a design bug, not a tuning one**, and the diagnosis is better than the symptom. A
+bolt granted three seconds of double speed *outright*, so for those three seconds the
+player could not move one square at all. In a game about threading a one-cell gap past
+something hunting you, taking away single-cell movement is not a power-up — you want one
+box, you get two, usually into the alien you were avoiding.
+
+**Built.** One mechanic instead of two:
+
+- A bolt picked up off the map **adds three seconds of charge** instead of firing.
+- Sprint is **held**: `Shift` on a keyboard, two cells per tick while down, one the instant
+  it comes up, charge remaining or not.
+- Shop lightning feeds the same charge.
+
+**[ASSUMED]** Two pools, drained field-first: bolts found in a district are spent there,
+lightning bought in the shop persists and is written back at run end. Without the split,
+farming bolts would quietly become free shop lightning.
+
+**[ASSUMED]** The sim never latches sprint. `setSprint()` is resolved from the live control
+state every tick, which is what guarantees that releasing Shift takes effect on the very
+next tick rather than at the end of some interval.
+
+**[ASSUMED]** On touch the RUN button still latches, as asked. Holding a thumb on it while
+steering with the other is awkward, and the one-cell precision problem is less acute with a
+stick than with a tapped key.
+
+## R25 · Light and dark
+
+**Asked:** "add a light and a dark mode feature."
+
+**Built.** `web/theme.js`. A toggle in the header of all three pages, following the system
+preference until an explicit choice is made, then remembered.
+
+**[ASSUMED]** The preference lives in `localStorage`, **not** on the save profile. It is a
+property of the person at the keyboard rather than of the file they are playing — switching
+from MAIN to GUEST should not relight the room.
+
+**[ASSUMED] The board does not change.** A district is a rendered scene with ten belt
+palettes tuned so a red alien, a gold key and a white figure all read against the ground. A
+light version would need ten more palettes and would wash out every entity on them. So the
+chrome adapts and the board stays as drawn, framed like a screen — which is what virtually
+every game with a UI around it does.
+
+**[ASSUMED]** The light accents are darker values, not the dark ones reused. `#19e0c8` is a
+good teal on near-black and unreadable on near-white.
+
+**[FOUND] Three light-mode colours failed WCAG AA and I only knew because I measured.**
+Secondary labels, shop prices and feature headings came out at 3.97, 4.08 and 4.26 against
+the page background — under the 4.5:1 threshold for small text, and all three are used on
+small text. Darkened to 4.64, 4.97 and 5.25. Contrast is arithmetic, which makes it one of
+the few visual properties I can actually verify without a browser, so there is no excuse
+for guessing at it.
+
+## R26 · More vibrant
+
+**Asked:** "make the page more vibrant."
+
+**[ASSUMED]** Colour was added **structurally** rather than sprinkled. Each feature card
+carries a `--tone` that drives its top rule, its icon, its tint and its hover glow; each
+difficulty tier has its own hue (EASY green through ULTRA red); the wordmark and the save
+cards use a four-stop gradient; the hero pills get coloured pips. One custom property per
+card beats six one-off overrides and keeps both themes consistent.
+
+The identity is unchanged: still dark by default, still a surveillance console, still no
+art assets.
+
+## R27 · The "0 models trained" pill is gone
+
+**Asked:** "remove the zero models trained tag, that is uncessary."
+
+Removed. The claim still lives where it belongs — in the spec's non-goals and in the
+feature grid, which has room to say *why* it matters. As a bare stat pill beside "100
+districts" it was a boast without a context.
+
+## R28 · A fresh link on every update
+
+**Asked:** "remove all the save file stored in the games, make the link fresh everytime you
+make an update and push to github."
+
+**Built.** `web/build.js` holds a build stamp; `npm run stamp` bumps it and rewrites the
+stylesheet `?v=` from the same number. The IndexedDB database is named `noise-<BUILD>`, so
+**every published update starts every save fresh**, and databases from earlier builds are
+swept on load so they do not accumulate one per deploy in every player's browser.
+
+**[ASSUMED]** One counter driving both the database namespace and the cache-buster. They
+had already drifted once when the `?v=` was edited by hand; sharing a source makes that
+impossible.
+
+**[ASSUMED]** The theme preference and the guest session marker are **not** namespaced.
+They are UI state rather than saves, and losing your theme on every deploy would be
+annoying rather than principled.
+
+A test now fails if the stylesheet `?v=` drifts from the build stamp, which turns "remember
+to run `npm run stamp`" into something the suite enforces.
+
+## Current state
+
+```
+npm test          12 passed · 1 not demonstrated · 0 failed
+npm run webcheck  39/39
 ```

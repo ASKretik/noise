@@ -297,17 +297,55 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     return `nothing in range, refused cleanly (${res.reason})`;
   });
 
-  await check('L only drains lightning while it is switched on', () => {
+  await check('sprint is held, not latched: one tap is always one cell without Shift', () => {
+    app.input.clear();
     app.startLevel(1);
-    const start = app.game.boltBankTicks;
-    begin(app);
-    let t = performance.now();
-    for (let i = 0; i < 8 && !app.game.over; i++) { t += 125; app._frame(t); }
-    if (app.game.boltBankTicks !== start) throw new Error('lightning drained while switched off');
-    app.boltOn = true;
-    for (let i = 0; i < 8 && !app.game.over; i++) { t += 125; app._frame(t); }
-    if (app.game.boltBankTicks >= start) throw new Error('lightning did not drain while on');
-    return `${start} ticks banked, ${start - app.game.boltBankTicks} drained once switched on`;
+    const g = app.game;
+    g.started = true;
+    const charge = g.sprintTicks;
+    if (charge <= 0) throw new Error('district started with no sprint charge to test');
+
+    // A tap with no Shift must move exactly one cell, charge in hand or not.
+    const walk = (sprint) => {
+      const x0 = g.player.x, y0 = g.player.y;
+      g.step(1, { sprint });
+      return Math.abs(g.player.x - x0) + Math.abs(g.player.y - y0);
+    };
+    const plain = walk(false);
+    if (plain > 1) throw new Error(`a tap without Shift moved ${plain} cells`);
+    if (g.sprintTicks !== charge) throw new Error('charge drained without sprinting');
+
+    // With Shift it moves two, and the charge pays for it.
+    const before = g.sprintTicks;
+    const sprinted = walk(true);
+    if (sprinted !== 2) throw new Error(`a tap with Shift moved ${sprinted} cells, expected 2`);
+    if (g.sprintTicks >= before) throw new Error('sprinting did not spend charge');
+
+    // Releasing drops back to one cell on the very next tick.
+    const after = walk(false);
+    if (after > 1) throw new Error(`releasing Shift still moved ${after} cells`);
+
+    // Shift keys reach the input layer.
+    app.input._onKeyDown({ code: 'ShiftLeft', preventDefault() {} });
+    if (!app.input.sprintHeld) throw new Error('ShiftLeft did not register');
+    app.input._onKeyUp({ code: 'ShiftLeft', preventDefault() {} });
+    if (app.input.sprintHeld) throw new Error('releasing Shift did not clear');
+
+    return `no Shift: 1 cell · Shift: 2 cells and charge spent · released: 1 cell again`;
+  });
+
+  await check('a field bolt adds charge rather than firing automatically', () => {
+    const g = app.game;
+    g.started = true;
+    const before = g.fieldBoltTicks;
+    const bolt = g.bolts.find((b) => !b.taken);
+    if (!bolt) throw new Error('district had no bolts');
+    g.player.x = bolt.x; g.player.y = bolt.y;
+    g.step(-1, { sprint: false });
+    if (!bolt.taken) throw new Error('standing on a bolt did not collect it');
+    if (g.fieldBoltTicks <= before) throw new Error('the bolt did not add charge');
+    if (g.boosted) throw new Error('the bolt started a sprint on its own');
+    return `+${((g.fieldBoltTicks - before) / 8).toFixed(0)}s charge, no automatic sprint`;
   });
 
   await check('a black box hides the player and erases the trail', () => {
@@ -559,6 +597,33 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
       `${s.splits} division(s), peak ${s.peakAliens} aliens, log: ${[...roles].join(',') || 'none'}`;
   });
 
+  await check('light and dark flip, persist, and leave the board alone', async () => {
+    const { current, toggle } = await import(`../web/theme.js?t=${Date.now()}`);
+    const root = globalThis.document.documentElement;
+    const btn = dom.byId.get('btn-theme');
+
+    const first = current();
+    if (!['dark', 'light'].includes(first)) throw new Error(`unknown theme "${first}"`);
+    if (root.dataset.theme !== first) throw new Error('the document was not stamped on boot');
+
+    btn.fire('click');
+    const second = current();
+    if (second === first) throw new Error('the toggle did nothing');
+    if (root.dataset.theme !== second) throw new Error('the document stamp did not follow');
+    if (btn.getAttribute('aria-pressed') !== String(second === 'light')) throw new Error('aria-pressed did not follow');
+
+    // It has to survive a reload, which is a fresh module over the same storage.
+    const again = await import(`../web/theme.js?t=${Date.now() + 1}`);
+    if (again.current() !== second) throw new Error('the choice did not persist');
+
+    btn.fire('click');
+    if (current() !== first) throw new Error('toggling back failed');
+
+    // The board is a rendered scene and must not be restyled by the page theme.
+    if (typeof app.renderer.theme.terrain.ground !== 'string') throw new Error('belt terrain went missing');
+    return `${first} → ${second} → ${first}, persisted across a reload; belt terrain untouched`;
+  });
+
   await check('the sound toggle flips state and is remembered on the profile', () => {
     const btn = dom.byId.get('btn-sound');
     const label = dom.byId.get('btn-sound-label');
@@ -590,6 +655,21 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     if (r._mapKey === null) throw new Error('terrain cache was dropped by an identical resize');
     if (r._staticLayer(map, app.level) !== layer) throw new Error('terrain layer was rebuilt');
     return `200 identical resizes: tile held at ${tile}px, no canvas or terrain reallocation`;
+  });
+
+  await check('every published build namespaces its own save storage', async () => {
+    const { BUILD } = await import('../web/build.js');
+    if (!Number.isInteger(BUILD) || BUILD < 1) throw new Error(`bad build stamp: ${BUILD}`);
+    const persist = (await import('node:fs')).readFileSync(
+      new URL('../web/persist.js', import.meta.url), 'utf8');
+    if (!persist.includes('`noise-${BUILD}`')) throw new Error('the database name is not namespaced by the build');
+    if (!persist.includes('sweepOldBuilds')) throw new Error('old build databases are never swept');
+    const html = (await import('node:fs')).readFileSync(
+      new URL('../play.html', import.meta.url), 'utf8');
+    if (!html.includes(`style.css?v=${BUILD}`)) {
+      throw new Error('the stylesheet cache-buster has drifted from the build stamp — run npm run stamp');
+    }
+    return `build ${BUILD}: database noise-${BUILD}, stylesheet ?v=${BUILD}, older builds swept`;
   });
 
   await check('the model is never auto-loaded on a touch device', async () => {
@@ -672,7 +752,7 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     if (!stunFired) throw new Error('STUN button did not fire');
     const before = t.boltOn;
     doc.querySelector('[data-act="bolt"]').fire('pointerdown', {});
-    if (t.boltOn === before) throw new Error('RUN button did not toggle lightning');
+    if (t.boltOn === before) throw new Error('RUN button did not toggle sprint');
 
     return 'off for a mouse; stick resolves to 4 headings with a deadzone; STUN and RUN wired';
   });

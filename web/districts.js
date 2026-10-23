@@ -9,6 +9,7 @@ import { PROFILE_IDS } from '../sim/profile.js';
 import { difficultyOf, CURVE_CAP } from '../sim/difficulty.js';
 import { SHOP_ITEMS, canBuy, STUN_GUN_CAPACITY } from '../sim/shop.js';
 import { TOTAL_DISTRICTS, BLOCK_SIZE, DISTRICT_THEMES, blockOf, themeFor } from './themes.js';
+import { install as installTheme } from './theme.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -132,6 +133,7 @@ function showTab(which) {
 }
 
 async function boot() {
+  installTheme();
   const requested = new URLSearchParams(window.location.search).get('p');
   const id = PROFILE_IDS.includes(requested) ? requested : 'main';
 

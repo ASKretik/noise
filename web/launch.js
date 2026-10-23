@@ -10,6 +10,7 @@ import { PROFILE_IDS } from '../sim/profile.js';
 import { TRAIT_BY_KEY } from '../sim/predictor/traits.js';
 import { DIFFICULTIES, DIFFICULTY_IDS, difficultyOf } from '../sim/difficulty.js';
 import { createProfileStore, ensureGuestSession } from './persist.js';
+import { install as installTheme } from './theme.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -150,6 +151,7 @@ async function eraseAndRestart(id, rec) {
 }
 
 async function boot() {
+  installTheme();
   const { store: s, degraded, reason } = await createProfileStore();
   store = s;
   if (degraded) {

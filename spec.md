@@ -63,7 +63,7 @@ and get out.
 |---|---|
 | Grid | 32 × 20 tiles; 55–65% open floor |
 | Tick rate | 8 ticks per second, fixed timestep, rendering decoupled and interpolated |
-| Movement | One cell per tick, four-directional, no diagonals; two cells while boosted |
+| Movement | One cell per tick, four-directional, no diagonals; two while sprinting |
 | Objectives | 3 to 5 keys, then the portal opens |
 | Loss | An **active** alien enters your cell. A stunned one is inert and can be walked over |
 | Win | Reach the portal with every key collected |
@@ -89,7 +89,7 @@ just a slow human; a player routed along an alien field walks into a wall.
 |---|---|
 | **Key** (gold) | 3–5 per district. All of them open the portal |
 | **Coin** (1 / 2 / 5 / 10, colour-coded) | Currency. Total value per district is 10–15× the district number |
-| **Lightning bolt** | 3 seconds at double speed, picked up automatically |
+| **Lightning bolt** | +3 seconds of sprint charge |
 
 ### Difficulty tiers
 
@@ -119,6 +119,21 @@ HARD 40%, ULTRA 20%.**
 
 Below ULTRA the predictor is handed a frozen belief in which no key is ever collected and
 the portal never reads as open. They model how you *move* and nothing else.
+
+### Sprinting
+
+**Hold Shift.** Two cells per tick while held, one the instant it is released, charge
+remaining or not. On a phone the RUN button latches instead, because holding a thumb on it
+while steering with the other is awkward.
+
+Charge comes from two pools, spent field-first: bolts picked up in this district (3s each,
+not carried out of it) and lightning bought in the shop (10 coins a second, persisted).
+
+This replaces an automatic boost, and the replacement is the point. A bolt used to grant
+three seconds of double speed outright, so for those three seconds a single tap moved you
+**two** cells. In a game about threading a one-cell gap past something hunting you, losing
+the ability to move exactly one square is not a power-up — the player wants one box and
+gets two, usually into the alien they were avoiding.
 
 ### Starting a district
 
@@ -363,6 +378,13 @@ pass through districts 1 to 10.
 Two slots in IndexedDB under one object store keyed by profile id. No passwords, no
 accounts, no server, no cross-device sync.
 
+**Every published update starts every save fresh.** The database is namespaced by a build
+stamp (`web/build.js`, bumped by `npm run stamp`), and databases from earlier builds are
+swept on load. This is deliberate for a project still changing shape: the schema, the
+tiers, the economy and the scoring have each moved between deploys, and a best score set
+under a different score equation is not a score, it is a number. The same stamp drives the
+stylesheet cache-buster, so the two cannot drift.
+
 **MAIN is persistent and is asked about on arrival.** If a file exists, the launch screen
 offers *continue* and *start fresh* side by side. Starting fresh erases the file
 completely — progress, wallet, inventory, attempt counts, settled difficulties, the tier,
@@ -435,6 +457,16 @@ with confidence:
 > holds a heading, never doubles back. District 11, 15 percent. Unit already posted."
 
 ## Look and feel
+
+**Light and dark**, toggled in the header and remembered in `localStorage` — a property of
+the person at the keyboard rather than of the save file, so switching profiles does not
+relight the room. It follows the system preference until an explicit choice is made.
+
+The **board does not change**. A district is a rendered scene with ten belt palettes tuned
+so a red alien, a gold key and a white figure all read against the ground; a light version
+would need ten more palettes and would wash out every entity on them. The chrome adapts and
+the board stays as drawn, framed like a screen. Every light-mode ink colour clears WCAG AA
+(4.5:1) against the page background.
 
 Two typefaces doing two jobs: **Inter** for anything read as prose or a label, and a
 monospace for anything that is a number or an identifier. Keeping data in mono is not

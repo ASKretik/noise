@@ -118,9 +118,8 @@ export class Hud {
     this.el.alert.dataset.state = alert ? 'alert' : (hidden ? 'hidden' : 'calm');
 
     if (this.el.boost) {
-      const b = game.boostTicks;
-      this.el.boost.textContent = b > 0 ? `${(b / TICKS_PER_SECOND).toFixed(1)}s` : '—';
-      this.el.boost.dataset.state = b > 0 ? 'on' : 'off';
+      this.el.boost.textContent = game.sprinting ? 'SPRINTING' : (game.sprintTicks > 0 ? 'ready' : '—');
+      this.el.boost.dataset.state = game.sprinting ? 'on' : (game.sprintTicks > 0 ? 'ready' : 'none');
     }
     if (this.el.bullets) {
       const inv = game.loadout;
@@ -128,9 +127,9 @@ export class Hud {
       this.el.bullets.dataset.state = !inv.stunGun ? 'none' : (inv.bullets > 0 ? 'ready' : 'empty');
     }
     if (this.el.bolt) {
-      const left = game.boltSecondsLeft;
+      const left = game.sprintSecondsLeft;
       this.el.bolt.textContent = left > 0 ? `${left.toFixed(1)}s` : 'none';
-      this.el.bolt.dataset.state = left <= 0 ? 'none' : (game.boltOn ? 'on' : 'off');
+      this.el.bolt.dataset.state = left <= 0 ? 'none' : (game.sprinting ? 'on' : 'off');
     }
     if (this.el.coinsRun) {
       this.el.coinsRun.textContent = game.coinValue > 0 ? ` +${game.coinValue}` : '';
