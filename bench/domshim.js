@@ -68,6 +68,7 @@ class El {
     this._text = '';
     this._html = '';
     this._listeners = {};
+    this._attrs = {};
     this.classList = new ClassList(this);
     this.width = 0;
     this.height = 0;
@@ -118,6 +119,11 @@ class El {
     return null;
   }
 
+  setAttribute(k, v) { this._attrs[k] = String(v); if (k === 'href' || k === 'id' || k === 'type') this[k] = String(v); }
+  getAttribute(k) { return this._attrs[k] ?? null; }
+  removeAttribute(k) { delete this._attrs[k]; }
+  hasAttribute(k) { return k in this._attrs; }
+
   addEventListener(type, fn) { (this._listeners[type] ||= []).push(fn); }
   removeEventListener(type, fn) { this._listeners[type] = (this._listeners[type] || []).filter((f) => f !== fn); }
   /** Fire a listener the way a real event would. */
@@ -142,7 +148,27 @@ class El {
 const fakeStores = new Map();   // dbName -> Map(storeName -> Map(key -> record))
 let fakeVersion = 0;
 
-export function resetFakeStorage() { fakeStores.clear(); fakeVersion = 0; }
+/**
+ * sessionStorage, shared across pages like IndexedDB and cleared only by
+ * endBrowserSession(). That distinction is the whole point: the guest slot is wiped once
+ * per browser session, and testing it needs a thing that survives navigation between the
+ * three pages but not "closing the tab".
+ */
+let fakeSession = new Map();
+
+export function resetFakeStorage() { fakeStores.clear(); fakeVersion = 0; fakeSession = new Map(); }
+
+/** Simulate closing the tab: sessionStorage goes, IndexedDB stays. */
+export function endBrowserSession() { fakeSession = new Map(); }
+
+function makeSessionStorage() {
+  return {
+    getItem: (k) => (fakeSession.has(k) ? fakeSession.get(k) : null),
+    setItem: (k, v) => { fakeSession.set(k, String(v)); },
+    removeItem: (k) => { fakeSession.delete(k); },
+    clear: () => { fakeSession.clear(); },
+  };
+}
 
 function makeFakeIndexedDB() {
   const later = (fn) => setTimeout(fn, 0);
@@ -286,6 +312,8 @@ export function installDom(opts = {}) {
   define('document', doc);
   define('window', win);
   define('navigator', { gpu: opts.webgpu ? {} : undefined, userAgent: 'node' });
+  define('sessionStorage', makeSessionStorage());
+  define('localStorage', makeSessionStorage());
   define('requestAnimationFrame', () => 0);     // the harness drives frames by hand
   define('cancelAnimationFrame', () => {});
   if (!globalThis.performance) define('performance', { now: () => Date.now() });

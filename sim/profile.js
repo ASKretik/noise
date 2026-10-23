@@ -59,7 +59,7 @@ export function blankProfile(id, displayName = null) {
      * harder every time you lose it, which reads as the game punishing failure.
      */
     difficultyByLevel: {},
-    settings: { spawnerMode: 'full', dispatchEnabled: true, showHeatmap: false },
+    settings: { spawnerMode: 'full', dispatchEnabled: true, showHeatmap: false, soundEnabled: true },
     schema: SCHEMA,
     createdAt: Date.now(),
     updatedAt: Date.now(),
@@ -298,7 +298,25 @@ export class ProfileStore {
     return this._commit((rec) => { rec.settings = { ...rec.settings, ...partial }; });
   }
 
-  /** Wipe the active profile. Doubles as the fastest way to demo a cold model. */
+  /**
+   * Erase the active profile COMPLETELY, tier included, so the next load is treated as a
+   * brand new save file and the player is asked for a tier again.
+   *
+   * This is what "start a fresh file" means, and it is deliberately stronger than
+   * resetActive(): it forgets the dossier -- every trait the system has learned about how
+   * this player moves -- along with progress, the wallet, the inventory, attempt counts
+   * and the settled per-district difficulty. Nothing carries over.
+   */
+  eraseActive() {
+    const rec = this.current();
+    const fresh = blankProfile(rec.id);
+    return this._commit((r) => {
+      for (const key of Object.keys(fresh)) r[key] = fresh[key];
+      r.id = rec.id;
+    });
+  }
+
+  /** Wipe the active profile's progress but keep its tier. The in-game reset button. */
   resetActive() {
     return this._commit((rec) => {
       const fresh = blankProfile(rec.id, rec.displayName);

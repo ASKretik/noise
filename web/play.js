@@ -16,7 +16,7 @@ import { hashString } from '../sim/prng.js';
 import { regionAdjacency } from '../sim/regions.js';
 import { FieldPool } from '../sim/pathfind.js';
 
-import { createProfileStore } from './persist.js';
+import { createProfileStore, ensureGuestSession } from './persist.js';
 import { Renderer } from './render.js';
 import { Input } from './input.js';
 import { Hud } from './hud.js';
@@ -86,6 +86,9 @@ class Play {
     this.store = store;
     this.storeKind = store.kind;
 
+    // Landing here directly in a new tab must still wipe a stale guest slot.
+    await ensureGuestSession(store);
+
     this.profile = await this.store.load(this.profileId);
 
     // A save file with no tier has not finished being created.
@@ -114,14 +117,17 @@ class Play {
     this.input.on('stun', () => { this.pendingStun = true; });
     this.input.on('bolt', () => { this.boltOn = !this.boltOn; });
     // Audio can only start from a genuine gesture; the first keypress or tap is it.
-    this.input.on('any', () => this.sound.start());
+    this.input.on('any', () => { if (this.soundOn) this.sound.start(); });
+    // The preference is remembered on the profile: someone who turns the ambience off
+    // means it, and having it come back on at the next district would be obnoxious.
+    this.soundOn = this.profile.settings.soundEnabled !== false;
+    this.applySound();
     $('btn-sound').addEventListener('click', () => {
       this.soundOn = !this.soundOn;
       this.sound.start();
-      this.sound.setEnabled(this.soundOn);
-      $('btn-sound').textContent = this.soundOn ? 'sound on' : 'sound off';
+      this.applySound();
+      this.store.setSettings({ soundEnabled: this.soundOn }).catch(() => {});
     });
-    this.soundOn = true;
     window.addEventListener('resize', () => {
       if (this.level) this.renderer.resize(this.level.map);
     });
@@ -137,6 +143,16 @@ class Play {
       this.modelLoadTimer = setTimeout(() => this.dispatcher.load(), MODEL_LOAD_DELAY_MS);
     }
     if (degraded) console.warn('[noise] progress will not be saved this session');
+  }
+
+  applySound() {
+    this.sound.setEnabled(this.soundOn);
+    const btn = $('btn-sound');
+    if (!btn) return;
+    btn.dataset.on = String(this.soundOn);
+    btn.setAttribute('aria-pressed', String(this.soundOn));
+    const label = $('btn-sound-label');
+    if (label) label.textContent = this.soundOn ? 'sound on' : 'sound off';
   }
 
   wireChrome() {

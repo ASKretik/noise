@@ -4,7 +4,7 @@
 // and writes through ProfileStore, so the shop cannot invent coins and the district grid
 // cannot unlock anything the runs did not earn.
 
-import { createProfileStore } from './persist.js';
+import { createProfileStore, ensureGuestSession } from './persist.js';
 import { PROFILE_IDS } from '../sim/profile.js';
 import { difficultyOf, CURVE_CAP } from '../sim/difficulty.js';
 import { SHOP_ITEMS, canBuy, STUN_GUN_CAPACITY } from '../sim/shop.js';
@@ -137,6 +137,8 @@ async function boot() {
 
   const { store: s } = await createProfileStore();
   store = s;
+  // Landing here directly in a new tab must still wipe a stale guest slot.
+  await ensureGuestSession(store);
   profile = await store.load(id);
 
   // A save file with no tier has not finished being created. Send it back.

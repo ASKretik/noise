@@ -97,12 +97,20 @@ Chosen once when a save file is created, and **never editable**. Every logged sc
 settled per-district difficulty and the dossier itself are measured under the tier, so
 allowing a mid-save change would quietly corrupt all three.
 
-| Tier | Alien speed | Told which keys you took | Score |
-|---|---|---|---|
-| EASY | 50% | no | ×0.75 |
-| MEDIUM | 75% | no | ×1.00 |
-| HARD | 100% | no | ×1.30 |
-| ULTRA | 100% | **yes** | ×1.70 |
+| Tier | Alien speed | Chase period, D1 → D10 | Told which keys you took | Score |
+|---|---|---|---|---|
+| EASY | 37.5% | 4.67 → 4.00 | no | ×0.75 |
+| MEDIUM | 56.25% | 3.11 → 2.67 | no | ×1.00 |
+| HARD | 75% | 2.33 → 2.00 | no | ×1.30 |
+| ULTRA | 75% | 2.33 → 2.00 | **yes** | ×1.70 |
+
+A single constant, `ALIEN_SPEED_CAP = 0.75`, multiplies every tier's speed factor. The
+tiers are defined relative to the fastest alien in the game, so capping that one rescales
+all four and keeps their relationships intact — EASY is still half of HARD, MEDIUM still
+three-quarters. Because an alien's tick period is the base period divided by its speed
+factor, this cascades to every district automatically: there is no second table of
+per-district speeds to keep in sync. The fastest alien in the game now covers half a cell
+per tick against the player's one.
 
 Below ULTRA the predictor is handed a frozen belief in which no key is ever collected and
 the portal never reads as open. They model how you *move* and nothing else.
@@ -113,10 +121,10 @@ the portal never reads as open. They model how you *move* and nothing else.
   black box. No line of sight.
 - **Alert:** on detection every alien receives your live position for 20 ticks, then falls
   back to your last known cell. Entering a black box erases both.
-- **Speed:** 1.75 ticks per move at district 1 tightening to 1.50 at district 10, divided
-  by the tier's speed factor. **Deliberately slower than the player** — at parity a hunting
-  alien that gets adjacent has won, because the distance never changes and running stops
-  being a strategy.
+- **Speed:** a base of 1.75 ticks per move at district 1 tightening to 1.50 at district 10,
+  divided by the tier's speed factor (which carries `ALIEN_SPEED_CAP`). **Deliberately
+  slower than the player** — at parity a hunting alien that gets adjacent has won, because
+  the distance never changes and running stops being a strategy.
 - **Division:** every 10–15 seconds (seeded, so runs stay reproducible) one alien splits in
   two. The child is held to the same minimum arrival distance as a spawn; a division that
   cannot be placed fairly is deferred rather than dropped next to you.
@@ -330,8 +338,22 @@ pass through districts 1 to 10.
 
 ## Profiles and persistence
 
-Two slots, main and guest, in IndexedDB under one object store keyed by profile id. No
-passwords, no accounts, no server, no cross-device sync.
+Two slots in IndexedDB under one object store keyed by profile id. No passwords, no
+accounts, no server, no cross-device sync.
+
+**MAIN is persistent and is asked about on arrival.** If a file exists, the launch screen
+offers *continue* and *start fresh* side by side. Starting fresh erases the file
+completely — progress, wallet, inventory, attempt counts, settled difficulties, the tier,
+and the dossier, which is the only thing in the project that takes real time to build. It
+confirms first, naming how many districts of learning are about to go.
+
+**GUEST is scoped to the browser session.** Closing the tab forgets it entirely: tier,
+progress and dossier. It survives reloads and navigation between the three pages — a guest
+is not wiped halfway through their own run — because the marker is `sessionStorage`, which
+the browser clears exactly when the tab closes and not before. This reverses the original
+spec, which made guest a persistent second save so a friend could come back next week; the
+slot exists for the hand-the-laptop-over demo, and that demo is strongest when it starts
+blind every single time.
 
 ```
 profile {
@@ -388,7 +410,10 @@ with confidence:
 
 Entirely synthesised — two detuned sawtooths through a wobbling lowpass, plus a pulse whose
 **rate** carries the information: 46 bpm calm, 104 when an alien has you, 168 when you are
-well inside its radius. No audio files: the tempo has to be continuous with the threat, and
+well inside its radius. A toggle sits in the district's top bar and the choice is stored on
+the profile, because someone who turns the ambience off means it and having it return at
+the next district would be obnoxious. Audio cannot start without a user gesture, so the
+first keypress or tap is what starts it. No audio files: the tempo has to be continuous with the threat, and
 crossfading three loops at 8 Hz is heavier, worse, and would put binaries in a repository
 that deploys as a static upload.
 
@@ -438,6 +463,8 @@ payout and the per-belt terrain. It draws no pixels and lays out no CSS.
 | Tier 2 modulates at fixed strength | Gated by tier 1's uncertainty | Fixed strength wrecked the two bots whose chain was already sharp |
 | Hand-written trait priors and couplings | Generated by measurement | The hand-written ones were wrong, and measurably so |
 | One page | Launch → hub → district | Arrow keys fight the document for scroll on a page that scrolls |
+| Guest is a persistent second save | Guest is wiped when the tab closes | The slot exists for the hand-it-over demo, which is strongest starting blind every time |
+| Alien speed = player speed at HARD | Capped at 0.75× via one constant | At parity a hunting alien that gets adjacent has already won |
 
 ## Open questions and known gaps
 

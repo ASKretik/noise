@@ -11,6 +11,17 @@ export const TICKS_PER_SECOND = 8;
 export const CURVE_CAP = 10;
 
 /**
+ * Global cap on how fast anything hunting you can move, applied on top of every tier.
+ *
+ * The tiers are defined relative to the fastest alien in the game, so capping that one
+ * rescales all four and keeps their relationship intact: EASY is still half of HARD and
+ * MEDIUM is still three-quarters of it. Because an alien's tick period is the base period
+ * divided by its speed factor, this cascades to every district automatically -- there is
+ * no second table of per-district speeds to keep in sync.
+ */
+export const ALIEN_SPEED_CAP = 0.75;
+
+/**
  * The four difficulty tiers, chosen once when a save file is created and never editable.
  *
  * Permanence is the point: the dossier, the settled per-district difficulty and every
@@ -30,22 +41,22 @@ export const CURVE_CAP = 10;
 export const DIFFICULTIES = Object.freeze({
   easy: {
     id: 'easy', label: 'EASY', order: 0,
-    speedFactor: 0.5, knowsKeys: false, scoreMult: 0.75,
+    speedFactor: 0.5 * ALIEN_SPEED_CAP, knowsKeys: false, scoreMult: 0.75,
     blurb: 'Aliens move at half speed. They learn how you move, but not which keys you have taken.',
   },
   medium: {
     id: 'medium', label: 'MEDIUM', order: 1,
-    speedFactor: 0.75, knowsKeys: false, scoreMult: 1.0,
+    speedFactor: 0.75 * ALIEN_SPEED_CAP, knowsKeys: false, scoreMult: 1.0,
     blurb: 'Aliens move at three-quarter speed. They learn how you move, but not which keys you have taken.',
   },
   hard: {
     id: 'hard', label: 'HARD', order: 2,
-    speedFactor: 1.0, knowsKeys: false, scoreMult: 1.3,
+    speedFactor: 1.0 * ALIEN_SPEED_CAP, knowsKeys: false, scoreMult: 1.3,
     blurb: 'Aliens move at full speed. They learn how you move, but not which keys you have taken.',
   },
   ultra: {
     id: 'ultra', label: 'ULTRA', order: 3,
-    speedFactor: 1.0, knowsKeys: true, scoreMult: 1.7,
+    speedFactor: 1.0 * ALIEN_SPEED_CAP, knowsKeys: true, scoreMult: 1.7,
     blurb: 'Full speed, and they know exactly which keys you have taken. Every route you have left is modelled.',
   },
 });
@@ -210,6 +221,10 @@ export function levelParams(level, difficultyId = DEFAULT_DIFFICULTY) {
      * radius, which is what makes "break contact and the alert lapses" a real mechanic
      * rather than a sentence in a design document. The level-10 value is tighter but
      * still beatable.
+     *
+     * These are the numbers BEFORE the tier's speed factor divides them, and that factor
+     * now carries ALIEN_SPEED_CAP, so the fastest alien in the game sits at 2.33 ticks
+     * per move at district 1 and 2.00 at district 10.
      */
     chaseMovePeriod: lerp(1.75, 1.5, t) / tier.speedFactor,
     patrolMovePeriod: 2.5 / tier.speedFactor,

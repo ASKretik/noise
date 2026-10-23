@@ -21,13 +21,14 @@ Three markers throughout:
 | [Two](#round-two--tiers-economy-shop-hub-black-boxes-sound) | four tiers · coins & score · shop · district hub · black boxes · ambience · saves scrapped | A harness bug was hiding a passing criterion; fixing it closed criterion 10 |
 | [Three](#round-three--the-whole-city-and-aliens-that-stay) | 100 districts in ten belts · aliens stop vanishing | The generated constants had gone stale and were describing a game that no longer ran |
 | [Four](#round-four--belts-you-can-see-a-person-you-can-see-and-a-gun-worth-buying) | per-belt terrain · detailed human · inert stunned aliens · empty gun | The palettes had only ever coloured the hub cards, never the game |
-| [Five](#round-five--the-spec-caught-up) | spec rewritten to describe what exists | — |
+| [Five](#round-five--the-spec-caught-up) | spec rewritten to describe what exists | The original's "score IS entropy" is a real casualty of the economy, and the spec says so |
+| [Six](#round-six) | sound toggle persisted · continue-or-fresh on MAIN · guest wiped on tab close · alien speed capped at 0.75x | Reverses the original spec's deliberate choice to make guest persistent |
 
 ## Where things stand
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
-npm run webcheck  29/29
+npm run webcheck  32/32
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -911,3 +912,131 @@ after buying the gun, which was only true while the gun shipped loaded. I commit
 round-four changes **before** reading the test output and caught it one commit later. The
 test was stale, not the code — but reading the suite before committing is the point of
 having it.
+
+---
+
+<a id="round-six"></a>
+# Round six — sound, save files, and a speed cap
+
+The last round before the first public deploy.
+
+## R15 · The sound toggle
+
+**Asked:** a sound button in the top bar of the district.
+
+**Already there, and now worth something.** The button has existed since round two but it
+forgot the choice the moment you entered another district. It now stores `soundEnabled` on
+the profile, carries a CSS-drawn speaker that is struck through when off, and sets
+`aria-pressed` — so the state is not carried by colour alone.
+
+**[ASSUMED]** The preference lives on the profile rather than in `localStorage`, so the
+two slots can disagree. Guest handing the laptop back with the sound muted should not mute
+it for the owner.
+
+---
+
+## R16 · Continue, or start fresh
+
+**Asked:** "everytime when you open the main file path, ask the user whether he wants to
+load the previous game or start a fresh file. If they start a fresh file then, it should
+erase the previous file, forget the model weights and start from first."
+
+**Built.** MAIN now shows both actions side by side whenever a file exists: **continue**
+goes to the hub, **start fresh** erases and returns to the tier chooser.
+
+"Forget the model weights" is `ProfileStore.eraseActive()`, and it is deliberately stronger
+than the existing in-game reset: it clears the **tier** as well, so the next load is a new
+save file and the tier is asked again. Gone with it: the dossier (every trait learned about
+how this player moves), progress, wallet, inventory, attempt counts, best scores and the
+settled per-district difficulties.
+
+**[ASSUMED]** It confirms first, and the confirmation **names what is being destroyed** —
+the district reached, the coin balance, and how many districts deep the dossier runs. The
+dossier is the only thing in this project that takes real time to build, and a one-click
+irreversible wipe of it with a generic "are you sure?" would be the single worst piece of
+UX in the game.
+
+**[ASSUMED]** Tier 1 needs no explicit clearing. The chain is held in memory per district
+for the lifetime of a page session, so a fresh file is a fresh chain by construction.
+
+---
+
+## R17 · Guest resets when the tab closes
+
+**Asked:** "the guest file should be from level one scratch every time the link is closed."
+
+**Built.** `ensureGuestSession()` in `web/persist.js`, called from all three pages so a
+direct link into the hub or a district cannot bypass it.
+
+**[ASSUMED]** The marker is `sessionStorage`, not a timestamp or a flag in the save. The
+browser clears it exactly when the tab closes and not before, which gives precisely the
+behaviour asked for: a guest is wiped between sessions but **not** halfway through their
+own run, and reloading or walking between launch, hub and district keeps their progress.
+With storage blocked entirely, it falls back to treating every load as a new session —
+erring toward wiping a slot that is meant to be disposable.
+
+**This reverses an explicit decision in the original spec**, which argued guest should be a
+persistent second save "so a friend who comes back next week keeps their levels". The slot
+now exists purely for the hand-the-laptop-over contrast, and that demo is strongest when it
+starts blind every single time. Recorded rather than quietly changed, because the original
+reasoning was good and is now simply not what the game does.
+
+---
+
+## R18 · Alien speed capped at 0.75×
+
+**Asked:** "cap the maximum speed of the alien speed to 0.75 times of whatever it is
+currently. then update each of the levels speed according to this new capped speed."
+
+**Built.** One constant, `ALIEN_SPEED_CAP = 0.75` in `sim/difficulty.js`, multiplying every
+tier's speed factor.
+
+| tier | was | now | chase period D1 → D10 |
+|---|---|---|---|
+| EASY | 0.500 | 0.375 | 4.67 → 4.00 |
+| MEDIUM | 0.750 | 0.5625 | 3.11 → 2.67 |
+| HARD | 1.000 | 0.750 | 2.33 → 2.00 |
+| ULTRA | 1.000 | 0.750 | 2.33 → 2.00 |
+
+**[ASSUMED]** Capping the *maximum* and rescaling the others, rather than clamping each
+tier independently. The tiers are defined relative to the fastest alien — EASY is half of
+HARD, MEDIUM three-quarters — and clamping each one separately would have collapsed those
+relationships. This reading keeps them exact.
+
+**[ASSUMED]** "Update each of the levels" needs no second table. An alien's tick period is
+the base period divided by its speed factor, so one constant cascades to all ten districts
+and all four tiers automatically. A per-district speed table would be a second source of
+truth to keep in sync, and it would drift.
+
+The fastest alien in the game now covers **half a cell per tick** against the player's one.
+Measured at HARD across districts 1–6, win rates moved to beeline 27%, wallHugger 24%,
+evader 24%, coverCrawler 18% — a few points easier, as intended.
+
+---
+
+## [FOUND] The constants needed regenerating again, and this time I expected it
+
+Round three's lesson applied immediately: changing alien speed changes trajectories, which
+changes what the bots look like, which invalidates `priors.js` and `couplings.js`. Running
+both generators before touching the acceptance suite:
+
+| bot | chain only | chain + dossier |
+|---|---|---|
+| beeline | 9.0% | **23.0%** (+14.1pp) |
+| coverCrawler | 16.3% | **27.0%** (+10.8pp) |
+| wallHugger | 14.8% | **24.1%** (+9.3pp) |
+| evader | 36.1% | 36.6% (+0.5pp) |
+| drunk | 78.1% | 77.5% (−0.7pp) |
+
+Held-out macro 30.8% → 37.6%, 4 of 5 bots improved, and the evader — a persistent small
+loss for three rounds — is now neutral. Selection kept **12 couplings of 35 candidates**.
+
+This is the routine working as intended rather than a discovery: `npm run priors &&
+npm run couplings` after any mechanical change, before reading the suite.
+
+## Current state
+
+```
+npm test          12 passed · 1 not demonstrated · 0 failed
+npm run webcheck  32/32
+```

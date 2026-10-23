@@ -38,7 +38,9 @@ jobs:
         with:
           node-version: '20'
       - name: Acceptance criteria
-        run: npm test -- --seeds 8
+        # Default seed count (14). At 8 the per-bot accuracy margins are noisy
+        # enough that criteria 5 and 6 flip on seed choice alone.
+        run: npm test
       - name: Web layer smoke test
         run: npm run webcheck
 
