@@ -79,6 +79,9 @@ export class Input {
   press(dir) { this._emit('any'); this.held = [dir, ...this.held.filter((d) => d !== dir)]; this.queued = dir; }
   release(dir) { this.held = this.held.filter((d) => d !== dir); }
 
+  /** Fire a named action from a control rather than a key. */
+  action(name) { this._emit(name); }
+
   /** The direction for this tick. Clears the one-shot queue. */
   consume() {
     if (this.queued !== null) {

@@ -24,12 +24,13 @@ Three markers throughout:
 | [Five](#round-five--the-spec-caught-up) | spec rewritten to describe what exists | The original's "score IS entropy" is a real casualty of the economy, and the spec says so |
 | [Six](#round-six) | sound toggle persisted · continue-or-fresh on MAIN · guest wiped on tab close · alien speed capped at 0.75x | Reverses the original spec's deliberate choice to make guest persistent |
 | [Seven](#round-seven) | ULTRA exempt from the speed cap, score x3 | The one round where the regenerate-the-constants rule correctly did **not** apply |
+| [Eight](#round-eight) | mobile layout · floating thumbstick · RUN and STUN buttons · landscape hint | `100vh` is a lie on a phone; four separate causes, none of them the obvious one |
 
 ## Where things stand
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
-npm run webcheck  32/32
+npm run webcheck  33/33
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -1100,4 +1101,96 @@ checked-in tables for no reason.
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  32/32
+```
+
+---
+
+<a id="round-eight"></a>
+# Round eight — playable on a phone
+
+**Reported:** "while playing in phone, the game screen is not aligned properly."
+
+## What was actually wrong
+
+Four separate causes, none of them the one that is usually blamed:
+
+1. **`height: 100vh`.** On a phone `vh` includes the collapsible address bar, so the layout
+   was taller than what is on screen and the board slid off the bottom. `100dvh` with a
+   `100vh` fallback fixes it, and the renderer now sizes against `visualViewport` rather
+   than `innerHeight`.
+2. **Below 1040px the layout reverted to `overflow: auto`.** The board, the status strip and
+   five panels of diagnostics stacked into one scrolling column, so the board scrolled out
+   of view the moment you touched anything.
+3. **The canvas height was `innerHeight - 210`** — a desktop-shaped guess. It now measures
+   the board's own top offset and the status bar's real height, because the top bar wraps
+   to a different number of rows at different widths.
+4. **No `touch-action: none`.** Dragging scrolled the page or triggered pull-to-refresh
+   instead of moving.
+
+## R20 · Thumb controls
+
+**Asked:** "there should be two buttons, stun and run, as two translucent buttons one on
+each side of screen. the movement should be via touch, similar to games like shadow fight,
+call of duty."
+
+**Built.** `web/touch.js`. Left zone is a **floating** virtual stick, right side carries
+**RUN** (lightning) above **STUN**, both translucent circles.
+
+**[ASSUMED]** The stick floats — its base appears wherever your thumb lands inside the left
+zone — rather than being painted at a fixed spot. On a phone you cannot see your own thumb,
+so a fixed pad means hunting for its edge; a floating one is always exactly where you put
+it. This is what the games named in the request do.
+
+**[ASSUMED]** The stick resolves to one of **four** headings by dominant axis, with a 16px
+deadzone, rather than to a continuous angle. The sim is four-directional on a grid; mapping
+360 degrees onto it any other way manufactures diagonal inputs the game cannot express,
+which feel like dropped frames.
+
+**[ASSUMED]** "Run" is mapped to banked lightning (the `L` toggle) rather than to a separate
+sprint. There is no other run in the game, and the button lights up while it is draining so
+the toggle is visible. STUN shows its remaining charge count and dims when empty.
+
+**[ASSUMED]** The controls appear only behind `(hover: none) and (pointer: coarse)`. A mouse
+never gets a thumbstick.
+
+## R21 · The rest of the layout
+
+**[ASSUMED]** On a phone the five readout panels become a **slide-up sheet** behind a
+`readouts` button rather than a column under the board. They are diagnostics competing with
+the board for the only scarce resource on a phone, which is height.
+
+**[ASSUMED]** In **landscape** the status strip under the board is hidden entirely and the
+top bar is slimmed. Everything on that strip that matters — district, tier, keys, wallet —
+is already in the top bar, so it was charging height for a duplicate. Worth 2 tiles:
+
+| device | tile size | board |
+|---|---|---|
+| iPhone 14 landscape | 14px (was 12) | 448 × 280 |
+| Pixel 7 landscape | 15px | 480 × 300 |
+| iPad landscape | 31px | 992 × 620 |
+
+**[ASSUMED]** Portrait on a phone shows a **rotate hint** rather than rendering the board.
+The district is 32 × 20 — 1.6:1 — and in portrait it is a strip about a third of the usable
+height. Telling someone to turn the phone is better than handing them something unplayable.
+
+**[ASSUMED]** Safe-area insets on all four edges, `overscroll-behavior: none` to kill
+pull-to-refresh, and `touch-action: none` on the canvas and every control.
+
+### Still unverified, and this is the round where it matters most
+
+**I have never opened this on a phone, or in any browser.** The 33 headless checks confirm
+the stick resolves to the right headings with a deadzone, that the buttons reach the same
+handlers the keys do, and that none of it engages for a mouse — but no pixel has been
+drawn and no CSS laid out. The tile sizes above are computed from the renderer's own
+arithmetic against known viewport sizes, not observed.
+
+The fastest way to check it properly is the live link on an actual phone. Chrome DevTools
+device emulation will catch layout but **not** the `dvh` behaviour, because the address bar
+it simulates does not collapse.
+
+## Current state
+
+```
+npm test          12 passed · 1 not demonstrated · 0 failed
+npm run webcheck  33/33
 ```
