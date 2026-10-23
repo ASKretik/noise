@@ -21,6 +21,13 @@ export class Input {
   constructor() {
     this.held = [];
     this.queued = null;
+    /**
+     * Sprint is MOMENTARY, not latched: held while Shift is down and off the instant it
+     * comes up. A toggle was the original design and it was wrong -- with a toggle on,
+     * every tap moved two cells, so the player lost the ability to move exactly one
+     * square at precisely the moment they most needed it.
+     */
+    this.sprintHeld = false;
     this.paused = false;
     this.listeners = { pause: [], restart: [], toggle: [], stun: [], bolt: [], any: [] };
     this._onKeyDown = this._onKeyDown.bind(this);
@@ -44,6 +51,7 @@ export class Input {
   _emit(event, arg) { for (const fn of this.listeners[event] || []) fn(arg); }
 
   _onKeyDown(e) {
+    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') { this.sprintHeld = true; return; }
     if (e.repeat) return;
     // Any key is a user gesture, which is what the audio context needs before it will
     // start. Fired before anything else so the first keypress of a run turns sound on.
@@ -65,6 +73,7 @@ export class Input {
   }
 
   _onKeyUp(e) {
+    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') { this.sprintHeld = false; return; }
     const dir = KEYMAP[e.code];
     if (dir !== undefined) {
       e.preventDefault();
@@ -73,7 +82,7 @@ export class Input {
   }
 
   /** A lost window must not leave the player sprinting into a wall. */
-  _onBlur() { this.held = []; this.queued = null; }
+  _onBlur() { this.held = []; this.queued = null; this.sprintHeld = false; }
 
   /** Press a direction from an on-screen control. */
   press(dir) { this._emit('any'); this.held = [dir, ...this.held.filter((d) => d !== dir)]; this.queued = dir; }
@@ -89,7 +98,7 @@ export class Input {
    * starts it instantly — which skips the opening freeze and the beacon entirely, exactly
    * when the player most needs a moment to find themselves on an unfamiliar map.
    */
-  clear() { this.held = []; this.queued = null; }
+  clear() { this.held = []; this.queued = null; this.sprintHeld = false; }
 
   /** The direction for this tick. Clears the one-shot queue. */
   consume() {

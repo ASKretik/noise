@@ -132,10 +132,28 @@ export class Game {
     this.portal = this._choosePortal(o.level);
     this.drop = this.portal;              // legacy alias; the predictor view reads `drop`
 
-    /** Lightning bolts: three seconds at double speed. Copied, never shared with the level. */
+    /** Lightning bolts: three seconds of sprint each. Copied, never shared with the level. */
     this.bolts = (o.level.bolts || []).map((b) => ({ x: b.x, y: b.y, taken: false }));
-    this.boostTicks = 0;
     this.boostsUsed = 0;
+
+    /**
+     * SPRINT IS ALWAYS DELIBERATE, and this replaces an automatic boost that was a
+     * genuine design mistake.
+     *
+     * A bolt used to grant three seconds of double speed outright, which meant that for
+     * those three seconds a single tap moved you TWO cells. In a game about threading a
+     * one-cell gap past something that is hunting you, taking away the ability to move
+     * exactly one square is not a power-up, it is a loss of control -- the player wanted
+     * one box and got two, usually into the alien they were avoiding.
+     *
+     * So picking a bolt up now ADDS to a charge, and sprinting is held: Shift on a
+     * keyboard, the RUN button on a phone. Let go and you are back to one cell per tick
+     * on the very next tick, charge remaining or not.
+     *
+     * Two pools, drained field-first: what you found in this district does not follow you
+     * out of it, and what you paid for in the shop does.
+     */
+    this.fieldBoltTicks = 0;
 
     /** Coins. Value, not count, is what the score and the wallet care about. */
     this.coins = (o.level.coins || []).map((c) => ({ x: c.x, y: c.y, value: c.value, taken: false }));
@@ -156,7 +174,8 @@ export class Game {
     this.startingLoadout = { ...this.loadout };
     /** Banked lightning, in ticks, drained only while the player has it switched on. */
     this.boltBankTicks = Math.round(this.loadout.boltSeconds * TICKS_PER_SECOND);
-    this.boltOn = false;
+    /** Set from the player's controls every tick. Momentary, never latched by the sim. */
+    this.sprinting = false;
     this.stuns = 0;
     this.shotsFired = 0;
 
@@ -378,16 +397,17 @@ export class Game {
     return this.onCover ? this.params.detectRadius / 2 : this.params.detectRadius;
   }
 
-  /**
-   * Cells the player covers per tick. Doubled by either boost source: a bolt picked up
-   * off the map (automatic, three seconds) or banked lightning bought from the shop
-   * (manual, drains only while switched on).
-   */
+  /** Sprint charge remaining, in ticks: what you found here plus what you paid for. */
+  get sprintTicks() { return this.fieldBoltTicks + this.boltBankTicks; }
+
+  get sprintSecondsLeft() { return this.sprintTicks / TICKS_PER_SECOND; }
+
+  /** Cells the player covers per tick. Two only while sprint is actively held. */
   get speed() {
     return this.boosted ? (this.params.boostSpeed || 2) : 1;
   }
 
-  get boosted() { return this.boostTicks > 0 || (this.boltOn && this.boltBankTicks > 0); }
+  get boosted() { return this.sprinting && this.sprintTicks > 0; }
 
   /** Is the player standing inside a black box? */
   get inSafeBox() {
@@ -426,13 +446,15 @@ export class Game {
     return { fired: spent, spent, reason: null };
   }
 
-  /** Switch banked lightning on or off. Returns whether it is now on. */
-  setBolt(on) {
-    this.boltOn = !!on && this.boltBankTicks > 0;
-    return this.boltOn;
+  /** Hold or release sprint. Momentary: the sim never latches this on the player's behalf. */
+  setSprint(on) {
+    this.sprinting = !!on && this.sprintTicks > 0;
+    return this.sprinting;
   }
 
-  get boltSecondsLeft() { return this.boltBankTicks / TICKS_PER_SECOND; }
+  /** Legacy alias used by the touch RUN button and the HUD. */
+  get boltSecondsLeft() { return this.sprintSecondsLeft; }
+  get boltOn() { return this.sprinting; }
 
   /**
    * What the aliens are allowed to believe about the objectives.
@@ -553,8 +575,12 @@ export class Game {
     // criterion hashes.
     let stunResult = null;
     if (actions) {
-      if (actions.bolt !== undefined) this.setBolt(actions.bolt);
+      // Sprint is resolved every tick from the live control state, so releasing the key
+      // drops you back to one cell on the very next tick.
+      this.setSprint(actions.sprint ?? actions.bolt ?? false);
       if (actions.stun) stunResult = this.fireStun();
+    } else {
+      this.setSprint(false);
     }
 
     const prev = { x: this.player.x, y: this.player.y };
@@ -621,9 +647,9 @@ export class Game {
           b.taken = true;
           boltNow = true;
           this.boostsUsed++;
-          // Refresh rather than stack: two bolts in a row give six seconds of double
-          // speed, not three seconds of quadruple speed.
-          this.boostTicks = this.params.boostTicks || 24;
+          // Adds to the charge rather than firing. Two bolts are six seconds of sprint
+          // to spend when you choose, not six seconds of being dragged along.
+          this.fieldBoltTicks += Math.round((this.params.boltPickupSeconds || 3) * TICKS_PER_SECOND);
           break;
         }
       }
@@ -697,11 +723,15 @@ export class Game {
     }
 
     // --- 9. bookkeeping ---
-    if (this.boostTicks > 0) this.boostTicks--;
-    if (this.boltOn) {
-      this.boltBankTicks--;
-      this.loadout.boltSeconds = this.boltBankTicks / TICKS_PER_SECOND;
-      if (this.boltBankTicks <= 0) { this.boltBankTicks = 0; this.boltOn = false; }
+    // Drain only while actually sprinting, field charge first: what you found in this
+    // district is spent here, what you bought survives the run.
+    if (this.sprinting && this.sprintTicks > 0) {
+      if (this.fieldBoltTicks > 0) this.fieldBoltTicks--;
+      else {
+        this.boltBankTicks--;
+        this.loadout.boltSeconds = this.boltBankTicks / TICKS_PER_SECOND;
+      }
+      if (this.sprintTicks <= 0) this.sprinting = false;
     }
 
     this._record({
@@ -1066,6 +1096,7 @@ export class Game {
       splits: this.splits,
       boostsUsed: this.boostsUsed,
       peakAliens: this.peakAliens,
+      sprintTicksLeft: this.sprintTicks,
       coinValue: this.coinValue,
       coinsTaken: this.coinsTaken,
       stuns: this.stuns,

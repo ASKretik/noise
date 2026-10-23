@@ -9,6 +9,7 @@
 // progress and nothing else.
 
 import { ProfileStore, memoryBackend } from '../sim/profile.js';
+import { BUILD } from './build.js';
 
 /**
  * The guest slot is scoped to a browser session: closing the tab forgets it entirely.
@@ -49,16 +50,21 @@ export async function ensureGuestSession(store) {
   return true;
 }
 
-const DB_NAME = 'noise';
 /**
- * Bumped to 2 to scrap every save written before the difficulty tier, the wallet and the
- * inventory existed. Those records predate choices that cannot be inferred -- there is no
- * honest answer to "which tier was this played on" for a file written before tiers -- so
- * they are dropped rather than guessed at. The upgrade deletes the old object store
- * outright; sim/profile.js refuses anything below the current schema as a second line of
- * defence for the in-memory path.
+ * The database is namespaced by the build stamp, so **every published update starts every
+ * save file fresh**.
+ *
+ * That is deliberate for a project still changing shape. The schema, the difficulty tiers,
+ * the economy and the scoring have each moved between deploys, and a profile carried
+ * across one of those is a record of rules that no longer exist -- a best score set under
+ * a different score equation is not a score, it is a number. Starting clean is cheaper and
+ * more honest than migrating a save into a different game.
+ *
+ * sim/profile.js additionally refuses any record below the current schema, which covers
+ * the in-memory path where there is no database name to namespace.
  */
-const DB_VERSION = 2;
+const DB_NAME = `noise-${BUILD}`;
+const DB_VERSION = 1;
 const STORE = 'profiles';
 
 function openDB() {
@@ -118,11 +124,33 @@ function indexedDBBackend(db) {
 }
 
 /**
+ * Delete the databases left behind by earlier builds.
+ *
+ * Namespacing alone would quietly accumulate one abandoned database per update in every
+ * player's browser. Best effort: `indexedDB.databases()` is unavailable on some browsers,
+ * and a failure here must never stop the game from starting.
+ */
+async function sweepOldBuilds() {
+  try {
+    if (typeof indexedDB?.databases !== 'function') return;
+    const all = await indexedDB.databases();
+    for (const { name } of all) {
+      if (typeof name === 'string' && /^noise(-\d+)?$/.test(name) && name !== DB_NAME) {
+        indexedDB.deleteDatabase(name);
+      }
+    }
+  } catch (err) {
+    console.warn('[persist] could not sweep old builds:', err?.message);
+  }
+}
+
+/**
  * @returns {Promise<{store: ProfileStore, degraded: boolean, reason: string|null}>}
  */
 export async function createProfileStore() {
   try {
     const db = await openDB();
+    sweepOldBuilds();          // fire and forget; never blocks the first paint
     return { store: new ProfileStore(indexedDBBackend(db)), degraded: false, reason: null };
   } catch (err) {
     console.warn('[persist] falling back to in-memory profiles:', err?.message);
