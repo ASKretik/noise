@@ -3,7 +3,7 @@
 A browser stealth game whose aliens learn where you are going and are waiting there when
 you arrive.
 
-**[Play it](https://example.github.io/noise/)** · **[Benchmarks](docs/bench.html)** ·
+**[Play it](https://askretik.github.io/noise/)** · **[Benchmarks](docs/bench.html)** ·
 no install, no backend, no build step
 
 Find every key, open the portal, get out. Water halves how far you can be seen and every
@@ -149,12 +149,14 @@ failed**:
 
 ## Deploying
 
-`Settings → Pages → Source: GitHub Actions`, then push to `main`.
-`.github/workflows/pages.yml` runs the acceptance suite and uploads the repository root —
-plain ES modules, served as they are. The fallback (`Deploy from a branch → /docs`) is
-documented in `tools/build-docs.mjs`.
+Live at **https://askretik.github.io/noise/**.
 
-Update the Play link at the top of this file once you know your Pages URL.
+Pages is configured to build from GitHub Actions. Every push to `main` runs
+`.github/workflows/pages.yml`, which executes the full acceptance suite and the 32 browser
+checks **before** publishing, then uploads the repository root — plain ES modules, served
+as they are, no build step. A failing suite blocks the deploy rather than replacing a
+working site. The fallback (`Deploy from a branch → /docs`) is documented in
+`tools/build-docs.mjs`.
 
 ---
 
