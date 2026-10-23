@@ -1,208 +1,464 @@
 # NOISE — build spec
 
-Oct 6, 2026 · @Kretik
+Originally written Oct 6, 2026 · **revised Oct 23, 2026 to describe the system as built**
 
-NOISE is a browser stealth game whose enemy spawner learns where you are going and is waiting there when you arrive. Target is roughly 23 hours over 9 to 11 days, deployed static to GitHub Pages, with no model training anywhere in the project.
+> This file is no longer the plan; it is the description. The original spec is in git
+> history (`git log --follow spec.md`), and the reasoning for every departure from it is
+> recorded in [dna.md](dna.md) for the first build and [decisions.md](decisions.md) for the
+> four rounds of changes after it. Where this document and those two disagree about *why*
+> something is the way it is, those two are the record.
+
+NOISE is a browser stealth game whose aliens learn where you are going and are waiting
+there when you arrive. It deploys as static files to GitHub Pages, has no backend, no build
+step and no dependencies, and **no model is trained anywhere in the project**.
 
 ## Scope and non-goals
 
-Ships: a top-down grid stealth game in the browser, procedurally generated levels, an enemy spawner driven by a two-tier predictive model that learns the player across levels, two local save profiles, and a small language model that narrates the system's reasoning. Static deploy, no server.
+Ships: a top-down grid stealth game, procedurally generated districts, an alien spawner
+driven by a two-tier predictive model that learns the player across districts, a coin
+economy with a shop, four permanent difficulty tiers, two local save profiles, and a small
+language model that narrates the system's reasoning.
 
-Explicitly out of scope, and each line is a decision, not an oversight:
+Explicitly out of scope, and each line is a decision rather than an oversight:
 
-- **No model training.** Both predictor tiers are online counting and sufficient-statistic updates. No gradient descent, no datasets, no checkpoints, no GPU.
-- **No backend, no auth.** Two profiles in IndexedDB on one machine. Cross-device sync is not a goal.
-- **No line-of-sight.** Detection is radius plus cover state. Bresenham raycasting is a day of work for a marginal gain.
-- **No combat.** One hit ends the run. No health, no weapons, no attack animations.
-- **No art.** Coloured rectangles and circles. Every hour on sprites is an hour not spent on the thing you get quizzed about.
-- **No formal A/B study.** Sanity benchmarks only, enough to prove the predictor beats random. The job-oriented brief rewards a working app over a research report.
+- **No model training.** Both predictor tiers are online counting and sufficient-statistic
+  updates. No gradient descent, no datasets, no checkpoints, no GPU. Two constant tables
+  (`priors.js`, `couplings.js`) *are* selected by measurement, offline, by a developer
+  running a script — the same category of act as choosing k = 20. See "Generated constants".
+- **No backend, no auth.** Two profiles in IndexedDB on one machine.
+- **No line-of-sight.** Detection is radius plus terrain state.
+- **No combat.** One touch from an active alien ends the run. The stun gun disables; it
+  does not kill.
+- **No art assets.** Everything is a path, a rectangle or an arc drawn from the tile grid.
+- **No formal A/B study.** Sanity benchmarks, enough to show the predictor beats random.
 
 ## Architecture
 
-&#91;embedded content: module dependencies · 5 modules, 2 runtimes\]
+```
+sim/        pure core — zero DOM, imports nothing outside /sim, runs under Node
+predictor/    tier 1 (chain), tier 2 (dossier), traits, generated constants, combination
+spawner/      rejection sampling from a truncated distribution
+squad/        joint role assignment across the aliens
+web/        browser-only leaves — canvas, input, HUD, IndexedDB, dispatch, ambience
+bots/       five scripted policies spanning the legibility axis
+bench/      Node harness, acceptance suite, DOM shim, constant generators
+```
 
-Arrows run toward what a module depends on. The sim core sits at the top because nothing below it is allowed to reach upward, and it imports nothing — that is what lets the same file run under Node for benchmarking and in the browser for play. The predictor reads tick logs and writes a distribution; the spawner consumes that distribution and returns cells; neither knows a canvas exists. Persistence and the language model are browser-only leaves, so a missing IndexedDB or an absent GPU degrades those leaves and nothing else.
+Arrows run one way. The sim core knows nothing about a canvas, a profile or a model. The
+predictor reads tick logs and writes a distribution; the spawner and the squad consume that
+distribution and return cells; persistence and the language model are leaves, so a missing
+IndexedDB or an absent GPU degrades those leaves and nothing else.
+
+Two rules fixed in the first session, both miserable to retrofit: **nothing calls
+`Math.random`** — every stochastic decision draws from a seeded `Rng` — and **the sim core
+is a pure ES module with no DOM access**, which is what lets the same files run headless at
+~400 episodes/second for the benchmarks and at 8 Hz in a browser for play.
 
 ## Game rules
 
-You are a courier moving data through a city that models its couriers. Collect every cache on the level, then reach the dead drop before a patrol reaches you.
+You are a human in a district that models its couriers. Find every key, open the portal,
+and get out.
 
 | Element | Rule |
-| --- | --- |
-| Grid | 32 x 20 tiles, four types: floor, wall, cover, drop |
-| Tick rate | 8 ticks per second, fixed timestep, rendering decoupled |
-| Movement | One cell per tick, four-directional, no diagonals |
-| Objectives | 3 to 6 caches per level, then the dead drop unlocks |
-| Cover | Standing on a cover tile halves your detection radius |
-| Detection | A patrol sees you within radius r (default 5 cells), reduced in cover |
-| Alert state | On detection, every patrol gets your position for 20 ticks, then your last known cell |
-| Patrols | BFS chase while alert, otherwise walk toward their assigned intercept cell |
-| Loss | A patrol enters your cell |
-| Win | Reach the dead drop with all caches collected |
+|---|---|
+| Grid | 32 × 20 tiles; 55–65% open floor |
+| Tick rate | 8 ticks per second, fixed timestep, rendering decoupled and interpolated |
+| Movement | One cell per tick, four-directional, no diagonals; two cells while boosted |
+| Objectives | 3 to 5 keys, then the portal opens |
+| Loss | An **active** alien enters your cell. A stunned one is inert and can be walked over |
+| Win | Reach the portal with every key collected |
 
-The objectives matter more than they look. Without a traversal goal the optimal strategy is to stand still in a corner, which leaves the predictor nothing to predict and collapses the premise. Caches force goal-driven movement, and goal-driven movement is what makes a player legible to a model.
+### Terrain
 
-**Scoring is entropy.** Your run score is the Shannon entropy of your own visit histogram over the level's regions, so you are rewarded for being unpredictable rather than fast. The evaluation metric and the win condition are deliberately the same quantity: the system wins by turning you into signal, and you win by staying noise.
+| Tile | Human | Alien | Effect |
+|---|---|---|---|
+| Floor | ✓ | ✓ | — |
+| Wall | ✗ | ✗ | — |
+| **Water** | ✓ | ✓ | Halves the radius at which you can be seen |
+| **Building** | ✗ | **✓** | Rubble you walk around and they walk through |
+| **Black box** | ✓ | **✗** | Nothing sees in; the alert clears and your last-known cell is erased |
 
-## Levels and progression
+Buildings and black boxes are deliberate inverses, and between them they are the reason
+every distance field in the project has to declare *whose* distance it is measuring
+(`HUMAN` or `ALIEN` in `sim/pathfind.js`). An alien that refuses to cut through rubble is
+just a slow human; a player routed along an alien field walks into a wall.
 
-Levels are generated, not authored. A room-and-corridor generator seeded from `hash(profileId, levelNumber)` gives you reproducible maps, infinite content, and a difficulty curve that is a parameter rather than drawn content. Authoring eight maps by hand costs the same hours and caps you at eight.
+### Items
 
-Generation runs in four passes: carve 6 to 10 rooms and connect them with corridors, verify full connectivity by flood fill and regenerate on failure, scatter cover tiles at a target density, then place caches in distinct rooms with the drop in the room furthest from spawn.
+| Item | Effect |
+|---|---|
+| **Key** (gold) | 3–5 per district. All of them open the portal |
+| **Coin** (1 / 2 / 5 / 10, colour-coded) | Currency. Total value per district is 10–15× the district number |
+| **Lightning bolt** | 3 seconds at double speed, picked up automatically |
 
-Clearing a level advances you to the next and the difficulty parameters step up: more caches, more concurrent patrols, a higher arrival rate, a slightly larger detection radius. Cap the curve around level 10 so it stays playable rather than becoming a wall.
+### Difficulty tiers
 
-The important part is what carries across the boundary. Your dossier — the persistent tier of the predictor — survives the level transition. Level 1 faces a system that knows nothing about you. Level 6 faces one that has watched five levels of your habits. Each level is a new district of the same city, and the file on you follows you between districts, which is exactly why this premise was worth keeping.
+Chosen once when a save file is created, and **never editable**. Every logged score, the
+settled per-district difficulty and the dossier itself are measured under the tier, so
+allowing a mid-save change would quietly corrupt all three.
+
+| Tier | Alien speed | Told which keys you took | Score |
+|---|---|---|---|
+| EASY | 50% | no | ×0.75 |
+| MEDIUM | 75% | no | ×1.00 |
+| HARD | 100% | no | ×1.30 |
+| ULTRA | 100% | **yes** | ×1.70 |
+
+Below ULTRA the predictor is handed a frozen belief in which no key is ever collected and
+the portal never reads as open. They model how you *move* and nothing else.
+
+### Aliens
+
+- **Detection:** radius 4.6 (district 1) to 5.6 (district 10), halved in water, zero in a
+  black box. No line of sight.
+- **Alert:** on detection every alien receives your live position for 20 ticks, then falls
+  back to your last known cell. Entering a black box erases both.
+- **Speed:** 1.75 ticks per move at district 1 tightening to 1.50 at district 10, divided
+  by the tier's speed factor. **Deliberately slower than the player** — at parity a hunting
+  alien that gets adjacent has won, because the distance never changes and running stops
+  being a strategy.
+- **Division:** every 10–15 seconds (seeded, so runs stay reproducible) one alien splits in
+  two. The child is held to the same minimum arrival distance as a spawn; a division that
+  cannot be placed fairly is deferred rather than dropped next to you.
+- **They never leave.** Arrivals stop at the concurrent cap; only division takes the count
+  past it. An earlier birth-death process retired aliens when "off-screen", which on a map
+  that is entirely on screen meant they vanished in plain sight.
+- **Stun:** 5 seconds, during which an alien cannot see, move or catch you.
+
+### The squad
+
+Aliens do not act independently. Each time the squad re-plans (every 6 ticks) roles are
+assigned jointly:
+
+- **Hunting** — the nearest one or two run you down along the live field; the rest are
+  posted on your escape routes, ranked by the predictor but assigned **without
+  replacement**, including unlikely routes. Covering an unlikely route is not a bet that
+  you will take it; it is how the net closes.
+- **Calm** — each alien gets its own district, highest probability first, so they spread
+  instead of converging on one guess.
+
+Coordination is off in `uniform` mode, so the dev dropdown stays an honest A/B.
+
+## Districts and progression
+
+**One hundred districts in ten belts of ten.** Each belt has its own terrain palette —
+RUST, TIDE, MOSS, EMBER, VIOLET, ASH, CORAL, JADE, SOLAR, COBALT — so where you are in the
+city is legible without reading the number. Entities (keys, coins, lightning, aliens, the
+player, the portal) keep one colour everywhere: those are the game's vocabulary, and
+repainting them per belt would mean relearning the board every ten districts.
+
+Districts are generated, not authored, seeded from `hash(profileId, districtNumber)`.
+Generation runs in passes, each one gated:
+
+1. **BSP partition** into rooms, connected by an MST of corridors plus two or three extra
+   links for loops. BSP rather than free placement because the spec's constants — radius 5,
+   an 8-cell spawn floor, 3–5 aliens — only make sense on a map that is mostly open; free
+   placement produced 25%-walkable corridor mazes where contact was unavoidable inside
+   twenty ticks no matter how well anyone played.
+2. **Connectivity** by flood fill; regenerate on failure, with an area floor and a
+   best-effort fallback so a cramped district beats a thrown exception.
+3. **Water** at a target density, biased toward walls.
+4. **Buildings**, each cluster provisional and rolled back if it stranded an objective.
+5. **Black boxes**, likewise provisional — but checked against **alien** connectivity,
+   since a box across the only corridor would leave half the district unreachable by
+   anything hunting you.
+6. **Keys** in distinct rooms; **bolts** 1–2 per district; **coins** drawn to fill the
+   district's value budget.
+7. **The portal is not placed here.** The generator emits legal sites; the portal is drawn
+   from the run's own stream at the start of every attempt and stays hidden until the last
+   key is taken. Restarting re-rolls it, so a failed run teaches you the map but not the
+   route.
+
+The difficulty curve caps at district 10. Districts 11–100 are all distinct maps at full
+pressure but do not get progressively harder. **What keeps changing is the file on you.**
+
+| | district 1 | district 10 |
+|---|---|---|
+| keys | 3 | 5 |
+| concurrent alien cap | 3 | 5 |
+| arrival rate λ (per tick) | 0.0075 | 0.0115 |
+| detection radius | 4.6 | 5.6 |
+| chase period (HARD) | 1.75 | 1.50 |
+| temperature τ | 1.40 | 0.55 |
+| buildings | 3 | 7 |
+| coin value | 10–15 | 100–150 |
 
 ## The predictor
 
-Two tiers, because one cannot do both jobs. A transition matrix over map regions learns geometry fast but means nothing on a new map. A profile of behavioural traits transfers anywhere but knows nothing about this particular layout. You need both.
+Two tiers, because one cannot do both jobs. A transition matrix over a district's regions
+learns geometry fast and means nothing on a new map. A profile of behavioural traits
+transfers anywhere and knows nothing about this particular layout.
 
-### Tier 1: the level chain
+### Tier 1 — the district chain
 
-Partition the level into 12 regions by room. Maintain a 12 x 12 transition count matrix with Laplace smoothing (add 1 to every cell at init), incremented on every region change. Normalise rows to get P. The k-step-ahead distribution is row `i` of `P^k`, with k around 20 ticks. Resets at each new level, converges within about a minute of play.
+A 12 × 12 transition count matrix over the district's regions, incremented **per tick** so
+the diagonal carries dwell time. The k-step-ahead distribution is row *i* of P^k with
+k = 20, computed by repeated vector-matrix multiply.
 
-### Tier 2: the dossier
+Two departures from the original spec, both measured:
 
-Roughly 20 map-agnostic traits, each an exponentially-weighted running statistic that persists across every level this profile has ever played. All are computable from the tick log with no reference to absolute coordinates:
+- **Per-tick rather than change-only.** The original said "incremented on every region
+  change" and also "k around 20 ticks". Those only agree if a matrix step is one tick.
+- **Laplace smoothing follows the region adjacency graph**, not every cell. A flat prior
+  asserts that a one-tick jump to the far side of the map is as likely as a step next door.
+  It is not unlikely; it is impossible.
 
-- Wall affinity: fraction of ticks spent adjacent to a wall
-- Cover dwell: mean ticks spent stationary on a cover tile
-- Heading persistence: probability of continuing in the current direction
-- Objective directness: path length taken to a cache over shortest path
-- Backtrack rate: fraction of moves reversing the previous move
-- Threat response: turn-away angle and distance when a patrol becomes visible
-- Open-ground tolerance: fraction of ticks more than 3 cells from cover
-- Pause distribution: mean and variance of stationary run lengths
-- Cache ordering: nearest-first versus furthest-first tendency
-- Post-alert behaviour: freeze, flee, or continue
+Tier 1 resets at each new **district**, but not at each new run — a retry faces a chain
+that remembers your last attempt. The original "converges within about a minute of play"
+is only reachable that way: a single run lasts five to twenty seconds.
 
-These modulate the chain rather than replacing it. Concretely, reweight the k-step distribution by a trait-derived score per candidate region, then renormalise — a wall-hugger's corridor regions get lifted, an open-ground runner's get flattened.
+### Tier 2 — the dossier
 
-### Combination and sampling
+21 map-agnostic traits, each an exponentially weighted `{mean, var, n}`, persisted per
+profile and folded once per run. Wall affinity, cover dwell, heading persistence, objective
+directness, backtrack rate, threat response, open-ground tolerance, pause distribution,
+key ordering, post-alert behaviour, and others. All computable from the tick log with no
+reference to absolute coordinates — that is the whole requirement, because a trait that
+mentions x = 14 cannot transfer to the next district.
 
-Final distribution is a temperature-controlled softmax over the reweighted k-step probabilities. Temperature τ is your single difficulty knob: τ near 0 always intercepts at the modal cell and is brutal, τ large is uniform and is the random baseline. τ comes from the difficulty controller.
+### Combination
 
-Both tiers are counting. There is no loss function and no training step anywhere in this section, which is the sentence to have ready when someone asks whether this violates the no-training brief.
+```
+p   = tier 1's k-step distribution over regions
+s_r = exp(beta × confidence × gate × Σ sign × w × z_trait × z_feature(r))
+q   = normalise(p × s)
+out = softmax(ln q / tau)   ==   q^(1/tau) / Σ q^(1/tau)
+```
+
+Tier 2 **modulates** tier 1 rather than replacing it, and speaks in proportion to tier 1's
+own uncertainty (`gate` = normalised entropy of its projection). Measured without that
+gate, the dossier helped exactly the players it was designed for and hurt the two whose
+chain was already sharp — for a player who mostly stays put, "still there" is correct and
+reweighting by geometry can only move the mode off a right answer.
+
+τ is the single difficulty knob: near 0 it always intercepts at the modal region; large it
+is uniform, and **uniform is a mode of this same code path** rather than separate code.
+
+### Generated constants
+
+`sim/predictor/priors.js` and `couplings.js` are produced by scripts, not written by hand:
+
+- **`npm run priors`** — population mean and sd per trait, from the five bot policies
+  across the curve. Tier 2 reweights on *deviation*, so a prior on the wrong side of the
+  real mean does not weaken a coupling, it reverses its sign for every player. The
+  hand-guessed values were wrong by a lot (wall affinity 0.85 guessed, 0.46 measured).
+- **`npm run couplings`** — greedy forward selection over 35 candidate trait→geometry
+  couplings, scored on a recorded corpus, macro-averaged across the bots with a penalty for
+  leaving any single bot worse off. Currently keeps **8 of 35**. Selection runs on one set
+  of seeds and is reported on a disjoint set.
+
+These are build artefacts of the game as it stands. **Changing the game invalidates them**
+as surely as changing the code, and a prediction result moving for no visible reason is the
+first thing they explain.
 
 ## Spawning and difficulty
 
-**When patrols arrive.** A non-homogeneous Poisson process. Sample the next inter-arrival time as `-ln(U) / λ(t)` where U is uniform on (0,1). λ is set by the difficulty controller and the level number. Cap concurrent patrols at 3 to 5 by level, and suppress arrivals entirely for the first 40 ticks so a run never dies before it starts.
+**When.** A non-homogeneous Poisson process; the next inter-arrival is `-ln(U)/λ(t)` with λ
+frozen at the current tick (the piecewise-constant approximation — exact thinning is one
+flag away in `sim/poisson.js`). No arrivals for the first 40 ticks. Exactly one alien is
+already in the district when you arrive; two was tested and is a cliff, not a step.
 
-**Where they arrive.** Draw a candidate region from the predictor's final distribution, then a candidate cell within it, then accept or reject against four constraints: walkable, BFS distance from the player at least 8, outside the player's current view, and BFS distance at most 18. Resample up to 30 times, then fall back to uniform over all valid cells. This is rejection sampling from a truncated distribution, and saying so in those words costs nothing and reads well.
+**Where.** Rejection sampling from a truncated distribution: draw a region from the
+predictor, a cell within it, then accept or reject against four constraints — shared ground
+(somewhere both can stand), **alien** BFS distance from the player at least 11, outside your
+detection range, and at most 20. Thirty tries, then fall back to uniform over all cells
+satisfying the same constraints.
 
-The minimum-distance constraint is not a detail. Without it the system occasionally spawns a patrol on top of you, the death feels arbitrary rather than earned, and players stop believing the model is intelligent — they just think the game cheats.
+The minimum distance is not a detail. Without it the system occasionally spawns on top of
+you, the death reads as arbitrary rather than earned, and the player concludes the game
+cheats. It is measured as the **alien** travels, because the honest question is how many
+ticks until it can reach you — and it cuts through buildings.
 
-**How hard it gets.** A proportional controller targets a survival-time band rather than a fixed difficulty. Track survival time over the last 5 runs; if the mean sits above the band, lower τ and raise λ; below it, the reverse. Clamp both to sane ranges. This keeps a strong player challenged and a struggling guest able to finish a level, using one shared mechanism.
+**How hard.** A proportional controller on two signals, settled **once per district** and
+reused on every retry:
 
-Keep all four spawner modes selectable from a dev dropdown — uniform, chain-only, chain-plus-dossier, and full with controller. Switching between them live in front of an examiner is the cheapest convincing demo in the project.
+| signal | moves | why |
+|---|---|---|
+| survival time over the last 5 runs, wins right-censored | arrival rate λ | how much pressure you can take |
+| your own normalised visit entropy | temperature τ | how legible you have been |
+
+Freezing per district matters: re-tuning on each attempt makes a district get harder every
+time you lose it, which reads as the game punishing failure. What your movement tunes is
+the districts you have not reached yet.
+
+A win is **right-censored** survival, not a short one. Taken literally, a player who wins
+in forty ticks has survived forty ticks, so the controller would relax for the strongest
+players. A won run never ended in a capture; its survival time is a lower bound.
+
+All four spawner modes — uniform, chain-only, chain-plus-dossier, full-with-controller —
+are selectable live from a dev dropdown and switch **in place** without restarting the run.
+
+## The economy
+
+Coins are a currency; the score is a judgement of the run. They are deliberately not the
+same number.
+
+```
+speed = 400 × clamp(par ÷ ticks, 0, 2)      zero unless you finished
+coins = coin VALUE collected × 8
+stuns = aliens stunned × 120
+keys  = keys collected × 50                 partial credit on a loss
+
+score = (speed + coins + stuns + keys)
+        × (1 + 0.15 × (district − 1))
+        × 1 ÷ (1 + 0.35 × (attempts − 1))   1.00, 0.74, 0.59, 0.49 …
+        × tier multiplier
+        × (won ? 1 : 0.25)
+
+coins paid = floor(score ÷ 60)
+```
+
+`par` is computed per run from a greedy nearest-key route plus the run to *that run's*
+portal, ×1.35 for slack. Attempts are counted when a run **starts**, so quitting out of a
+bad run cannot dodge the decay.
+
+Farming is allowed and expected — it is the only way to afford a gun. Coins off the floor
+and the clear bonus (5× the district number) pay in full every time; only the score share
+decays. What farming cannot inflate is the recorded best score.
+
+### Shop
+
+| Item | Price | Notes |
+|---|---|---|
+| Stun gun | 500 | The frame only. **Arrives empty** |
+| Stun charge | 100 | Up to 6. Refused until the gun is owned |
+| Lightning | 10 / second | Banked up to 60s, toggled with `L`, drains only while on |
+
+`E` stuns every alien whose detection range currently contains you — one charge each,
+nearest first — not every alien in the district. A full kit is 1,100 coins, roughly one
+pass through districts 1 to 10.
 
 ## Profiles and persistence
 
-A launch screen offers two slots: a main profile and a guest profile. No passwords, no accounts, no server. Both persist in IndexedDB under one object store keyed by profile id.
+Two slots, main and guest, in IndexedDB under one object store keyed by profile id. No
+passwords, no accounts, no server, no cross-device sync.
 
 ```
 profile {
-  id          'main' | 'guest'
-  displayName string
-  level       number          // highest unlocked
-  dossier     { trait: {mean, var, n} }  // ~20 traits, persistent tier
-  runs        [{ level, ticks, entropy, won, at }]  // last 50, capped
-  settings    { spawnerMode, dispatchEnabled }
-  schema      number          // migration guard
+  id            'main' | 'guest'
+  difficulty    tier, set once at creation, never editable
+  level         highest unlocked
+  dossier       { trait: {mean, var, n} }      ~21 traits, the persistent tier
+  wallet        { coins }
+  inventory     { stunGun, bullets, boltSeconds }
+  plays         { district: attempts }          feeds the score's replay decay
+  bestScores    { district: score }
+  difficultyByLevel { district: {tau, lambdaScale} }   settled on first entry
+  runs          last 50
+  settings      { spawnerMode, dispatchEnabled, showHeatmap }
+  schema        4
 }
 ```
 
-**The isolation rule, which is the one thing not to get wrong:** every write to `dossier` and `runs` is scoped to the active profile id. A guest run must never touch the main dossier. Make the active profile a single module-level value read by the persistence layer, never a parameter threaded through call sites where one missed argument silently corrupts six levels of learning about you.
+**The isolation rule, which is the one thing not to get wrong:** the active profile id is a
+single module-level value in `sim/profile.js`, read by the only write path. Every mutator
+goes through it and none takes an id, so a guest run cannot touch the main dossier. That
+module lives in `/sim` rather than `/web` precisely so the rule is testable under Node.
 
-Guest is a persistent slot rather than an ephemeral session, so a friend who comes back next week keeps their levels. Add a visible reset-this-profile button, which doubles as the fastest way to demo a cold model beside a warm one.
+Writes happen on run end, not every tick, and every IndexedDB call is wrapped — private
+browsing throws, and a thrown write must cost a save, not the run.
 
-Write on level completion and on run end, not every tick. Wrap every IndexedDB call in try/catch and degrade to in-memory state if the store is unavailable — private browsing mode will otherwise throw and take the whole game down.
-
-The contrast between slots is the demo. Hand the laptop over on guest and the system spawns near-randomly; switch to main and it is waiting at the junction you always use. Same code, same seed, different dossier.
+Records below the current schema are **discarded rather than migrated**: a file written
+before tiers existed has no honest answer to which tier produced its scores.
 
 ## The dispatch layer
 
-A small instruct model runs in the browser and writes the surveillance system's internal monologue from live predictor state. This is the project's pretrained-model integration: downloaded, not trained.
+A pretrained instruct model (`HuggingFaceTB/SmolLM2-360M-Instruct`, ~200 MB quantised)
+loads from a CDN a couple of seconds after the first district is playable and writes the
+surveillance system's internal monologue from live predictor state. Downloaded, never
+trained.
 
-```js
-import { pipeline } from '@huggingface/transformers';  // v3.x, not @xenova
-const scribe = await pipeline('text-generation',
-  'HuggingFaceTB/SmolLM2-360M-Instruct', { device: 'webgpu' });
-```
+Three constraints, all of which bite: **lazy load** (nothing fetched until the game is
+already playable), **never block the loop** (generation is fire-and-forget; a request
+arriving while one is in flight is dropped, because stale commentary is worse than none),
+and **degrade cleanly** (without WebGPU it falls back to templated strings assembled from
+the same state object).
 
-**Prompt contract.** The model receives a compact state object and returns two sentences in the voice of a dispatcher. Pass real numbers: current entropy score, the top predicted region and its probability, how many levels of dossier exist, the two strongest traits by deviation, and the last spawn decision with its reason. Constrain output to roughly 40 tokens and strip anything past the second sentence.
+**The test that keeps it honest:** if the text would read identically with the predictor
+deleted, it has failed. Both paths are driven from the same state object and both shift
+with confidence:
 
-**The test that keeps it honest.** If the dispatch text would read identically with the predictor deleted, it has failed. The system's language must shift with its confidence — vague when the dossier is thin, specific and assured when it has six levels on you. Demonstrate this by playing predictably and letting the examiner watch the tone change.
+> *cold:* "New subject, no file. Projection is geometry only: district 2 at 60 percent, and
+> at 2.3 bits of spread that is barely a guess."
+>
+> *six districts in:* "File on MAIN runs 6 districts deep and it is consistent: subject
+> holds a heading, never doubles back. District 11, 15 percent. Unit already posted."
 
-Three engineering constraints, all of which bite:
+## Ambience
 
-- **Lazy load.** The quantised 360M weights are roughly 200 to 250 MB. Load after the first level is already playable, show a quiet indicator, and let the browser cache make every later visit instant. Drop to the 135M variant if the first-load weight proves painful.
-- **Never block the loop.** Generation is async and fire-and-forget. The dispatch panel updates when it updates. The game loop must never await it.
-- **Degrade cleanly.** WebGPU needs Chrome 113 or Edge; the WASM fallback is automatic but slow enough to feel broken. Detect WebGPU, and without it fall back to templated strings assembled from the same state object. The panel always says something.
-
-## Build order
-
-About 23 hours across 10 sessions. The order matters: the sim runs headless and testable before anything is drawn, so you can validate rules in Node rather than by playing.
-
-| # | Session | Hours |
-| --- | --- | --- |
-| 1 | Spec, repo, seeded PRNG, map format, tick loop | 2.0 |
-| 2 | Sim core: movement, objectives, collision, win and lose, Node-tested | 2.5 |
-| 3 | Patrols, detection, alert states, Poisson arrivals, uniform spawner | 2.5 |
-| 4 | Level generator, connectivity check, difficulty curve | 2.0 |
-| 5 | Tier 1 chain, tier 2 dossier, combination and sampling | 3.0 |
-| 6 | Canvas renderer, input, HUD, entropy score, heatmap overlay | 3.0 |
-| 7 | Profile picker, IndexedDB layer, level unlock chain | 1.5 |
-| 8 | Dispatch layer, lazy load, fallbacks | 2.5 |
-| 9 | Bot policies, sanity benchmarks, two plots | 2.0 |
-| 10 | Deploy, polish, writeup | 2.0 |
-
-**Two rules to fix in session 1, both miserable to retrofit.** Replace `Math.random` everywhere with a seeded PRNG — mulberry32 is ten lines — or no result you produce is reproducible. And keep the sim core a pure ES module with zero DOM access, importable by both the browser and Node, or you lose the ability to run episodes faster than real time and the benchmark session becomes impossible.
-
-|  |  |  |
-| --- | --- | --- |
-|  |  |  |
-|  |  |  |
-
-Repo layout: `/sim` for the pure core, `/web` for canvas and UI, `/bots` for scripted policies, `/bench` for the Node harness, `/docs` for the Pages build. Plain ES modules mean no build step and GitHub Pages serves them directly, matching your existing deploy.
+Entirely synthesised — two detuned sawtooths through a wobbling lowpass, plus a pulse whose
+**rate** carries the information: 46 bpm calm, 104 when an alien has you, 168 when you are
+well inside its radius. No audio files: the tempo has to be continuous with the threat, and
+crossfading three loops at 8 Hz is heavier, worse, and would put binaries in a repository
+that deploys as a static upload.
 
 ## Acceptance criteria
 
-Each is checkable, and each maps to a question you could be asked.
+`npm test` — **12 passed · 1 not demonstrated · 0 failed.** The suite reports three
+verdicts, because recording a criterion as passed when it is not decidable would defeat the
+point of having written it down.
 
-- [ ] Same seed and same input sequence produce an identical run, verified by hashing the tick log
-- [ ] The headless harness runs 1,000 episodes in under 30 seconds in Node
-- [ ] Every generated level is fully connected: 10,000 generations, zero unreachable caches
-- [ ] No spawn ever lands within 8 cells of the player across 1,000 episodes
-- [ ] Top-1 region accuracy beats uniform by a clear margin against all five bot policies
-- [ ] Chain-plus-dossier beats chain-only on a bot played across 5 consecutive levels, which is the whole premise of progression
-- [ ] Mean time-to-first-encounter is measurably lower under the full spawner than under uniform
-- [ ] Player visit entropy rises under the adaptive spawner relative to uniform
-- [ ] A guest run leaves the main dossier byte-identical, asserted in a test
-- [ ] Progress survives a browser restart and a tab close
-- [ ] The game is playable before the language model finishes loading
-- [ ] With WebGPU disabled, the dispatch panel still shows text and the game still runs
-- [ ] Dispatch output visibly changes between a cold guest profile and a warm main profile
+| # | Criterion | |
+|---|---|---|
+| 1 | Same seed and inputs produce an identical run, verified by hashing the tick log | PASS |
+| 2 | 1,000 episodes in under 30 seconds in Node | PASS (~2.5s) |
+| 3 | Every district fully connected: 10,000 generations, zero unreachable objectives | PASS |
+| 4 | No placement within the minimum distance across 1,000 episodes — **divisions included** | PASS |
+| 5 | Top-1 region accuracy beats uniform against all five bot policies | PASS |
+| 6 | Chain-plus-dossier beats chain-only across 5 consecutive districts | PASS |
+| 7 | Mean time-to-first-encounter lower under the full spawner than uniform | PASS (5/5 bots) |
+| 8 | Player visit entropy rises under the adaptive spawner | **NOT DEMONSTRATED** |
+| 9 | A guest run leaves the main dossier byte-identical | PASS |
+| 10 | Progress survives a browser restart and a tab close | PASS |
+| 11 | The game is playable before the language model finishes loading | PASS |
+| 12 | With WebGPU disabled, the dispatch panel still shows text and the game runs | PASS |
+| 13 | Dispatch output visibly changes between a cold guest and a warm main profile | PASS |
 
-The sixth line is the one to prioritise. If chain-plus-dossier does not beat chain-only across levels, the learning-across-levels claim is decorative, and you would rather discover that in session 9 than in the viva.
+**Criterion 8 cannot be settled by this harness and says so.** Four of the five bots are
+fixed policies: they cannot become less predictable under pressure because they cannot
+perceive pressure at all. Measured length-matched at tick 40 — end-of-run entropy is
+confounded, since a sharper spawner ends runs sooner and a shorter run visits fewer
+districts — the effect is indistinguishable from zero. This is a question about a human
+player.
 
-## Open questions and assumptions
+`npm run webcheck` additionally runs the whole browser layer under Node against a DOM shim
+with a working in-process IndexedDB: 29 checks covering the tier chooser, the hub, the
+shop's arithmetic, the loadout crossing into a district, E and L, black boxes, the score
+payout and the per-belt terrain. It draws no pixels and lays out no CSS.
 
-Assumptions I made to protect the hour budget. Each is cheap to reverse now and expensive later.
+## Departures from the original spec worth naming
 
-| Assumption | Alternative | Cost to switch |
-| --- | --- | --- |
-| 12 regions, room-based | Per-cell prediction | Sparser counts, slower convergence, better resolution |
-| Radius plus cover detection | Bresenham line-of-sight | About 1 hour, better stealth feel |
-| Procedural levels | Hand-authored maps | Equal hours, 8 levels instead of infinite |
-| k = 20 ticks ahead | Tuned per level | Needs the benchmark harness first |
-| Difficulty controller is proportional | Thompson sampling over spawn strategies | About 2 hours, stronger ML story |
+| Original | Now | Why |
+|---|---|---|
+| Score **is** visit entropy | Score is a compound equation; entropy survives as the "noise index" and as the controller's movement signal | The economy needed a score that responds to speed, collection and stuns. The original's elegant "evaluation metric and win condition are the same quantity" is weakened, and that is a real loss |
+| 3–6 caches | 3–5 keys | At six, district 10 was unwinnable for all five bot policies — 2% win rate, most deaths inside thirty ticks |
+| Patrols arrive | Aliens arrive and **never leave** | Retirement on a fully visible map means vanishing in plain sight |
+| Flat Laplace prior | Prior follows the region adjacency graph | A flat prior spends mass on physically impossible transitions |
+| Tier 1 resets per level | Resets per **district**, not per run | Otherwise it never gets the minute of play it needs to converge |
+| Tier 2 modulates at fixed strength | Gated by tier 1's uncertainty | Fixed strength wrecked the two bots whose chain was already sharp |
+| Hand-written trait priors and couplings | Generated by measurement | The hand-written ones were wrong, and measurably so |
+| One page | Launch → hub → district | Arrow keys fight the document for scroll on a page that scrolls |
 
-Three things I genuinely do not know yet:
+## Open questions and known gaps
 
-1. **Whether 12 regions is enough resolution** for interception to feel targeted rather than vaguely directional. If it feels mushy in session 6, subdividing to 24 is a one-line change but halves your per-cell counts.
-2. **Whether the dossier traits transfer as cleanly as claimed.** Several are correlated — wall affinity and open-ground tolerance are close to inverses. Expect to cut the list to 12 or so after seeing which actually move.
-3. **Whether SmolLM2-360M is coherent enough** at 40 tokens with a structured prompt. It is near the floor of model capability for this task. Budget 30 minutes in session 8 to test it early, and fall back to templated text without regret if it rambles.
+1. **Nothing has ever been opened in a browser.** No browser tooling has been available in
+   any session. The headless harness proves the wiring runs; it draws no pixels, lays out
+   no CSS, and the ambience has never made a sound. The art and the audio are the least
+   verified parts of the project.
+2. **The WebGPU model path is untested.** It is written to the documented API and never
+   executed. The templated fallback is tested and is what every non-Chrome visitor gets.
+3. **Whether 12 regions is enough resolution** for interception to feel targeted rather
+   than vaguely directional. One constant; subdividing to 24 halves the counts per region.
+4. **Balance is tuned against five scripted bots**, and bots do not dodge the way a person
+   does. An efficient bot finishes a district in about five seconds and therefore never
+   reaches the 10–15 second division window at all — only a wandering bot does, and so will
+   a human. The bot benchmarks cannot tell you whether division is well tuned.
+5. **The alien population is unbounded.** Arrivals cap, divisions do not. A sixty-second
+   run ends with four or five extra aliens. Left that way deliberately; a cap would go in
+   `_maybeSplit`.
+6. **Bolt density is 1–2 per district × 12 districts ≈ 20 per map**, which is denser than
+   it sounds now that lightning is also purchasable by the second.
 
-One dropped item worth recording: the foresight overlay, which would show each patrol's own predicted path back to the player using the same prediction function pointed the other way. It is about an hour and makes the game meaningfully better as a game. It is the first thing to add if you finish early, and the first stretch goal to mention when asked what you would do next.
+The first stretch goal remains the **foresight overlay**: each alien's predicted path back
+to you, using the prediction function pointed the other way. `I` already draws intercept
+targets, so the groundwork is there.
