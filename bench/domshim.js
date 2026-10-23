@@ -78,6 +78,14 @@ class El {
 
   getContext() { if (!this._ctx) { this._ctx = ctxStub(); this._ctx.canvas = this; } return this._ctx; }
 
+  getBoundingClientRect() {
+    return { x: 0, y: 0, left: 0, top: 0, right: this.clientWidth, bottom: this.clientHeight,
+      width: this.clientWidth, height: this.clientHeight };
+  }
+
+  setPointerCapture() {}
+  releasePointerCapture() {}
+
   get textContent() { return this._text; }
   set textContent(v) { this._text = String(v ?? ''); }
 
@@ -102,11 +110,13 @@ class El {
   _matches(sel) {
     if (sel.startsWith('.')) return this.classList.contains(sel.slice(1));
     if (sel.startsWith('#')) return this.id === sel.slice(1);
-    const attr = sel.match(/^\[([a-zA-Z-]+)\]$/);
+    // [data-act] and [data-act="stun"] both, since the touch layer uses the second form.
+    const attr = sel.match(/^\[([a-zA-Z-]+)(?:="([^"]*)")?\]$/);
     if (attr) {
       const key = attr[1].replace(/-([a-z])/g, (_, c) => c.toUpperCase()).replace(/^data/, '');
       const prop = key.charAt(0).toLowerCase() + key.slice(1);
-      return this.dataset[prop] !== undefined;
+      const have = this.dataset[prop];
+      return attr[2] === undefined ? have !== undefined : have === attr[2];
     }
     return this.tagName === sel.toUpperCase();
   }
@@ -229,15 +239,27 @@ function makeFakeIndexedDB() {
 export function installDom(opts = {}) {
   const page = opts.page || 'play.html';
   const html = readFileSync(join(here, '..', page), 'utf8');
-  const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
+  // Capture the whole opening tag for each id, so attributes written in the markup --
+  // `hidden` above all -- start out matching the real page rather than defaulting.
+  const tags = new Map();
+  for (const m of html.matchAll(/<([a-zA-Z0-9-]+)([^>]*\sid="([^"]+)"[^>]*)>/g)) {
+    tags.set(m[3], { tag: m[1], attrs: m[2] });
+  }
+  const ids = [...tags.keys()];
   const classesWanted = ['overlay-card', 'board', 'canvas-wrap'];
 
   const byId = new Map();
   const root = new El('body');
 
   for (const id of ids) {
-    const el = new El(id === 'board' ? 'canvas' : (id === 'mode-select' ? 'select' : 'div'));
+    const info = tags.get(id);
+    const el = new El(info?.tag || 'div');
     el.id = id;
+    if (info && /\shidden(\s|=|$)/.test(info.attrs)) el.hidden = true;
+    if (info) {
+      const cls = info.attrs.match(/\sclass="([^"]*)"/);
+      if (cls) el.className = cls[1];
+    }
     byId.set(id, el);
     root.appendChild(el);
   }
@@ -259,14 +281,37 @@ export function installDom(opts = {}) {
     board.appendChild(wrap);
     wrap.appendChild(canvas);
   }
-  // The touch d-pad buttons, so bindTouch has something to bind.
-  const pad = byId.get('touchpad');
-  if (pad) {
-    for (let d = 0; d < 4; d++) {
+  // The thumb-control overlay's internals. These carry no ids in the markup -- they are
+  // reached by class and data attribute -- so they have to be built explicitly.
+  const touch = byId.get('touch-layer');
+  if (touch) {
+    const zone = new El('div');
+    zone.className = 'stick-zone';
+    zone.dataset.stickZone = '';
+    const stick = new El('div');
+    stick.className = 'stick';
+    stick.dataset.stick = '';
+    const knob = new El('span');
+    knob.className = 'knob';
+    knob.dataset.knob = '';
+    stick.appendChild(knob);
+    const hint = new El('span');
+    hint.className = 'stick-hint';
+    zone.append(stick, hint);
+
+    const stack = new El('div');
+    stack.className = 'act-stack';
+    for (const act of ['bolt', 'stun']) {
       const b = new El('button');
-      b.dataset.dir = String(d);
-      pad.appendChild(b);
+      b.className = `act act-${act === 'bolt' ? 'run' : 'stun'}`;
+      b.dataset.act = act;
+      const count = new El('span');
+      count.className = 'act-count';
+      count.dataset.count = '';
+      b.appendChild(count);
+      stack.appendChild(b);
     }
+    touch.append(zone, stack);
   }
 
   const listeners = {};
@@ -285,6 +330,9 @@ export function installDom(opts = {}) {
 
   const winListeners = {};
   const win = {
+    matchMedia: (q) => ({ matches: !!opts.coarsePointer && /coarse|hover: none/.test(q), media: q,
+      addEventListener() {}, removeEventListener() {} }),
+    visualViewport: { width: 1280, height: 800, addEventListener() {}, removeEventListener() {} },
     location: {
       href: `http://localhost/${page}${opts.search || ''}`,
       search: opts.search || '',

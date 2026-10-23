@@ -521,6 +521,49 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     return `"${text.slice(0, 60)}..."`;
   });
 
+  // LAST, because it re-installs the global DOM: anything checked after this would be
+  // inspecting a different page than the one it set up.
+  await check('thumb controls stay off for a mouse and drive movement on a touch device', async () => {
+    // Desktop: no stick, and the overlay stays hidden.
+    if (app.touch?.enabled) throw new Error('a mouse was given a thumbstick');
+    if (!dom.byId.get('touch-layer').hidden) throw new Error('touch overlay shown on desktop');
+
+    // Touch: re-boot the page claiming a coarse pointer.
+    installDom({ webgpu, indexeddb, page: 'play.html', search: '?p=main&d=1', coarsePointer: true });
+    await import(`../web/play.js?t=${Date.now()}`);
+    for (let i = 0; i < 80; i++) await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 30));
+    const t = globalThis.window.NOISE;
+    if (!t.touch?.enabled) throw new Error('coarse pointer did not get a thumbstick');
+
+    const doc = globalThis.document;
+    const zone = doc.querySelector('.stick-zone');
+    const rect = { left: 0, top: 0 };
+    // Drag right past the deadzone: the held direction must become 1 (right).
+    zone.fire('pointerdown', { pointerId: 1, clientX: 100, clientY: 400 });
+    zone.fire('pointermove', { pointerId: 1, clientX: 160, clientY: 404 });
+    if (t.input.consume() !== 1) throw new Error('dragging right did not produce east');
+    // Up past the deadzone.
+    zone.fire('pointermove', { pointerId: 1, clientX: 102, clientY: 340 });
+    if (t.input.consume() !== 0) throw new Error('dragging up did not produce north');
+    // Inside the deadzone: no heading at all, rather than a stale one.
+    zone.fire('pointermove', { pointerId: 1, clientX: 104, clientY: 398 });
+    if (t.input.consume() !== -1) throw new Error('the deadzone still produced a heading');
+    zone.fire('pointerup', { pointerId: 1 });
+    if (t.input.consume() !== -1) throw new Error('releasing left a heading held');
+
+    // The two action buttons must reach the same handlers the keys do.
+    let stunFired = false;
+    t.input.on('stun', () => { stunFired = true; });
+    doc.querySelector('[data-act="stun"]').fire('pointerdown', {});
+    if (!stunFired) throw new Error('STUN button did not fire');
+    const before = t.boltOn;
+    doc.querySelector('[data-act="bolt"]').fire('pointerdown', {});
+    if (t.boltOn === before) throw new Error('RUN button did not toggle lightning');
+
+    return 'off for a mouse; stick resolves to 4 headings with a deadzone; STUN and RUN wired';
+  });
+
   await check('no unexpected console errors', () => {
     if (errors.length) throw new Error(errors.join('\n'));
     return `${warnings.length} warning(s)`;

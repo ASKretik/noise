@@ -91,7 +91,24 @@ export class Renderer {
     // canvas, so measuring it would make the canvas size depend on itself.
     const host = this.canvas.closest('.board') || this.canvas.parentElement;
     const availW = host && host.clientWidth > 0 ? host.clientWidth : 832;
-    const availH = Math.max(260, (window.innerHeight || 800) - 210);
+
+    // Height from the REAL visible viewport, not innerHeight minus a guess.
+    //
+    // On a phone `innerHeight` includes the collapsible address bar, so a layout sized
+    // against it is taller than what you can actually see and the board slides off the
+    // bottom. visualViewport reports what is genuinely on screen. The board's own top
+    // offset and the status bar below it are then measured rather than assumed, because
+    // the top bar wraps to a different number of rows at different widths.
+    const vh = window.visualViewport?.height || window.innerHeight || 800;
+    let availH = 260;
+    try {
+      const rect = host.getBoundingClientRect();
+      const status = document.querySelector('.statusbar');
+      const statusH = status ? status.getBoundingClientRect().height + 10 : 0;
+      availH = Math.max(160, vh - rect.top - statusH - 12);
+    } catch {
+      availH = Math.max(260, vh - 210);
+    }
     // Integer tile size keeps edges crisp; at least 12px so phones stay playable.
     const tile = Math.max(12, Math.floor(Math.min(availW / map.w, availH / map.h, 34)));
     this.tile = tile;

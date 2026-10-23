@@ -34,14 +34,27 @@ html, body {
    page the browser takes them the moment the panels overflow -- which no amount of
    preventDefault reliably fixes once focus lands on a select or a button. */
 .play-body {
+  /* dvh first: on a phone `vh` includes the collapsible address bar, so a 100vh layout is
+     taller than what is actually on screen and the board slides off the bottom. */
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .play-body #game {
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
+}
+
+/* The board must never be draggable or zoomable: every gesture belongs to the game. */
+.play-body canvas {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .play-body .stage { flex: 1 1 auto; min-height: 0; }
@@ -234,7 +247,83 @@ select:hover, .btn:hover { border-color: var(--accent); }
 
 @media (max-width: 1040px) {
   .stage { grid-template-columns: minmax(0, 1fr); }
-  .play-body, .play-body #game { height: auto; overflow: auto; }
+}
+
+/* ---- phones and small tablets ---- */
+@media (max-width: 820px) {
+  .topbar {
+    gap: 8px;
+    padding: 7px 10px;
+    padding-top: max(7px, env(safe-area-inset-top));
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .topbar::-webkit-scrollbar { display: none; }
+  .topbar > * { flex: none; }
+
+  .keytab { padding: 4px 9px 4px 7px; }
+  .keytab-text i { display: none; }     /* the count is the part that matters */
+
+  .stage { padding: 8px; gap: 8px; }
+  .statusbar { gap: 11px; padding: 6px 9px; font-size: 11px; }
+  .stat b { font-size: 12px; }
+  .stat:nth-child(n + 5) { display: none; }   /* elapsed, status, boost, gun, lightning */
+
+  /* The readouts become a sheet rather than a column: on a phone they are five panels
+     of diagnostics competing with the board for the only scarce resource, height. */
+  .panels {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    max-height: 72vh;
+    max-height: 72dvh;
+    overflow-y: auto;
+    padding: 12px 12px max(16px, env(safe-area-inset-bottom));
+    background: var(--bg-2);
+    border-top: 1px solid var(--line);
+    transform: translateY(101%);
+    transition: transform 180ms ease;
+  }
+
+  body.panels-open .panels { transform: translateY(0); }
+  body.panels-open .touch-layer { display: none; }
+
+  .keyhint { display: none; }
+}
+
+@media (max-width: 820px) and (orientation: portrait) {
+  /* The board is 1.6:1; in portrait it is a strip. The hint covers the screen. */
+  .act { width: 72px; height: 72px; }
+}
+
+/* ---- landscape phone: height is the only scarce resource ---- */
+@media (max-height: 540px) and (pointer: coarse) {
+  /* Every row of chrome costs 32 tiles of board width. The top bar already carries the
+     district, the tier, the keys and the wallet, so the status strip below the board is
+     duplicating what is on screen and charging height for it. The rest of the readouts
+     live in the sheet behind `readouts`. */
+  .statusbar { display: none; }
+
+  .topbar {
+    padding: 4px 8px;
+    padding-top: max(4px, env(safe-area-inset-top));
+    gap: 7px;
+    font-size: 11.5px;
+  }
+
+  .topbar .logo.small { display: none; }
+  .keytab { padding: 2px 8px 2px 6px; }
+  .keytab-text b { font-size: 12.5px; }
+  .wallet { padding: 2px 8px; }
+
+  .stage { padding: 4px 6px; }
+  .act { width: 68px; height: 68px; }
+  .act-glyph { font-size: 19px; }
+  .stick { width: 96px; height: 96px; margin: -48px 0 0 -48px; }
+  .knob { width: 40px; height: 40px; }
 }
 
 .board { min-width: 0; }
@@ -393,27 +482,152 @@ canvas { display: block; image-rendering: pixelated; }
 .won h2 { color: var(--accent); }
 .lost h2 { color: var(--danger); }
 
-/* ------------------------------ touchpad ------------------------------ */
+/* ======================= thumb controls (touch only) ====================== */
 
-.touchpad { display: none; margin-top: 12px; }
+.desktop-only { display: initial; }
+.touch-only { display: none; }
 
-.touchpad button {
-  width: 62px; height: 52px;
-  font-size: 18px;
-  background: var(--bg-3);
+body.touch .desktop-only { display: none; }
+body.touch .touch-only { display: inline-flex; }
+
+.touch-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  /* The overlay itself must never eat taps meant for the board; only the controls do. */
+  pointer-events: none;
+  padding: 0 max(10px, env(safe-area-inset-left)) max(10px, env(safe-area-inset-bottom))
+           max(10px, env(safe-area-inset-right));
+}
+
+.touch-layer[hidden] { display: none; }
+
+/* Left half is the move zone: the stick appears wherever the thumb lands. */
+.stick-zone {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 48%;
+  height: 62%;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.stick {
+  position: absolute;
+  width: 112px;
+  height: 112px;
+  margin: -56px 0 0 -56px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(239, 230, 218, 0.22);
+  background: rgba(10, 9, 7, 0.28);
+  opacity: 0;
+  transition: opacity 120ms;
+}
+
+.stick.live { opacity: 1; }
+
+.knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 46px;
+  height: 46px;
+  margin: 0;
+  border-radius: 50%;
+  background: rgba(239, 230, 218, 0.30);
+  border: 1.5px solid rgba(239, 230, 218, 0.5);
+  transform: translate(-50%, -50%);
+}
+
+.stick-hint {
+  position: absolute;
+  left: 14px;
+  bottom: 12px;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  color: var(--fg-faint);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.stick-zone:active .stick-hint { opacity: 0; }
+
+/* Right: two translucent action buttons, stacked so both sit under one thumb. */
+.act-stack {
+  position: absolute;
+  right: max(14px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 14px;
+  pointer-events: auto;
+}
+
+.act {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(239, 230, 218, 0.26);
+  background: rgba(10, 9, 7, 0.34);
   color: var(--fg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  font: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
   touch-action: none;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 90ms, background 120ms, border-color 120ms;
 }
 
-.touchpad .row { display: flex; gap: 8px; margin-top: 8px; }
-.touchpad > button { margin-left: 70px; }
+.act-glyph { font-size: 22px; line-height: 1; }
+.act-label { font-size: 9.5px; letter-spacing: 0.14em; color: var(--fg-dim); }
 
-@media (hover: none) and (pointer: coarse) {
-  .touchpad { display: block; }
+.act.pressed { transform: scale(0.92); }
+
+.act-run { border-color: rgba(255, 230, 109, 0.4); }
+.act-run .act-glyph { color: var(--bolt); }
+.act-run.active {
+  background: rgba(255, 230, 109, 0.18);
+  border-color: var(--bolt);
+  box-shadow: 0 0 18px rgba(255, 230, 109, 0.3);
 }
+
+.act-stun { border-color: rgba(79, 182, 218, 0.4); }
+.act-stun .act-glyph { color: var(--water); }
+.act-stun.empty { opacity: 0.4; }
+
+.act-count {
+  position: absolute;
+  top: 6px;
+  right: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--water);
+}
+
+.act-stun.empty .act-count { color: var(--fg-faint); }
+
+/* Portrait on a phone gives a postage stamp; 32x20 wants landscape. */
+.rotate-hint {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  text-align: center;
+  background: rgba(7, 6, 5, 0.93);
+  color: var(--fg);
+}
+
+.rotate-hint[hidden] { display: none; }
+.rotate-hint b { font-size: 17px; letter-spacing: 0.1em; }
+.rotate-hint p { color: var(--fg-dim); max-width: 34ch; margin: 10px auto 0; }
 
 /* ===================================================================== */
 /* the hub: district grid and shop                                       */

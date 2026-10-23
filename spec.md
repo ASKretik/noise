@@ -411,6 +411,26 @@ with confidence:
 > *six districts in:* "File on MAIN runs 6 districts deep and it is consistent: subject
 > holds a heading, never doubles back. District 11, 15 percent. Unit already posted."
 
+## Playing on a phone
+
+The board is 32 × 20 and wants landscape; portrait shows a rotate hint rather than a strip.
+
+- **Movement** is a floating virtual stick in the left half: its base appears wherever your
+  thumb lands, and it resolves to one of four headings by dominant axis with a 16px
+  deadzone. Four, not 360, because the sim is four-directional and anything else
+  manufactures inputs it cannot express.
+- **RUN** (banked lightning) and **STUN** are translucent circles stacked under the right
+  thumb. RUN lights while draining; STUN carries its charge count and dims when empty.
+- The readout panels collapse into a slide-up sheet, and in landscape the status strip is
+  dropped entirely — everything on it is already in the top bar, and on a phone height is
+  the only scarce resource.
+- Sized against `visualViewport` and `100dvh`, not `innerHeight` and `100vh`: on a phone
+  `vh` includes the collapsible address bar, so a `100vh` layout is taller than the screen
+  and the board slides off the bottom.
+
+None of it engages for a mouse — the controls are behind
+`(hover: none) and (pointer: coarse)`.
+
 ## Ambience
 
 Entirely synthesised — two detuned sawtooths through a wobbling lowpass, plus a pulse whose

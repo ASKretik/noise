@@ -18,7 +18,7 @@
     <a class="logo small" href="index.html" title="Back to profiles">NOISE</a>
     <a class="btn ghost" id="btn-hub" href="districts.html">districts</a>
     <span class="chip">district <b id="hud-level">1</b></span>
-    <span class="chip">subject <b id="hud-profile">—</b></span>
+    <span class="chip desktop-only">subject <b id="hud-profile">—</b></span>
     <span class="chip">tier <b id="hud-difficulty">—</b></span>
 
     <!-- The keys tab: the one thing a player needs at a glance. -->
@@ -36,7 +36,7 @@
             aria-pressed="true">
       <span class="sound-icon" aria-hidden="true"></span><span id="btn-sound-label">sound on</span>
     </button>
-    <label class="field">
+    <label class="field desktop-only">
       <span>spawner</span>
       <select id="mode-select" title="Switch the spawner live. Same code path, four configurations.">
         <option value="uniform">uniform — baseline</option>
@@ -45,7 +45,8 @@
         <option value="full" selected>full + controller</option>
       </select>
     </label>
-    <button id="btn-switch" class="btn ghost" title="Back to the profile picker">switch profile</button>
+    <button id="btn-switch" class="btn ghost desktop-only" title="Back to the profile picker">switch profile</button>
+    <button id="btn-panels" class="btn ghost touch-only" aria-expanded="false">readouts</button>
   </header>
 
   <div class="stage">
@@ -76,18 +77,7 @@
         <span class="stat state"><i>lightning [L]</i><b id="hud-bolt" data-state="off">—</b></span>
       </div>
 
-      <div class="touchpad" id="touchpad" aria-hidden="true">
-        <button data-dir="0" aria-label="up">▲</button>
-        <div class="row">
-          <button data-dir="3" aria-label="left">◀</button>
-          <button data-dir="2" aria-label="down">▼</button>
-          <button data-dir="1" aria-label="right">▶</button>
-        </div>
-        <div class="row acts">
-          <button data-act="stun" aria-label="stun">E</button>
-          <button data-act="bolt" aria-label="lightning">L</button>
-        </div>
-      </div>
+
     </div>
 
     <aside class="panels">
@@ -129,6 +119,28 @@
         <b>Space</b> pause · <b>R</b> restart district
       </p>
     </aside>
+  </div>
+  <!-- Thumb controls. Hidden until web/touch.js confirms a coarse pointer, so a mouse
+       never gets a thumbstick. -->
+  <div id="touch-layer" class="touch-layer" hidden>
+    <div class="stick-zone" data-stick-zone>
+      <div class="stick" data-stick><span class="knob" data-knob></span></div>
+      <span class="stick-hint">drag to move</span>
+    </div>
+    <div class="act-stack">
+      <button class="act act-run" data-act="bolt" aria-label="run — toggle lightning">
+        <span class="act-glyph">⚡</span><span class="act-label">RUN</span>
+      </button>
+      <button class="act act-stun empty" data-act="stun" aria-label="stun">
+        <span class="act-glyph">◎</span><span class="act-label">STUN</span>
+        <span class="act-count" data-count>—</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- 32x20 is a landscape board; portrait gives a postage stamp. -->
+  <div id="rotate-hint" class="rotate-hint" hidden>
+    <div><b>Turn your phone sideways</b><p>The district is wider than it is tall — landscape gives you about twice the board.</p></div>
   </div>
 </main>
 

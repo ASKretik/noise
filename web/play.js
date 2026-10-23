@@ -22,6 +22,7 @@ import { Input } from './input.js';
 import { Hud } from './hud.js';
 import { createDispatcher, buildState, webgpuAvailable } from './dispatch.js';
 import { Ambience } from './sound.js';
+import { TouchControls } from './touch.js';
 
 const STEP_MS = 1000 / TICKS_PER_SECOND;
 /** Dispatch is asked for a line this often, plus on events. Fire-and-forget either way. */
@@ -66,6 +67,7 @@ class Play {
     this.attempt = 0;
     this.modelLoadTimer = null;
     this.sound = new Ambience();
+    this.touch = null;
     /** Set for exactly one tick when E or L is pressed; consumed by the next sim step. */
     this.pendingStun = false;
     this.boltOn = false;
@@ -110,7 +112,15 @@ class Play {
 
     this.wireChrome();
     this.input.attach();
-    this.input.bindTouch($('touchpad'));
+
+    // Thumb controls engage only on a coarse pointer; a mouse never gets a stick.
+    this.touch = new TouchControls({ input: this.input, root: $('touch-layer') });
+    this.touch.attach();
+    $('btn-panels').addEventListener('click', () => {
+      const open = document.body.classList.toggle('panels-open');
+      $('btn-panels').setAttribute('aria-expanded', String(open));
+      $('btn-panels').textContent = open ? 'hide readouts' : 'readouts';
+    });
     this.input.on('pause', () => this.togglePause());
     this.input.on('restart', () => { if (this.running) this.startLevel(this.level.level); });
     this.input.on('toggle', (what) => this.toggleOverlayLayer(what));
@@ -128,9 +138,17 @@ class Play {
       this.applySound();
       this.store.setSettings({ soundEnabled: this.soundOn }).catch(() => {});
     });
-    window.addEventListener('resize', () => {
-      if (this.level) this.renderer.resize(this.level.map);
-    });
+    const refit = () => {
+      if (!this.level) return;
+      this.renderer.resize(this.level.map);
+      this.updateOrientationHint();
+    };
+    window.addEventListener('resize', refit);
+    window.addEventListener('orientationchange', () => setTimeout(refit, 220));
+    // The address bar collapsing changes the visible height without firing `resize`
+    // on every browser, so follow the visual viewport directly as well.
+    window.visualViewport?.addEventListener('resize', refit);
+    this.updateOrientationHint();
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && this.running && !this.paused) this.togglePause(true);
     });
@@ -143,6 +161,20 @@ class Play {
       this.modelLoadTimer = setTimeout(() => this.dispatcher.load(), MODEL_LOAD_DELAY_MS);
     }
     if (degraded) console.warn('[noise] progress will not be saved this session');
+  }
+
+  /**
+   * 32x20 is a landscape board. In portrait on a phone it is a strip about a third of the
+   * usable height, so rather than render something unplayable, say so.
+   */
+  updateOrientationHint() {
+    const hint = $('rotate-hint');
+    if (!hint) return;
+    const coarse = window.matchMedia?.('(hover: none) and (pointer: coarse)').matches;
+    const portrait = (window.visualViewport?.height ?? window.innerHeight) >
+                     (window.visualViewport?.width ?? window.innerWidth);
+    const narrow = (window.visualViewport?.width ?? window.innerWidth) < 820;
+    hint.hidden = !(coarse && portrait && narrow);
   }
 
   applySound() {
@@ -337,6 +369,11 @@ class Play {
       prediction: this.prediction?.dist,
     });
     this.hud.tick(this.game);
+    if (this.touch?.enabled) {
+      this.touch.setRunActive(this.game.boltOn);
+      this.touch.setStunReady(this.game.loadout.stunGun && this.game.loadout.bullets > 0,
+        this.game.loadout.stunGun ? this.game.loadout.bullets : 0);
+    }
     requestAnimationFrame(this._frame);
   }
 
