@@ -165,5 +165,6 @@ Update the Play link at the top of this file once you know your Pages URL.
   alien division and broken buildings. Includes the criterion-6 regression in full.
 - **[dna.md](dna.md)** — the original build: every assumption, every deviation from the
   spec and why, and the decisions that are yours rather than mine.
-- **[spec.md](spec.md)** — the original build spec.
+- **[spec.md](spec.md)** — the build spec, revised to describe the system as built. The
+  original is in git history; the distance between the two is tabulated at the end of it.
 - **[docs/bench.html](docs/bench.html)** — the figures, each with its data table.

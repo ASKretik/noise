@@ -1,16 +1,63 @@
-# decisions.md — the seven requested changes
+# decisions.md — changes, assumptions, and what the measurements said
 
-Companion to [dna.md](dna.md), which logs the original build. This file covers the change
-round requested after the first playable version: what was asked, what I built, the
-assumptions I had to make, what the measurements said afterwards, and the decisions that
-are yours.
+Every change requested after the first playable build, what I actually did about it, the
+assumptions I had to make, and the decisions that are yours rather than mine. Companion to
+[dna.md](dna.md), which covers the original build from the spec, and to
+[spec.md](spec.md), which as of 23 Oct 2026 describes the system **as built** rather than
+as planned.
 
-Same three markers as dna.md: **[YOU]** is a decision I need from you, **[ASSUMED]** is a
-gap I filled, **[FOUND]** is something a measurement said that I did not expect.
+Three markers throughout:
 
-> **Read first:** one of the project's headline results regressed as a direct consequence
-> of these changes. It is written up in full under C7 and is not buried. Nothing is
-> hidden; the acceptance suite reports it as NOT DEMONSTRATED rather than quietly passing.
+- **[YOU]** — a decision I need from you.
+- **[ASSUMED]** — a gap I filled, with what it cost and how to reverse it.
+- **[FOUND]** — something a measurement said that I did not expect, including the times it
+  said I was wrong.
+
+## Index
+
+| Round | Changes | The interesting part |
+|---|---|---|
+| [One](#round-one) | retry difficulty · own page · human/aliens/keys · water, bolts · hidden portal · division & squad · buildings | Division broke the fairness floor in 128 of 1,425 placements, one directly adjacent to the player |
+| [Two](#round-two--tiers-economy-shop-hub-black-boxes-sound) | four tiers · coins & score · shop · district hub · black boxes · ambience · saves scrapped | A harness bug was hiding a passing criterion; fixing it closed criterion 10 |
+| [Three](#round-three--the-whole-city-and-aliens-that-stay) | 100 districts in ten belts · aliens stop vanishing | The generated constants had gone stale and were describing a game that no longer ran |
+| [Four](#round-four--belts-you-can-see-a-person-you-can-see-and-a-gun-worth-buying) | per-belt terrain · detailed human · inert stunned aliens · empty gun | The palettes had only ever coloured the hub cards, never the game |
+| [Five](#round-five--the-spec-caught-up) | spec rewritten to describe what exists | — |
+
+## Where things stand
+
+```
+npm test          12 passed · 1 not demonstrated · 0 failed
+npm run webcheck  29/29
+```
+
+The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
+four of the five bots are fixed policies and cannot become less predictable under pressure,
+because they cannot perceive pressure at all. That is a question about a human player.
+
+**Still unverified, across every round:** nothing has ever been opened in a browser. No
+browser tooling has been available in any session. The headless harness proves the wiring
+runs; it draws no pixels, lays out no CSS, and the ambience has never made a sound.
+
+**Still open for you:**
+
+- The alien population is unbounded — arrivals cap, divisions do not. A sixty-second run
+  ends with four or five extras. Left that way deliberately; the cap would go in
+  `_maybeSplit` and I would suggest 8.
+- Bolt density is 1–2 per district × 12 districts ≈ 20 per map, which is denser than it
+  sounds now that lightning is purchasable by the second. `[0, 1]` would give 6–8.
+- The code still says `caches` where the UI says `keys`. Renaming touches ~60 call sites
+  through the sim, the predictor, the trait registry, the generated priors and the
+  benchmarks, to change a noun the player never sees.
+
+---
+
+<a id="round-one"></a>
+# Round one — the seven requested changes
+
+> **Note:** one of the project's headline results regressed as a direct consequence of this
+> round, written up in full under C7. It later recovered — see rounds two and three — but
+> the sequence is left intact rather than tidied, because how it was diagnosed is the
+> useful part.
 
 ---
 
@@ -810,3 +857,57 @@ shipping six free charges made the first magazine free and the charge price deco
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  29/29
 ```
+
+---
+
+<a id="round-five--the-spec-caught-up"></a>
+# Round five — the spec caught up
+
+**Asked:** "modify the spec file in accordance to the changes you have made so far."
+
+**Built.** `spec.md` now describes the system as built rather than as planned. It keeps the
+original's shape — scope and non-goals, architecture, rules, districts, predictor,
+spawning, profiles, dispatch, acceptance criteria, open questions — and replaces its
+contents with what is actually there: four tiers, the coin economy and the score equation,
+the shop, 100 districts in ten belts, water and rubble and black boxes, division and the
+squad, the two-signal controller, the generated constants, and the real acceptance table
+with its one honest failure.
+
+**[ASSUMED]** The original spec is **not** preserved as a separate file. It is in git
+history (`git log --follow spec.md`), and every departure from it is recorded here and in
+dna.md with the reasoning. Keeping a stale copy beside a current one invites reading the
+wrong one; keeping the provenance in version control and the reasoning in two change logs
+loses nothing.
+
+**[ASSUMED]** The revised spec carries a `Departures from the original spec worth naming`
+table — eight rows, each with the reason. The point of a spec that has been overtaken is
+not to pretend it was always right; it is to make the distance between plan and result
+legible.
+
+### The departure worth arguing about
+
+The original spec had one genuinely elegant idea that this project has partly given up:
+
+> "Scoring is entropy. Your run score is the Shannon entropy of your own visit histogram…
+> The evaluation metric and the win condition are deliberately the same quantity: the
+> system wins by turning you into signal, and you win by staying noise."
+
+The score is now a compound of speed, coins, stuns and keys, scaled by district, tier and
+replay count, because the coin economy needed a score that responds to the things a player
+actually does. Entropy survives in two places — the HUD's **noise index**, and as the
+controller's movement signal, where it drives temperature — but it is no longer *the*
+score, and the sentence above is no longer strictly true of the game.
+
+That is a real loss and I have not papered over it in the spec. **[YOU]** If the
+one-quantity claim matters more than the economy does, the fix is to make entropy a term in
+the score equation rather than a separate readout — it would slot in beside `coins` and
+`stuns` with a weight — and I would want you to pick the weight rather than invent it.
+
+### What was already current
+
+The four rounds above were written as each one landed, so nothing needed backfilling. The
+only gap was the tail of round four: criterion 10's persistence check asserted six charges
+after buying the gun, which was only true while the gun shipped loaded. I committed the
+round-four changes **before** reading the test output and caught it one commit later. The
+test was stale, not the code — but reading the suite before committing is the point of
+having it.
