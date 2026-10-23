@@ -7,67 +7,116 @@
 <meta name="description" content="A stealth game whose aliens learn where you are going and are waiting there when you arrive.">
 <meta name="color-scheme" content="dark">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230b0906'/><circle cx='50' cy='46' r='26' fill='%23ff4d5e'/><circle cx='40' cy='42' r='6' fill='%23ffe9ec'/><circle cx='60' cy='42' r='6' fill='%23ffe9ec'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="web/style.css?v=17">
 </head>
 <body class="launch-body">
 
-<section id="launch" class="screen">
-  <div class="launch-inner">
+<div class="bg-wash" aria-hidden="true"></div>
+
+<header class="site-head">
+  <span class="brand"><span class="brand-mark"></span>NOISE</span>
+  <nav class="site-nav">
+    <a href="docs/bench.html">Benchmarks</a>
+    <a href="https://github.com/ASKretik/noise" rel="noopener">Source</a>
+  </nav>
+</header>
+
+<main class="launch-main">
+
+  <section class="hero">
+    <p class="eyebrow">Adaptive stealth &middot; nothing trained, everything counted</p>
     <h1 class="logo">NOISE</h1>
     <p class="tagline">A city that models its couriers. Find every key, open the portal, and
-      try not to become predictable &mdash; because the things hunting you are learning how you move.</p>
+      try not to become predictable &mdash; because the things hunting you are learning how
+      you move, and the file follows you from one district to the next.</p>
+    <ul class="hero-stats">
+      <li><b>100</b><span>districts</span></li>
+      <li><b>21</b><span>habits modelled</span></li>
+      <li><b>4</b><span>difficulty tiers</span></li>
+      <li><b>0</b><span>models trained</span></li>
+    </ul>
+  </section>
 
+  <section class="panel-section" id="files">
+    <h2 class="section-title">Choose a file</h2>
     <div class="slots" id="slots"></div>
 
     <!-- Shown only when a save file is being created. The tier is permanent, so it is
          asked once, up front, instead of hidden in a settings menu. -->
     <section class="chooser" id="chooser" hidden>
-      <h2>New file — <span id="chooser-slot">MAIN</span></h2>
+      <h2>New file &mdash; <span id="chooser-slot">MAIN</span></h2>
       <p class="muted">Pick a tier. This is fixed for the life of the save file: every
         score you log is measured against it, so it cannot be changed later.</p>
       <div class="tiers" id="tiers"></div>
       <div class="chooser-actions">
-        <button class="btn ghost" id="chooser-cancel">back</button>
+        <button class="btn ghost" id="chooser-cancel">Back</button>
       </div>
     </section>
 
     <p class="storage-note" id="storage-note"></p>
+  </section>
 
-    <details class="brief" open>
-      <summary>How it works</summary>
-      <div class="brief-body">
-        <p><b>Move</b> with the arrow keys or WASD, one cell per tick, eight ticks a second.
-          Collect every <span class="k key">key</span> to open the
-          <span class="k portal">portal</span> out of the district, then reach it. An
-          <span class="k alien">alien</span> entering your cell ends the run.</p>
-        <p><b>Water halves how far you can be seen.</b> Stand in it and every alien's
-          detection ring visibly shrinks on screen. <span class="k bolt">Lightning</span>
-          gives you double speed for three seconds. <span class="k rubble">Rubble</span> stops
-          you but not them &mdash; aliens walk straight through broken buildings.</p>
-        <p><b>They divide.</b> Every ten to fifteen seconds one alien splits in two, and
-          they hunt as a squad: one runs you down while the others post themselves on the
-          routes you might break toward, including the unlikely ones.</p>
-        <p><b>Your score is your own unpredictability</b> &mdash; the Shannon entropy of
-          which districts you visit. The system wins by turning you into signal; you win by
-          staying noise.</p>
-        <p><b>The file follows you.</b> A map of your habits &mdash; how closely you hug walls,
-          how long you pause, how directly you go for a key &mdash; persists across every
-          district this profile has ever played, and decides where aliens are sent next.
-          District 1 faces a system that knows nothing about you. District 6 faces one that
-          has watched five districts of your habits.</p>
-        <p><b>Coins and score are different things.</b> Coins are currency: picked up off the
-          floor, paid out for clearing a district, and spent in the shop on a stun gun or
-          banked lightning. Score judges the run &mdash; how fast, how much you collected,
-          how many aliens you put down &mdash; and it decays each time you replay the same
-          district, so farming fills your wallet without inflating your record.</p>
-        <p><b>In a district:</b> <span class="k safe">black boxes</span> are shelters aliens
-          cannot enter, and stepping into one erases what they knew about where you went.
-          <b>E</b> fires the stun gun at everything that can currently see you.
-          <b>L</b> toggles banked lightning on and off.</p>
-      </div>
-    </details>
-  </div>
-</section>
+  <section class="panel-section">
+    <h2 class="section-title">How it works</h2>
+    <div class="feature-grid">
+      <article class="feature">
+        <span class="feature-icon" data-tone="accent">&#9654;</span>
+        <h3>Move, collect, escape</h3>
+        <p>Arrow keys or WASD, one cell per tick, eight ticks a second. Collect every
+          <span class="k key">key</span> to open the <span class="k portal">portal</span>,
+          then reach it. An <span class="k alien">alien</span> entering your cell ends the run.</p>
+      </article>
+      <article class="feature">
+        <span class="feature-icon" data-tone="water">&#126;</span>
+        <h3>Terrain cuts both ways</h3>
+        <p><span class="k water">Water</span> halves how far you can be seen &mdash; every
+          detection ring visibly shrinks. <span class="k rubble">Rubble</span> stops you but
+          not them. <span class="k safe">Black boxes</span> erase what they knew about where
+          you went.</p>
+      </article>
+      <article class="feature">
+        <span class="feature-icon" data-tone="danger">&#9679;</span>
+        <h3>They hunt as a squad</h3>
+        <p>Every ten to fifteen seconds one alien splits in two. The nearest runs you down
+          while the rest post themselves on your escape routes &mdash; including the
+          unlikely ones, because that is how a net closes.</p>
+      </article>
+      <article class="feature">
+        <span class="feature-icon" data-tone="violet">&#9632;</span>
+        <h3>The file follows you</h3>
+        <p>Twenty-one habits &mdash; how closely you hug walls, how long you pause, how
+          directly you go for a key &mdash; persist across every district this profile has
+          played, and decide where aliens are sent next.</p>
+      </article>
+      <article class="feature">
+        <span class="feature-icon" data-tone="warn">&#9733;</span>
+        <h3>Coins are not score</h3>
+        <p>Coins buy a stun gun and banked lightning. Score judges the run &mdash; speed,
+          collection, stuns &mdash; and decays each time you replay a district, so farming
+          fills your wallet without inflating your record.</p>
+      </article>
+      <article class="feature">
+        <span class="feature-icon" data-tone="accent">&#8734;</span>
+        <h3>No model is trained</h3>
+        <p>Both predictor tiers are online counting and sufficient-statistic updates. No
+          gradients, no datasets, no checkpoints. The only neural network is a pretrained
+          one, downloaded at runtime to narrate what the predictor is thinking.</p>
+      </article>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-foot">
+  <span>Built for UMC301. Plain ES modules, no dependencies, no build step.</span>
+  <nav class="site-nav">
+    <a href="docs/bench.html">Benchmarks</a>
+    <a href="https://github.com/ASKretik/noise" rel="noopener">Source</a>
+  </nav>
+</footer>
 
 <script type="module" src="web/launch.js"></script>
 </body>

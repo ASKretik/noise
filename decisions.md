@@ -27,12 +27,13 @@ Three markers throughout:
 | [Eight](#round-eight) | mobile layout · floating thumbstick · RUN and STUN buttons · landscape hint | `100vh` is a lie on a phone; four separate causes, none of them the obvious one |
 | [Nine](#round-nine) | phone tab crashes fixed | Android Chrome has `navigator.gpu`, so phones were downloading 250MB of weights — and round eight's own resize fix was churning canvases |
 | [Ten](#round-ten) | win overlay was a soft lock on phones | The card was clipped by the canvas wrapper, so "enter district N" was painted outside the visible box |
+| [Eleven](#round-eleven) | product-grade visual pass · opening freeze · `YOU` beacon | The freeze hung the benchmark harness: a frozen world never changes, so a bot that answers STAY once answers it forever |
 
 ## Where things stand
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
-npm run webcheck  35/35
+npm run webcheck  36/36
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -1327,4 +1328,99 @@ this is the round where it cost something real.
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  35/35
+```
+
+---
+
+<a id="round-eleven"></a>
+# Round eleven — a product look, and a moment to find yourself
+
+## R22 · Nothing moves until you do
+
+**Asked:** "whenever the round starts, it is hard to find where the human is, so can the
+alien wait to move until the player figures out where the human is? also can you keep an
+indicator as to where the human is until the player moves."
+
+**Built.** The whole simulation is frozen at the start of a district — clock, arrivals,
+division, alien movement, detection — until a direction is pressed. A beacon marks the
+player until then: three expanding rings, corner brackets, and a `YOU` label with a
+chevron pointing down at the figure. A prompt under the board says so, with the right
+wording for keyboard or touch.
+
+**[ASSUMED]** Frozen rather than paused: **the tick counter does not advance either**.
+Pausing a running clock would still charge thinking time against par and against the
+survival band the difficulty controller steers by. Taking thirty seconds to get your
+bearings should cost nothing.
+
+**[ASSUMED]** The rings are animated because motion is what the eye catches. A static
+marker on a board already full of static markers is one more thing to search through.
+
+**[ASSUMED]** `Input.clear()` runs on every district start, so a key still held from the
+previous district cannot skip the freeze. Without it, winning while holding right starts
+the next district instantly — exactly when an unfamiliar map most needs the beat.
+
+### [FOUND] The freeze hung the benchmark harness
+
+Shipped as an unconditional rule, it took `npm test` from about a minute to not finishing
+at all. The cause is a nasty little interaction:
+
+> A frozen world never changes. A deterministic bot given an unchanging state returns the
+> same answer forever. `coverCrawler` legitimately answers **STAY** when the nearest alien
+> is far enough away — so on some maps it answered STAY, the world stayed frozen, and the
+> episode span forever.
+
+My first probe said all five bots start on the first call, which was true of the one map I
+probed and false across a thousand episodes. The lesson is the probe, not the bug: a check
+over a single seed cannot clear a claim about every seed.
+
+**Fixed** by making the freeze `freezeUntilFirstMove`, **opt-in and off by default**. It is
+a presentation affordance for a human who needs to orient; a scripted policy has no eyes.
+The browser passes `true`; everything headless leaves it false and behaves exactly as
+before, so no historical measurement moves.
+
+(Some of the slowdown I first blamed on this was also self-inflicted: I had three test
+suites running concurrently and was reading contention as a regression. The hang was real;
+the first numbers were not.)
+
+## R23 · Making it look like a product
+
+**Asked:** "can you make the webpage look more like a business product, right now it looks
+dull and not very appealing?"
+
+**Built.** A design-token pass and a restructured launch page.
+
+**[ASSUMED] Two typefaces, split by job.** Inter for anything read as prose or a label; a
+monospace for anything that is a number or an identifier — scores, coordinates, trait
+deviations, prices. Mono everywhere was the dull part: it flattens hierarchy, because when
+every word has the same weight and width nothing can be more important than anything else.
+Mono *only on data* keeps the terminal character the game is built around while letting
+headings and copy breathe. It is also what current product UIs actually do.
+
+**[ASSUMED] Tokens before components.** A surface ramp (`--bg` through `--bg-4`), a radius
+scale, two shadow levels, a focus ring, and one `.btn.primary` with a gradient for the
+single action a screen wants you to take. Polishing component by component without a token
+set produces eleven slightly different greys, which is its own kind of dull.
+
+**[ASSUMED] The launch page became a product page** — a hero with an eyebrow, the wordmark
+in a gradient, four stat pills, the save files as elevated cards, and a six-card grid
+explaining the mechanics. It replaces a wall of five paragraphs inside a `<details>`, which
+nobody opens.
+
+**[ASSUMED]** The identity is unchanged: still dark, still a surveillance console, still no
+art assets. Making it look like a SaaS landing page would have fought the game.
+
+### Verified the only way available
+
+The beacon and the figure were checked by replaying the **real** `_drawHuman` and
+`_drawBeacon` canvas calls through an SVG recorder — the shipped code, not a
+reimplementation. The recorder gained text, alpha and stroke support for this round.
+
+**The CSS is still unverified.** No browser, so no layout has been seen. The type scale,
+the token ramp and the hero are reasoned, not observed.
+
+## Current state
+
+```
+npm test          12 passed · 1 not demonstrated · 0 failed
+npm run webcheck  36/36
 ```

@@ -120,6 +120,23 @@ HARD 40%, ULTRA 20%.**
 Below ULTRA the predictor is handed a frozen belief in which no key is ever collected and
 the portal never reads as open. They model how you *move* and nothing else.
 
+### Starting a district
+
+**Nothing moves until the player presses a direction.** The clock, arrivals, division,
+alien movement and detection are all frozen, and a beacon — expanding rings, corner
+brackets and a `YOU` label — marks the player until they do.
+
+A district opens with a fresh map, a hidden portal and three to five keys scattered across
+it, and the player's own figure is a dozen pixels wide somewhere in the middle. Asking
+them to find themselves while a clock runs and aliens close in is a test of eyesight, not
+of play. Frozen rather than merely paused: the tick counter does not advance either, so
+thinking time costs nothing against par or against the survival band.
+
+The freeze is **opt-in and off by default** (`freezeUntilFirstMove`). It is a presentation
+affordance, and a scripted policy has no eyes to orient. Subjecting one to it is actively
+dangerous: a frozen world never changes, so a bot that answers STAY once answers STAY
+forever and the episode spins. The browser opts in; everything headless does not.
+
 ### Aliens
 
 - **Detection:** radius 4.6 (district 1) to 5.6 (district 10), halved in water, zero in a
@@ -416,6 +433,19 @@ with confidence:
 >
 > *six districts in:* "File on MAIN runs 6 districts deep and it is consistent: subject
 > holds a heading, never doubles back. District 11, 15 percent. Unit already posted."
+
+## Look and feel
+
+Two typefaces doing two jobs: **Inter** for anything read as prose or a label, and a
+monospace for anything that is a number or an identifier. Keeping data in mono is not
+decoration — it is what makes a column of scores or coordinates scannable, and it preserves
+the terminal character the game is built around.
+
+The launch screen is a product page: a hero with the wordmark, the two save files as
+elevated cards, and a six-card grid explaining the mechanics. The hub, the shop and the
+district chrome share one token set — a surface ramp from `--bg` to `--bg-4`, a radius
+scale, two shadow levels, and a single `.btn.primary` style for the one action a screen
+wants you to take.
 
 ## Playing on a phone
 

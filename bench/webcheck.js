@@ -12,6 +12,13 @@ import { Dossier } from '../sim/predictor/dossier.js';
 import { isMain, args } from './cli.js';
 
 const results = [];
+
+/**
+ * Nothing in a district moves until the player presses a direction (sim/game.js's
+ * opening freeze), so every loop that drives frames has to begin like a player does.
+ * Holding east is enough: the figure walks until it meets a wall and then stands.
+ */
+function begin(app) { app.input.press(1); }
 async function check(name, fn) {
   try {
     const detail = await fn();
@@ -236,6 +243,7 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     const g = app.game;
     const a = g.patrols[0];
     if (!a) throw new Error('district started with no aliens');
+    g.started = true;      // the opening freeze would otherwise short-circuit step()
     a.stunnedUntil = g.tick + g.params.stunTicks;
     g.player.x = a.x; g.player.y = a.y;      // stand directly on it
     g.step(-1);
@@ -268,6 +276,8 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
 
   await check('E stuns only what can currently see the player, one charge each', () => {
     // Walk an alien into range by stepping the sim, then fire.
+    begin(app);
+    begin(app);
     let t = performance.now();
     for (let i = 0; i < 400 && !app.game.over; i++) {
       t += 125;
@@ -290,6 +300,7 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
   await check('L only drains lightning while it is switched on', () => {
     app.startLevel(1);
     const start = app.game.boltBankTicks;
+    begin(app);
     let t = performance.now();
     for (let i = 0; i < 8 && !app.game.over; i++) { t += 125; app._frame(t); }
     if (app.game.boltBankTicks !== start) throw new Error('lightning drained while switched off');
@@ -342,9 +353,39 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     return `dispatch: "${dom.byId.get('dispatch-text').textContent.slice(0, 48)}..."`;
   });
 
+  await check('nothing moves until the player presses a direction', () => {
+    app.input.clear();
+    app.startLevel(1);
+    const g = app.game;
+    if (g.started) throw new Error('the run started on its own');
+    const aliensAt = g.patrols.map((p) => `${p.x},${p.y}`).join(' ');
+    const tick = g.tick;
+
+    // Fifty frames of no input: the clock, the aliens and the arrival process must all
+    // be exactly where they were.
+    let t = performance.now();
+    for (let i = 0; i < 50; i++) { t += 125; app._frame(t); }
+    if (g.tick !== tick) throw new Error(`the clock advanced ${tick} -> ${g.tick} before the first move`);
+    if (g.patrols.map((p) => `${p.x},${p.y}`).join(' ') !== aliensAt) throw new Error('an alien moved before the first move');
+    if (dom.byId.get('start-hint').hidden) throw new Error('the start prompt was not shown');
+
+    // One direction, and the world comes alive.
+    begin(app);
+    t += 125; app._frame(t);
+    if (!g.started) throw new Error('a direction did not start the run');
+    for (let i = 0; i < 40; i++) { t += 125; app._frame(t); }
+    if (g.tick <= tick + 1) throw new Error('the clock did not advance after the first move');
+    if (!dom.byId.get('start-hint').hidden) throw new Error('the start prompt stayed up');
+    return `frozen for 50 idle frames at tick ${tick}, running at tick ${g.tick} after one input`;
+  });
+
   await check('fixed-timestep loop advances the sim', () => {
+    // Fresh district: the previous check drove its run to a terminal state.
+    app.input.clear();
+    app.startLevel(1);
     const before = app.game.tick;
     // Drive frames by hand: 40 frames of 125 ms is 40 ticks.
+    begin(app);
     let t = performance.now();
     for (let i = 0; i < 40 && !app.game.over; i++) {
       t += 125;
@@ -376,6 +417,7 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
   });
 
   {
+    begin(app);
     let t = performance.now();
     let guard = 0;
     while (!app.game.over && guard++ < 4000) { t += 125; app._frame(t); }
@@ -482,6 +524,7 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
   app.startLevel(1);
   for (let i = 0; i < 20; i++) await Promise.resolve();
   {
+    begin(app);
     let t = performance.now();
     let guard = 0;
     while (!app.game.over && guard++ < 4000) { t += 125; app._frame(t); }
@@ -505,6 +548,8 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     if (at === null) throw new Error('no division scheduled');
     if (at < lo || at > hi) throw new Error(`first division at tick ${at}, outside [${lo}, ${hi}]`);
     // Drive the run out and report whether the squad took distinct roles.
+    begin(app);
+    begin(app);
     let t = performance.now();
     let guard = 0;
     while (!app.game.over && guard++ < 3000) { t += 125; app._frame(t); }

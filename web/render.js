@@ -37,6 +37,7 @@ export const COLORS = {
   coin2: '#cfd8e3',
   coin5: '#ffc93b',
   coin10: '#c87bff',
+  beacon: '#19e0c8',
   safeFill: 'rgba(5,5,7,0.80)',
   safeEdge: 'rgba(180,196,214,0.38)',
   stunned: '#6d6a74',
@@ -521,6 +522,65 @@ export class Renderer {
     ctx.restore();
   }
 
+  /**
+   * The start-of-round beacon: expanding rings, a bracket and a label on the player.
+   *
+   * Drawn only before the first move, and paired with the freeze in sim/game.js. A twelve
+   * pixel figure on a four-hundred pixel board is genuinely hard to find, and the rings
+   * are animated because motion is what the eye actually catches -- a static marker on a
+   * board already full of static markers is one more thing to search through.
+   */
+  _drawBeacon(ctx, cx, cy, t, phase) {
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    for (let i = 0; i < 3; i++) {
+      const p = ((phase * 0.55) + i / 3) % 1;
+      const r = t * (0.55 + p * 2.6);
+      ctx.globalAlpha = (1 - p) * 0.55;
+      ctx.strokeStyle = COLORS.beacon;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // Corner brackets, which read as "target" without obscuring the figure.
+    const b = t * 0.78;
+    const arm = t * 0.3;
+    ctx.strokeStyle = COLORS.beacon;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      ctx.moveTo(sx * b, sy * b - sy * arm);
+      ctx.lineTo(sx * b, sy * b);
+      ctx.lineTo(sx * b - sx * arm, sy * b);
+    }
+    ctx.stroke();
+
+    const label = 'YOU';
+    const size = Math.max(9, Math.round(t * 0.42));
+    ctx.font = `700 ${size}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    const ly = -b - t * 0.34;
+    const w = ctx.measureText(label).width;
+    ctx.fillStyle = 'rgba(6,8,10,0.82)';
+    ctx.fillRect(-w / 2 - 5, ly - size, w + 10, size + 5);
+    ctx.fillStyle = COLORS.beacon;
+    ctx.fillText(label, 0, ly - 1);
+    // A small chevron under the label, pointing down at the figure.
+    ctx.beginPath();
+    ctx.moveTo(-4, ly + 4);
+    ctx.lineTo(0, ly + 9);
+    ctx.lineTo(4, ly + 4);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+  }
+
   /** The portal: a rotating double ring. Only ever drawn once it exists. */
   _drawPortal(ctx, cx, cy, t, phase) {
     ctx.save();
@@ -688,6 +748,14 @@ export class Renderer {
       ctx.arc(plx, ply, radius, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
+    }
+
+    // --- before the first move: dim the board and mark the player ---
+    if (!game.started) {
+      ctx.fillStyle = 'rgba(5,6,8,0.42)';
+      ctx.fillRect(0, 0, map.w * t, map.h * t);
+      this._drawHuman(ctx, plx, ply, t, hidden, false, pl.dir, false, phase);
+      this._drawBeacon(ctx, plx, ply, t, phase);
     }
 
     // --- standing in a black box: the whole board dims except you ---

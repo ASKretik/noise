@@ -308,6 +308,9 @@ class Play {
       tau: this.difficulty.tau,
       lambdaScale: this.difficulty.lambdaScale,
       logLevel: 'player',
+      // Nothing moves until the player presses a direction: a browser has a human in it
+      // who needs a beat to find their own figure on an unfamiliar board.
+      freezeUntilFirstMove: true,
       // A copy of what was bought. The profile is debited only when the run ends, so a
       // crash or a closed tab mid-district does not quietly eat someone's charges.
       loadout: {
@@ -318,6 +321,8 @@ class Play {
     });
     this.boltOn = false;
     this.pendingStun = false;
+    // A key still down from the previous district must not skip the opening freeze.
+    this.input.clear();
 
     this.seenSpawns = 0;
     this.prevSnapshot = this.snapshot();
@@ -557,6 +562,7 @@ class Play {
     $('overlay-stats').innerHTML = stats
       .map(([k, v]) => `<span>${k}<b>${v}</b></span>`).join('');
     $('overlay-primary').textContent = primary;
+    $('overlay-primary').className = kind === 'lost' ? 'btn' : 'btn primary';
     $('overlay-secondary').textContent = secondary;
     $('overlay-secondary').hidden = !secondary;
     this.overlayKind = kind;
