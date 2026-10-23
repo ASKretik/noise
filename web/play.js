@@ -138,10 +138,19 @@ class Play {
       this.applySound();
       this.store.setSettings({ soundEnabled: this.soundOn }).catch(() => {});
     });
+    // Coalesced to one per frame. visualViewport fires a burst of resize events while the
+    // address bar animates, and running the layout maths on every one of them is pure
+    // waste even now that resize() itself is idempotent.
+    let refitQueued = false;
     const refit = () => {
-      if (!this.level) return;
-      this.renderer.resize(this.level.map);
-      this.updateOrientationHint();
+      if (refitQueued || !this.level) return;
+      refitQueued = true;
+      requestAnimationFrame(() => {
+        refitQueued = false;
+        if (!this.level) return;
+        this.renderer.resize(this.level.map);
+        this.updateOrientationHint();
+      });
     };
     window.addEventListener('resize', refit);
     window.addEventListener('orientationchange', () => setTimeout(refit, 220));

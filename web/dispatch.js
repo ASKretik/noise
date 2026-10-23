@@ -38,6 +38,32 @@ export function webgpuAvailable() {
 }
 
 /**
+ * Should this device pull the weights at all?
+ *
+ * WebGPU being present is NOT sufficient. Chrome on Android exposes `navigator.gpu`, so
+ * the only previous check passed on a phone and the page then tried to download roughly a
+ * quarter of a gigabyte and hand it to a mobile GPU. Mobile browsers kill a tab well below
+ * that, which is why the page "kept breaking and asking to reload".
+ *
+ * So: desktop-class pointer, not on a metered connection, and at least 4 GB of reported
+ * memory. Everything else gets the templated dispatcher, which is instant, costs nothing,
+ * and is written in confidence tiers so it still tracks the predictor.
+ */
+export function modelAdvisable() {
+  if (!webgpuAvailable()) return { ok: false, reason: 'no WebGPU' };
+  if (typeof navigator === 'undefined') return { ok: false, reason: 'no navigator' };
+  if (navigator.connection?.saveData) return { ok: false, reason: 'data saver is on' };
+  const mem = navigator.deviceMemory;
+  if (typeof mem === 'number' && mem < 4) return { ok: false, reason: `${mem}GB device memory` };
+  try {
+    if (window.matchMedia?.('(hover: none) and (pointer: coarse)').matches) {
+      return { ok: false, reason: 'touch device — 250MB of weights would kill the tab' };
+    }
+  } catch { /* no matchMedia: fall through */ }
+  return { ok: true, reason: null };
+}
+
+/**
  * Compact state object. This is the prompt contract: real numbers only, no prose, and
  * every field is something the predictor actually computed.
  */
@@ -173,12 +199,14 @@ export function createDispatcher({ onStatus = () => {}, onText = () => {} } = {}
 
   const setState = (s, detail) => { state = s; onStatus(s, detail); };
 
-  async function load({ small = false } = {}) {
+  async function load({ small = false, force = false } = {}) {
     if (loadPromise) return loadPromise;
-    if (!webgpuAvailable()) {
-      // The WASM path works and is slow enough that players read it as a hang. Templates
-      // are instant and, written in tiers, still track the predictor's confidence.
-      setState(DISPATCH_STATE.TEMPLATE, 'WebGPU unavailable');
+    const advice = modelAdvisable();
+    if (!advice.ok && !force) {
+      // The WASM path works and is slow enough that players read it as a hang; on a phone
+      // the WebGPU path is worse still, because the download alone takes the tab down.
+      // Templates are instant and, written in tiers, still track the predictor.
+      setState(DISPATCH_STATE.TEMPLATE, advice.reason);
       return null;
     }
     modelName = small ? MODEL_SMALL : MODEL_PRIMARY;

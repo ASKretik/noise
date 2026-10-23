@@ -111,6 +111,20 @@ export class Renderer {
     }
     // Integer tile size keeps edges crisp; at least 12px so phones stay playable.
     const tile = Math.max(12, Math.floor(Math.min(availW / map.w, availH / map.h, 34)));
+
+    // IDEMPOTENT, and this is not an optimisation.
+    //
+    // resize() is wired to visualViewport's resize event, which on a phone fires
+    // continuously while the address bar collapses and expands -- many times a second
+    // during ordinary play. Without this guard every one of those events reallocated the
+    // main canvas backing store (about 2 MB at dpr 2) AND dropped the cached terrain
+    // layer, forcing the next frame to build a fresh offscreen canvas. That is hundreds
+    // of megabytes of garbage in seconds, and it is the other half of why the tab kept
+    // dying on a phone.
+    if (tile === this.tile && dpr === this.dpr && this.canvas.width === Math.round(tile * map.w * dpr)) {
+      return;
+    }
+
     this.tile = tile;
     this.dpr = dpr;
     const w = tile * map.w;
@@ -120,7 +134,21 @@ export class Renderer {
     this.canvas.width = Math.round(w * dpr);
     this.canvas.height = Math.round(h * dpr);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this._releaseStaticLayer();
     this._mapKey = null;      // tile size changed, the static layer must be redrawn
+  }
+
+  /**
+   * Drop the cached terrain layer and ask the browser to free its backing store.
+   * Zeroing the dimensions is what actually releases GPU-backed memory on Safari;
+   * dropping the reference alone leaves it pinned until a GC that may not come.
+   */
+  _releaseStaticLayer() {
+    if (this._mapCache) {
+      this._mapCache.width = 0;
+      this._mapCache.height = 0;
+      this._mapCache = null;
+    }
   }
 
   /**
@@ -248,6 +276,7 @@ export class Renderer {
     }
     c.stroke();
 
+    this._releaseStaticLayer();
     this._mapCache = off;
     this._mapKey = key;
     return off;

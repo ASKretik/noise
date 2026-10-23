@@ -395,11 +395,17 @@ loads from a CDN a couple of seconds after the first district is playable and wr
 surveillance system's internal monologue from live predictor state. Downloaded, never
 trained.
 
-Three constraints, all of which bite: **lazy load** (nothing fetched until the game is
+Four constraints, all of which bite: **lazy load** (nothing fetched until the game is
 already playable), **never block the loop** (generation is fire-and-forget; a request
 arriving while one is in flight is dropped, because stale commentary is worse than none),
-and **degrade cleanly** (without WebGPU it falls back to templated strings assembled from
-the same state object).
+**degrade cleanly** (without WebGPU it falls back to templated strings assembled from the
+same state object), and **never load on a device that cannot survive it**.
+
+That last one is not the same as the WebGPU check and learning the difference cost a round
+of crashes. Chrome on Android exposes `navigator.gpu`, so a capability test alone cleared
+phones to download a quarter of a gigabyte of weights, and the tab died. `modelAdvisable()`
+additionally refuses a coarse pointer, a `saveData` connection, or under 4 GB of reported
+device memory.
 
 **The test that keeps it honest:** if the text would read identically with the predictor
 deleted, it has failed. Both paths are driven from the same state object and both shift

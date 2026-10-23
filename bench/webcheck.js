@@ -514,6 +514,59 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     return `toggled off and back on, persisted to the profile both times`;
   });
 
+  await check('repeated resizes allocate nothing — the mobile tab-killer', () => {
+    const r = app.renderer;
+    const map = app.level.map;
+    r.resize(map);
+    const tile = r.tile;
+    const layer = r._staticLayer(map, app.level);
+    const w = r.canvas.width;
+
+    // visualViewport fires a burst of these while a phone's address bar animates.
+    for (let i = 0; i < 200; i++) r.resize(map);
+
+    if (r.tile !== tile) throw new Error(`tile drifted ${tile} -> ${r.tile}`);
+    if (r.canvas.width !== w) throw new Error('canvas backing store was reallocated');
+    if (r._mapKey === null) throw new Error('terrain cache was dropped by an identical resize');
+    if (r._staticLayer(map, app.level) !== layer) throw new Error('terrain layer was rebuilt');
+    return `200 identical resizes: tile held at ${tile}px, no canvas or terrain reallocation`;
+  });
+
+  await check('the model is never auto-loaded on a touch device', async () => {
+    const { modelAdvisable } = await import('../web/dispatch.js');
+    // No WebGPU in Node, so assert the touch branch directly by faking the matchMedia
+    // and navigator the real check reads.
+    const realNav = globalThis.navigator;
+    const realMM = globalThis.window.matchMedia;
+    try {
+      Object.defineProperty(globalThis, 'navigator', {
+        value: { gpu: {}, deviceMemory: 8 }, configurable: true, writable: true,
+      });
+      globalThis.window.matchMedia = () => ({ matches: true });
+      const touch = modelAdvisable();
+      if (touch.ok) throw new Error('a touch device was cleared to download the weights');
+
+      globalThis.window.matchMedia = () => ({ matches: false });
+      const desktop = modelAdvisable();
+      if (!desktop.ok) throw new Error(`desktop with WebGPU was refused: ${desktop.reason}`);
+
+      Object.defineProperty(globalThis, 'navigator', {
+        value: { gpu: {}, deviceMemory: 2 }, configurable: true, writable: true,
+      });
+      if (modelAdvisable().ok) throw new Error('a 2GB device was cleared to download the weights');
+
+      Object.defineProperty(globalThis, 'navigator', {
+        value: { gpu: {}, deviceMemory: 8, connection: { saveData: true } }, configurable: true, writable: true,
+      });
+      if (modelAdvisable().ok) throw new Error('data saver was ignored');
+
+      return `refused on: touch, 2GB memory, data saver — allowed on desktop with WebGPU`;
+    } finally {
+      Object.defineProperty(globalThis, 'navigator', { value: realNav, configurable: true, writable: true });
+      globalThis.window.matchMedia = realMM;
+    }
+  });
+
   await check('dispatch degrades to templates without WebGPU', () => {
     const text = dom.byId.get('dispatch-text').textContent;
     if (!text || text === '—') throw new Error('dispatch panel is empty');

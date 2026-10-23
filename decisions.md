@@ -25,12 +25,13 @@ Three markers throughout:
 | [Six](#round-six) | sound toggle persisted · continue-or-fresh on MAIN · guest wiped on tab close · alien speed capped at 0.75x | Reverses the original spec's deliberate choice to make guest persistent |
 | [Seven](#round-seven) | ULTRA exempt from the speed cap, score x3 | The one round where the regenerate-the-constants rule correctly did **not** apply |
 | [Eight](#round-eight) | mobile layout · floating thumbstick · RUN and STUN buttons · landscape hint | `100vh` is a lie on a phone; four separate causes, none of them the obvious one |
+| [Nine](#round-nine) | phone tab crashes fixed | Android Chrome has `navigator.gpu`, so phones were downloading 250MB of weights — and round eight's own resize fix was churning canvases |
 
 ## Where things stand
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
-npm run webcheck  33/33
+npm run webcheck  35/35
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -1193,4 +1194,70 @@ it simulates does not collapse.
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  33/33
+```
+
+---
+
+<a id="round-nine"></a>
+# Round nine — why the phone kept reloading
+
+**Reported:** "why does the webpage keep breaking and asking to reload in phone?"
+
+That prompt — Safari's "a problem repeatedly occurred", Chrome's reload banner — is the
+browser killing the tab for memory. Two causes, both introduced by me, and together they
+are more than enough.
+
+## [FOUND] Cause one: the phone was downloading a quarter of a gigabyte of model weights
+
+`dispatch.js` gated the language model on one condition: `navigator.gpu` exists. **Chrome
+on Android exposes `navigator.gpu`.** So the check passed on a phone, and 2.5 seconds into
+the first district the page began pulling ~250 MB of SmolLM2 weights and handing them to a
+mobile GPU. Mobile browsers kill a tab well below that.
+
+The reasoning in the original spec was about *capability* — "WebGPU needs Chrome 113 or
+Edge" — and I implemented exactly that check. Capability was never the whole question;
+whether the device can survive the download is a separate one, and I did not ask it.
+
+**Fixed** with `modelAdvisable()`, which refuses on any of: a coarse pointer, a `saveData`
+connection, or `navigator.deviceMemory` under 4 GB. Everything refused gets the templated
+dispatcher, which is instant, costs nothing and is written in confidence tiers so it still
+tracks the predictor. `load({ force: true })` overrides for anyone who wants to try.
+
+## [FOUND] Cause two: every address-bar twitch reallocated the canvas
+
+Round eight wired `renderer.resize()` to `visualViewport`'s resize event so the board would
+follow the real visible height. On a phone that event fires **continuously** while the
+address bar collapses and expands — many times a second during ordinary play.
+
+`resize()` had no early-out. Every one of those events:
+
+- reallocated the main canvas backing store (~2 MB at dpr 2), and
+- set `_mapKey = null`, forcing the next frame to build a **fresh offscreen terrain
+  canvas**.
+
+Hundreds of megabytes of garbage in seconds. The fix I shipped to make the board fit the
+screen is what made the tab die.
+
+**Fixed** three ways:
+
+1. `resize()` is now **idempotent** — if the computed tile size, dpr and canvas width are
+   unchanged it returns immediately, touching nothing.
+2. The terrain layer is explicitly released when replaced (`width = height = 0`), because
+   dropping the reference alone leaves GPU-backed memory pinned on Safari until a GC that
+   may not arrive.
+3. `refit()` in `play.js` is coalesced to one call per animation frame.
+
+Regression test: 200 identical `resize()` calls must change no tile size, reallocate no
+canvas and rebuild no terrain layer.
+
+**[ASSUMED]** The touch-device model refusal is a flat rule rather than a memory
+measurement at load time. `deviceMemory` is coarse (Chrome caps it at 8) and absent on
+Safari entirely, so a measurement would be a guess dressed up as a number. A phone not
+downloading a 250 MB model is the right default regardless of how much RAM it claims.
+
+## Current state
+
+```
+npm test          12 passed · 1 not demonstrated · 0 failed
+npm run webcheck  35/35
 ```
