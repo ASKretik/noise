@@ -23,6 +23,7 @@ Three markers throughout:
 | [Four](#round-four--belts-you-can-see-a-person-you-can-see-and-a-gun-worth-buying) | per-belt terrain · detailed human · inert stunned aliens · empty gun | The palettes had only ever coloured the hub cards, never the game |
 | [Five](#round-five--the-spec-caught-up) | spec rewritten to describe what exists | The original's "score IS entropy" is a real casualty of the economy, and the spec says so |
 | [Six](#round-six) | sound toggle persisted · continue-or-fresh on MAIN · guest wiped on tab close · alien speed capped at 0.75x | Reverses the original spec's deliberate choice to make guest persistent |
+| [Seven](#round-seven) | ULTRA exempt from the speed cap, score x3 | The one round where the regenerate-the-constants rule correctly did **not** apply |
 
 ## Where things stand
 
@@ -996,7 +997,7 @@ tier's speed factor.
 | EASY | 0.500 | 0.375 | 4.67 → 4.00 |
 | MEDIUM | 0.750 | 0.5625 | 3.11 → 2.67 |
 | HARD | 1.000 | 0.750 | 2.33 → 2.00 |
-| ULTRA | 1.000 | 0.750 | 2.33 → 2.00 |
+| ULTRA | 1.000 | **1.000 — exempt, see R19** | 1.75 → 1.50 |
 
 **[ASSUMED]** Capping the *maximum* and rescaling the others, rather than clamping each
 tier independently. The tiers are defined relative to the fastest alien — EASY is half of
@@ -1033,6 +1034,66 @@ loss for three rounds — is now neutral. Selection kept **12 couplings of 35 ca
 
 This is the routine working as intended rather than a discovery: `npm run priors &&
 npm run couplings` after any mechanical change, before reading the suite.
+
+## Current state
+
+```
+npm test          12 passed · 1 not demonstrated · 0 failed
+npm run webcheck  32/32
+```
+
+---
+
+<a id="round-seven"></a>
+# Round seven — ULTRA stops being a footnote
+
+## R19 · ULTRA runs uncapped, and pays triple
+
+**Asked:** "make the speed at ultra as 100 percent, not at 0.75 percent, and also make the
+score as x3."
+
+**Built.** `ALIEN_SPEED_CAP` now applies to EASY, MEDIUM and HARD only. ULTRA keeps a speed
+factor of 1.0 and its score multiplier goes from ×1.70 to ×3.00.
+
+| tier | speed factor | chase period D1 → D10 | cells/tick at D10 | score |
+|---|---|---|---|---|
+| EASY | 0.3750 | 4.67 → 4.00 | 0.25 | ×0.75 |
+| MEDIUM | 0.5625 | 3.11 → 2.67 | 0.38 | ×1.00 |
+| HARD | 0.7500 | 2.33 → 2.00 | 0.50 | ×1.30 |
+| **ULTRA** | **1.0000** | **1.75 → 1.50** | **0.67** | **×3.00** |
+
+This is a better shape than what it replaces. Previously ULTRA was HARD with one extra
+piece of information, which made it a footnote on another tier rather than a tier. Now the
+cap is something the three ordinary settings sit under and ULTRA is the one that is exempt
+— nothing held back, and the payout says so.
+
+**[ASSUMED]** The exemption is written as an exemption rather than by giving ULTRA its own
+number. `speedFactor: 1.0` with a comment beside the three that carry `* ALIEN_SPEED_CAP`
+makes the asymmetry visible at the point it happens; a bare `0.75` next to a bare `1.0`
+would read as an oversight within a month.
+
+**Measured**, competent-player bot across districts 1–6:
+
+| tier | win rate | mean survival |
+|---|---|---|
+| EASY | 63% | 64t |
+| MEDIUM | 53% | 53t |
+| HARD | 40% | 47t |
+| ULTRA | 20% | 43t |
+
+A clean monotone ladder, and **ULTRA is still winnable** — one run in five. That matters:
+at a speed factor of 1.0 an alien covers 0.67 cells per tick at district 10 against the
+player's 1.00, so it is fast but still slower than you, and breaking contact to outrun a
+twenty-tick alert remains possible. The thing that must never happen is parity, where an
+adjacent hunter has already won because the gap can never change.
+
+**[FOUND] — nothing needed regenerating this time, and the reason is worth stating.** My
+own rule from round three is to run `npm run priors && npm run couplings` after any
+mechanical change. It did not apply here: every benchmark is pinned to `BENCH_TIER = 'hard'`
+and HARD's speed factor is unchanged, so the recorded corpus the constants are selected
+against is byte-for-byte the same game. Checking that the rule applies is part of following
+it — regenerating anyway would have burned a minute and introduced seed churn into two
+checked-in tables for no reason.
 
 ## Current state
 

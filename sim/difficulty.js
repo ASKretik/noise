@@ -11,13 +11,16 @@ export const TICKS_PER_SECOND = 8;
 export const CURVE_CAP = 10;
 
 /**
- * Global cap on how fast anything hunting you can move, applied on top of every tier.
+ * Speed cap applied to the three ordinary tiers. ULTRA is deliberately exempt.
  *
- * The tiers are defined relative to the fastest alien in the game, so capping that one
- * rescales all four and keeps their relationship intact: EASY is still half of HARD and
- * MEDIUM is still three-quarters of it. Because an alien's tick period is the base period
- * divided by its speed factor, this cascades to every district automatically -- there is
- * no second table of per-district speeds to keep in sync.
+ * EASY, MEDIUM and HARD are defined relative to each other and all sit under this cap, so
+ * EASY stays half of HARD and MEDIUM stays three-quarters of it. ULTRA runs uncapped at
+ * the full base speed, which is the clearest statement of what that tier is: it is not
+ * "HARD but they also know things", it is the only setting where nothing is held back.
+ *
+ * Because an alien's tick period is the base period divided by its speed factor, this
+ * cascades to every district automatically -- there is no second table of per-district
+ * speeds to keep in sync.
  */
 export const ALIEN_SPEED_CAP = 0.75;
 
@@ -56,8 +59,9 @@ export const DIFFICULTIES = Object.freeze({
   },
   ultra: {
     id: 'ultra', label: 'ULTRA', order: 3,
-    speedFactor: 1.0 * ALIEN_SPEED_CAP, knowsKeys: true, scoreMult: 1.7,
-    blurb: 'Full speed, and they know exactly which keys you have taken. Every route you have left is modelled.',
+    // Uncapped on purpose -- the only tier that is.
+    speedFactor: 1.0, knowsKeys: true, scoreMult: 3.0,
+    blurb: 'Uncapped speed, and they know exactly which keys you have taken. Every route you have left is modelled. Scores triple.',
   },
 });
 
