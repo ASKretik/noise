@@ -20,14 +20,18 @@
 //
 // COUPLINGS-BEGIN
 export const REWEIGHT_TERMS = Object.freeze([
-  { trait: 'backtrackRate',       feature: 'visitedFrac',    sign: +1, w: 1.0, why: 'doubles back' },
-  { trait: 'cacheOrdering',       feature: 'cacheProximity', sign: -1, w: 1.4, why: 'takes the near cache' },
-  { trait: 'revisitRate',         feature: 'isCurrent',      sign: +1, w: 1.4, why: 'circles one district' },
-  { trait: 'objectiveDirectness', feature: 'cacheProximity', sign: -1, w: 1.4, why: 'runs straight at caches' },
-  { trait: 'revisitRate',         feature: 'visitedFrac',    sign: +1, w: 1.4, why: 'retreads old ground' },
-  { trait: 'openGroundTolerance', feature: 'openGroundFrac', sign: +1, w: 1.0, why: 'crosses open ground' },
-  { trait: 'corridorPreference',  feature: 'areaFrac',       sign: -1, w: 0.4, why: 'avoids big rooms' },
-  { trait: 'postAlertFreeze',     feature: 'isCurrent',      sign: +1, w: 0.4, why: 'freezes when seen' },
+  { trait: 'revisitRate',         feature: 'visitedFrac',      sign: +1, w: 0.7, why: 'retreads old ground' },
+  { trait: 'postAlertFlee',       feature: 'threatProximity',  sign: -1, w: 0.7, why: 'flees contact' },
+  { trait: 'objectiveDirectness', feature: 'cacheProximity',   sign: -1, w: 1.4, why: 'runs straight at caches' },
+  { trait: 'openGroundTolerance', feature: 'buildingEdgeFrac', sign: -1, w: 0.7, why: 'keeps clear of rubble' },
+  { trait: 'headingPersistence',  feature: 'headingAlign',     sign: +1, w: 0.4, why: 'holds a heading' },
+  { trait: 'revisitRate',         feature: 'isCurrent',        sign: +1, w: 1.0, why: 'circles one district' },
+  { trait: 'cacheOrdering',       feature: 'cacheProximity',   sign: -1, w: 0.7, why: 'takes the near cache' },
+  { trait: 'coverDwell',          feature: 'isCurrent',        sign: +1, w: 0.7, why: 'sits still in cover' },
+  { trait: 'regionDwell',         feature: 'reachInK',         sign: -1, w: 0.7, why: 'does not travel far' },
+  { trait: 'backtrackRate',       feature: 'visitedFrac',      sign: +1, w: 0.4, why: 'doubles back' },
+  { trait: 'corridorPreference',  feature: 'areaFrac',         sign: -1, w: 0.4, why: 'avoids big rooms' },
+  { trait: 'openGroundTolerance', feature: 'coverFrac',        sign: -1, w: 0.4, why: 'ignores cover' },
 ]);
 // COUPLINGS-END
 

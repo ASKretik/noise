@@ -10,6 +10,45 @@
 
 import { ProfileStore, memoryBackend } from '../sim/profile.js';
 
+/**
+ * The guest slot is scoped to a browser session: closing the tab forgets it entirely.
+ *
+ * The original design made guest a persistent second save so a friend who came back next
+ * week kept their districts. That is now reversed by request -- guest is a hand-the-laptop-
+ * over slot, and the demo it exists for ("same code, same seeds, different dossier") is
+ * strongest when it starts blind every single time.
+ *
+ * sessionStorage is the right marker rather than a timestamp: it is cleared by the browser
+ * exactly when the tab closes, and it survives reloads and navigation between the three
+ * pages, so a guest does not get wiped halfway through their own run.
+ */
+const GUEST_SESSION_KEY = 'noise.guestSession';
+
+export async function ensureGuestSession(store) {
+  let fresh = true;
+  try {
+    fresh = !sessionStorage.getItem(GUEST_SESSION_KEY);
+    if (fresh) sessionStorage.setItem(GUEST_SESSION_KEY, String(Date.now()));
+  } catch {
+    // Private mode with storage blocked: treat every load as a new session, which errs
+    // toward wiping a slot that is meant to be disposable anyway.
+    fresh = true;
+  }
+  if (!fresh) return false;
+
+  const previous = store.current ? null : null;
+  try {
+    const active = store.cache ? store.cache.get('guest') : null;
+    await store.load('guest');
+    await store.eraseActive();
+    if (active) { /* nothing to restore: the point is that it is gone */ }
+  } catch (err) {
+    console.warn('[persist] could not reset the guest slot:', err?.message);
+    return false;
+  }
+  return true;
+}
+
 const DB_NAME = 'noise';
 /**
  * Bumped to 2 to scrap every save written before the difficulty tier, the wallet and the

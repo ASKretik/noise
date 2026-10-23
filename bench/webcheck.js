@@ -7,7 +7,7 @@
 // dossier persistence, level advance, live mode switching and the no-WebGPU dispatch
 // fallback all run without throwing.
 
-import { installDom } from './domshim.js';
+import { installDom, endBrowserSession } from './domshim.js';
 import { Dossier } from '../sim/predictor/dossier.js';
 import { isMain, args } from './cli.js';
 
@@ -34,23 +34,89 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
   for (let i = 0; i < 50; i++) await Promise.resolve();
   await new Promise((r) => setTimeout(r, 20));
 
+  const actionsOf = (slot) => slot.children.find((c) => c.classList.contains('slot-actions'));
+
   await check('launch page offers both slots as new files needing a tier', () => {
     const slots = launchDom.byId.get('slots');
     if (!slots || slots.children.length !== 2) throw new Error(`expected 2 slots, got ${slots?.children.length}`);
-    // Saves were scrapped, so both slots are fresh and must ask for a tier rather than
-    // linking straight into a district.
-    const linked = slots.children.filter((c) => c.href);
-    if (linked.length !== 0) throw new Error(`a fresh slot linked straight through: ${linked.map((c) => c.href)}`);
-    const labels = slots.children.map((c) => (c.innerHTML.match(/<h2>(\w+)/) || [])[1]);
-    return `${labels.join(', ')} — both new, both must choose a tier first`;
+    for (const slot of slots.children) {
+      const acts = actionsOf(slot);
+      if (!acts) throw new Error('a slot has no actions row');
+      if (acts.children.some((b) => b.href)) throw new Error('a fresh slot linked straight into a district');
+      if (acts.children.length !== 1) throw new Error(`a fresh slot offered ${acts.children.length} actions, expected 1`);
+    }
+    return 'MAIN, GUEST — both new, both must choose a tier first';
   });
 
   await check('choosing a tier offers all four and is permanent', () => {
-    launchDom.byId.get('slots').children[0].fire('click');
+    actionsOf(launchDom.byId.get('slots').children[0]).children[0].fire('click');
     const tiers = launchDom.byId.get('tiers');
     if (tiers.children.length !== 4) throw new Error(`expected 4 tiers, got ${tiers.children.length}`);
     if (launchDom.byId.get('chooser').hidden) throw new Error('chooser stayed hidden');
     return tiers.children.map((c) => c.dataset.tier).join(', ');
+  });
+
+  await check('an existing MAIN offers continue AND start-fresh; fresh erases everything', async () => {
+    const { createProfileStore } = await import(`../web/persist.js?t=${Date.now()}`);
+    const { store } = await createProfileStore();
+    await store.load('main');
+    store.chooseDifficulty('hard');
+    await store.unlockLevel(6);
+    await store.addCoins(777);
+    await store.saveDossier({ traits: { wallAffinity: { mean: 0.9, var: 0.01, n: 5 } }, updates: 5, levelsSeen: 5 });
+
+    // Re-render the launch screen against that file.
+    installDom({ webgpu, indexeddb, page: 'index.html' });
+    await import(`../web/launch.js?t=${Date.now()}`);
+    for (let i = 0; i < 60; i++) await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 20));
+
+    const main = globalThis.document.getElementById('slots').children[0];
+    const acts = actionsOf(main);
+    if (acts.children.length !== 2) throw new Error(`MAIN offered ${acts.children.length} actions, expected continue + start fresh`);
+    if (!acts.children[0].href?.includes('districts.html')) throw new Error('continue does not go to the hub');
+
+    // window.confirm is stubbed true in the shim, so this proceeds.
+    acts.children[1].fire('click');
+    for (let i = 0; i < 40; i++) await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 20));
+
+    const after = await store.peek('main');
+    if (after.difficulty !== null) throw new Error('start fresh kept the tier');
+    if (after.level !== 1) throw new Error(`start fresh left level ${after.level}`);
+    if (after.wallet.coins !== 0) throw new Error('start fresh kept the coins');
+    if (Object.keys(after.dossier.traits).length !== 0) throw new Error('start fresh kept the dossier');
+    return 'continue + start fresh offered; fresh wiped tier, district, coins and dossier';
+  });
+
+  await check('GUEST is wiped when the browser session ends, not on every navigation', async () => {
+    const { createProfileStore, ensureGuestSession } = await import(`../web/persist.js?t=${Date.now()}`);
+    const { store } = await createProfileStore();
+
+    await ensureGuestSession(store);                 // this session is now marked
+    await store.load('guest');
+    store.chooseDifficulty('easy');
+    await store.unlockLevel(4);
+
+    // Navigating between pages inside the same session must NOT wipe it.
+    const wipedMidSession = await ensureGuestSession(store);
+    const midSession = await store.peek('guest');
+    if (wipedMidSession) throw new Error('guest was wiped mid-session');
+    if (midSession.level !== 4) throw new Error(`guest lost progress mid-session (level ${midSession.level})`);
+
+    // Closing the tab must.
+    endBrowserSession();
+    const wipedOnClose = await ensureGuestSession(store);
+    const afterClose = await store.peek('guest');
+    if (!wipedOnClose) throw new Error('guest survived the tab closing');
+    if (afterClose.difficulty !== null || afterClose.level !== 1) {
+      throw new Error(`guest survived as tier ${afterClose.difficulty} at district ${afterClose.level}`);
+    }
+
+    // And MAIN must be untouched by any of it.
+    const main = await store.peek('main');
+    if (main === null) throw new Error('main vanished');
+    return 'kept across navigation, erased on close, main untouched';
   });
 
   // ---- the hub ----
@@ -431,6 +497,21 @@ export async function run({ webgpu = false, indexeddb = 'working' } = {}) {
     const roles = new Set(app.game.spawnLog.map((e) => (e.split ? 'division' : 'arrival')));
     return `first division due at tick ${at} (window ${lo}-${hi}); run lasted ${s.ticks} ticks, ` +
       `${s.splits} division(s), peak ${s.peakAliens} aliens, log: ${[...roles].join(',') || 'none'}`;
+  });
+
+  await check('the sound toggle flips state and is remembered on the profile', () => {
+    const btn = dom.byId.get('btn-sound');
+    const label = dom.byId.get('btn-sound-label');
+    const was = app.soundOn;
+    btn.fire('click');
+    if (app.soundOn === was) throw new Error('toggle did nothing');
+    if (btn.dataset.on !== String(app.soundOn)) throw new Error('button state did not follow');
+    if (!/sound (on|off)/.test(label.textContent)) throw new Error(`label reads "${label.textContent}"`);
+    if (btn.getAttribute('aria-pressed') !== String(app.soundOn)) throw new Error('aria-pressed did not follow');
+    const stored = app.store.current().settings.soundEnabled;
+    if (stored !== app.soundOn) throw new Error(`profile says ${stored}, button says ${app.soundOn}`);
+    btn.fire('click');
+    return `toggled off and back on, persisted to the profile both times`;
   });
 
   await check('dispatch degrades to templates without WebGPU', () => {

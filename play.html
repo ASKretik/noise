@@ -31,7 +31,11 @@
       <i class="coin-pip"></i><b id="hud-coins">0</b><i class="coin-run" id="hud-coins-run"></i>
     </span>
     <span class="spacer"></span>
-    <button id="btn-sound" class="btn ghost" title="Toggle the ambience">sound on</button>
+    <button id="btn-sound" class="btn sound-btn" data-on="true"
+            title="Toggle the ambience (it tracks how close the aliens are)"
+            aria-pressed="true">
+      <span class="sound-icon" aria-hidden="true"></span><span id="btn-sound-label">sound on</span>
+    </button>
     <label class="field">
       <span>spawner</span>
       <select id="mode-select" title="Switch the spawner live. Same code path, four configurations.">
