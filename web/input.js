@@ -82,6 +82,15 @@ export class Input {
   /** Fire a named action from a control rather than a key. */
   action(name) { this._emit(name); }
 
+  /**
+   * Drop everything held or queued. A new district starts from standing still.
+   *
+   * Without this, a key still down when a district ends carries into the next one and
+   * starts it instantly — which skips the opening freeze and the beacon entirely, exactly
+   * when the player most needs a moment to find themselves on an unfamiliar map.
+   */
+  clear() { this.held = []; this.queued = null; }
+
   /** The direction for this tick. Clears the one-shot queue. */
   consume() {
     if (this.queued !== null) {

@@ -26,6 +26,7 @@ export class Hud {
       coinsRun: $('hud-coins-run'),
       difficulty: $('hud-difficulty'),
       settled: $('hud-settled'),
+      startHint: $('start-hint'),
       score: $('hud-score'),
       bits: $('hud-bits'),
       patrols: $('hud-patrols'),
@@ -91,6 +92,8 @@ export class Hud {
 
   /** Called every rendered frame; cheap string writes only. */
   tick(game) {
+    if (this.el.startHint) this.el.startHint.hidden = game.started;
+
     const left = game.caches.length - game.collected;
     this.el.keytabCount.textContent = `${game.collected} / ${game.caches.length}`;
     if (game.dropUnlocked) {

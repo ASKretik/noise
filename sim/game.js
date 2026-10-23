@@ -87,6 +87,29 @@ export class Game {
     this.pool = o.pool || new FieldPool(this.map.tiles.length);
 
     this.tick = 0;
+    /**
+     * Nothing happens until the player makes their first move.
+     *
+     * A district opens with a fresh map, a hidden portal and three to five keys scattered
+     * across it, and the player's own figure is twelve pixels wide somewhere in the
+     * middle of it. Asking them to find themselves while a clock runs and aliens close in
+     * is a test of eyesight rather than of play. So the whole simulation is frozen --
+     * tick, arrivals, division, alien movement, detection -- until a direction is pressed,
+     * and a beacon marks the player until then.
+     *
+     * Frozen rather than merely paused: the tick counter does not advance either, so
+     * thinking time costs nothing against par and nothing against the survival band.
+     *
+     * OPT-IN, and off by default, because it is a presentation affordance rather than a
+     * rule. A scripted policy has no eyes to orient, and subjecting one to the freeze is
+     * actively dangerous: a frozen world never changes, so a bot that answers STAY once
+     * answers STAY forever and the episode spins. That is not hypothetical -- cover-
+     * seeking policies legitimately return STAY when the nearest alien is far enough
+     * away, and it hung the benchmark harness the first time this shipped. The browser
+     * passes true; everything headless leaves it false and behaves exactly as before.
+     */
+    this.freezeUntilFirstMove = o.freezeUntilFirstMove ?? false;
+    this.started = !this.freezeUntilFirstMove;
     this.over = false;
     this.won = false;
     this.loseReason = null;
@@ -465,6 +488,7 @@ export class Game {
       get portal() { return game.portal; },
       get portalRevealed() { return game.portalRevealed; },
       get dropUnlocked() { return game.dropUnlocked; },
+      get started() { return game.started; },
       get bolts() { return game.bolts; },
       get coins() { return game.coins; },
       get boosted() { return game.boosted; },
@@ -516,6 +540,13 @@ export class Game {
    */
   step(inputDir = STAY, actions = null) {
     if (this.over) return false;
+
+    // The opening freeze. Any real direction begins the run; everything else leaves the
+    // world exactly as it is, including the clock.
+    if (!this.started) {
+      if (inputDir < 0 || inputDir > 3) return true;
+      this.started = true;
+    }
 
     // Actions resolve before movement and are part of the input sequence, so a replay of
     // (seed, inputs) still reproduces the run exactly -- which is what the determinism
@@ -1031,6 +1062,7 @@ export class Game {
       caches: this.caches.length,
       detections: this.detections,
       spawns: this.spawnCount,
+      started: this.started,
       splits: this.splits,
       boostsUsed: this.boostsUsed,
       peakAliens: this.peakAliens,
