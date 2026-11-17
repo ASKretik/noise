@@ -35,7 +35,7 @@ Three markers throughout:
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    8 passed · 5 not demonstrated · 0 failed   (3D build 2, phase 2)
+npm run test3d    8 passed · 5 not demonstrated · 0 failed   (3D build 3, phase 3)
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -1622,10 +1622,38 @@ phases 3–6 is specific to the leash beyond `Session3D`.
 The tuning sliders ship live so the constants can be settled by feel rather than by me:
 cell 1.5 m and 4 Hz stay the defaults until then.
 
+## R32 · 3D phase 3: the world
+
+**Built:** `web3d/world.js` rewritten -- per-belt materials, canvas-drawn textures
+(paving with a seam on every cell edge, weathered wall panels, a scrolling ripple normal
+map), seeded rubble heaps (5–8 tumbled blocks per building cell, 1.2–2.2 m), black boxes
+with scanlines and edges, a belt-coloured sky dome and fog. `web3d/quality.js` (High /
+Medium / Low, auto-selected, coarse pointers capped at Low). `3d/belts.html`, a dev page
+rendering one district per belt in a single canvas with an alien, a key, every coin value
+and a bolt in view. 3D build **3**.
+
+**Draw calls: 14–17 per district** across all ten belts, against a budget of 150.
+
+**What the belt check caught, in order:**
+
+1. *Pastel cities.* The palettes came out washed out. three.js's `getHSL`/`setHSL` work in
+   its **linear** working space by default, where these dark grounds have a lightness
+   near 0.04, so lifting to "0.24" landed around 0.5 in sRGB. The lift now runs in sRGB,
+   the space the palettes were picked in. Exactly the kind of bug that cannot be seen in
+   the values and is obvious in one screenshot.
+2. *A dead sky.* A `#include` inside a one-line shader string does not compile; the GLSL
+   preprocessor needs it on its own line.
+3. *Spawning into a rubble heap.* "Face the most open direction" checked for walls only.
+
+**Reviewed (3D-12, first pass):** in all ten belts the red alien and the gold key read
+clearly against ground, walls and sky. Coins are too small to judge at corridor distance;
+that is phase 4's job. **Rubble** reads as tumbled concrete blocks rather than a heap --
+acceptable, noted.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    8 passed · 5 not demonstrated · 0 failed   (3D build 2, phase 2)
+npm run test3d    8 passed · 5 not demonstrated · 0 failed   (3D build 3, phase 3)
 ```

@@ -8,6 +8,28 @@
 
 export const CHANGES = [
   {
+    build: 3,
+    date: '2026-11-17',
+    phase: 3,
+    changed: [
+      'Districts look like places: each of the ten belts has its own ground, walls, rubble, water, fog and sky, taken from the 2D palettes.',
+      'Procedural textures drawn at load (paving with cell seams, weathered walls, rippling water) -- still no image files.',
+      'Rubble is a seeded heap per cell; black boxes are translucent with scanlines, and stepping inside dims your view.',
+      'Quality tiers (High adds shadows) picked automatically per device.',
+      'You now start facing the most open corridor instead of a wall or a heap.',
+    ],
+    tryThis: [
+      'Visit a district in several belts: 1, 21, 41, 71, 91. Does each feel like a different part of the city?',
+      'Step into a black box (dark translucent block) and out again.',
+      'Dev page: /noise/3d/belts.html shows all ten belts side by side with an alien, a key, coins and a bolt in each.',
+    ],
+    unverified: [
+      'Aliens, keys and coins are still placeholder shapes; coins are hard to see. Phase 4.',
+      'Shadows (High tier) not yet checked on a real GPU at full frame rate.',
+      'Movement feel from phase 2 still open: say if it feels off.',
+    ],
+  },
+  {
     build: 2,
     date: '2026-11-17',
     phase: 2,

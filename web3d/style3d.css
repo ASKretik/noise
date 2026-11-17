@@ -178,3 +178,11 @@
 .l3-row select { font: 14px var(--sans); padding: 8px 10px; border-radius: var(--radius-sm); background: var(--bg-3); color: var(--fg); border: 1px solid var(--line); }
 .l3-keys { margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px 18px; font-size: 13px; color: var(--fg-dim); }
 .l3-keys kbd { font-family: var(--mono); background: var(--bg-3); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; color: var(--fg); }
+
+/* inside a black box: the view dims and cools */
+.g3-body::after {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 5;
+  background: radial-gradient(ellipse at center, rgba(4, 6, 12, 0.35), rgba(2, 3, 8, 0.85));
+  opacity: 0; transition: opacity 260ms ease;
+}
+.g3-body.g3-in-box::after { opacity: 1; }

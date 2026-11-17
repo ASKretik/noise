@@ -4,11 +4,13 @@
 // decides what happens lives in DistrictRunner (DOM-free) and below it in /sim3d and
 // /sim; nothing there knows this file exists.
 
-import { DIRS } from '../sim/grid.js';
+import { DIRS, isWalkable } from '../sim/grid.js';
 import { CELL_M, TICK_HZ_3D, EYE_M, realSeconds } from '../sim3d/units.js';
 import { RESPONSE } from '../sim3d/body.js';
 import { createScene } from './scene.js';
-import { buildWorld } from './world.js';
+import { buildWorld, lightScene } from './world.js';
+import { currentQuality } from './quality.js';
+import { TILE } from '../sim/grid.js';
 import { Entities } from './entities.js';
 import { Controls } from './controls.js';
 import { DistrictRunner } from './runner.js';
@@ -37,15 +39,13 @@ class Play3D {
     this.paused = true;
     this.t = 0;
 
-    this.view = createScene($('view'));
+    this.quality = currentQuality();
+    this.view = createScene($('view'), {
+      pixelRatio: Math.min(window.devicePixelRatio || 1, this.quality.pixelRatio),
+      antialias: this.quality.antialias,
+    });
+    this.view.renderer.shadowMap.enabled = this.quality.shadows;
     this.view.setHFov(this.tune.fov);
-    this.view.scene.background = new this.view.THREE.Color(0x2a2c35);
-    this.view.scene.fog = new this.view.THREE.Fog(0x2a2c35, 30, 95);
-    const { THREE } = this.view;
-    this.view.scene.add(new THREE.HemisphereLight(0xdfe6ff, 0x3a3226, 2.6));
-    const sun = new THREE.DirectionalLight(0xffffff, 2.4);
-    sun.position.set(-20, 40, 10);
-    this.view.scene.add(sun);
 
     this.controls = new Controls($('view'));
     this.controls.sensitivity = this.tune.sens;
@@ -94,7 +94,7 @@ class Play3D {
     let best = 0, bestRun = -1;
     for (let d = 0; d < 4; d++) {
       let k = 0;
-      while (k < 12 && this.runner.map.tiles[(g.player.y + DIRS[d].dy * (k + 1)) * this.runner.map.w + g.player.x + DIRS[d].dx * (k + 1)] !== 1) k++;
+      while (k < 12 && isWalkable(this.runner.map, g.player.x + DIRS[d].dx * (k + 1), g.player.y + DIRS[d].dy * (k + 1))) k++;
       if (k > bestRun) { bestRun = k; best = d; }
     }
     this.controls.yaw = [0, -Math.PI / 2, Math.PI, Math.PI / 2][best];
@@ -107,8 +107,11 @@ class Play3D {
 
   buildScene() {
     const cellM = this.tune.cellM;
-    this.world = buildWorld(this.runner.level, { cellM });
+    this.world = buildWorld(this.runner.level, { cellM, shadows: this.quality.shadows });
     this.view.scene.add(this.world.group);
+    lightScene(this.view.scene, this.world.palette, {
+      cellM, mapW: this.runner.map.w, mapH: this.runner.map.h, shadows: this.quality.shadows,
+    });
     this.entities = new Entities(this.view.scene, { cellM });
     this.entities.reset(this.runner.game);
   }
@@ -167,6 +170,10 @@ class Play3D {
     cam.position.set(b.x * cellM, EYE_M, b.y * cellM);
     cam.rotation.set(this.controls.pitch, this.controls.yaw, 0);
     this.entities.sync(g, r.session.alpha, this.t);
+    this.world.animate(this.t);
+    // Inside a black box the world goes dark and quiet: nothing can see in, and you know it.
+    const inBox = this.runner.map.tiles[Math.floor(b.y) * this.runner.map.w + Math.floor(b.x)] === TILE.SAFE;
+    document.body.classList.toggle('g3-in-box', inBox);
     this.hud();
     this.view.render();
     requestAnimationFrame(this.frame);
