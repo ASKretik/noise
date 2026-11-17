@@ -284,3 +284,45 @@
 .g3-settings input[type="range"] { width: 100%; accent-color: var(--accent); }
 .g3-settings select { margin-left: 8px; font: 13px var(--sans); background: var(--bg-3); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
 .g3-fine { font-size: 12px !important; color: var(--fg-faint) !important; margin: 6px 0 0 !important; }
+
+/* ============================== hub (phase 7) ============================== */
+
+.l3-hero { padding: 26px 0 8px; max-width: 46rem; }
+.l3-3d { background: var(--logo-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.l3-slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin: 16px 0; }
+.l3-slot h2 { letter-spacing: 0.1em; }
+.l3-tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 14px 0; }
+.l3-tier {
+  all: unset; box-sizing: border-box; cursor: pointer; display: grid; gap: 6px;
+  padding: 14px 16px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--bg-3);
+}
+.l3-tier:hover, .l3-tier:focus-visible { border-color: var(--accent); box-shadow: var(--shadow-glow); }
+.l3-tier b { letter-spacing: 0.12em; }
+.l3-tier span { font: 12px var(--mono); color: var(--fg-dim); }
+.l3-tier em { font-style: normal; font-size: 13px; color: var(--fg-dim); line-height: 1.45; }
+.l3-status { display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: center; margin: 16px 0; }
+.l3-status div { display: grid; gap: 2px; }
+.l3-k { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--fg-faint); }
+.l3-status b { font: 600 14px var(--mono); }
+.l3-status .btn { margin-left: auto; }
+.l3-cols { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
+@media (max-width: 860px) { .l3-cols { grid-template-columns: 1fr; } }
+.l3-grid { display: grid; gap: 6px; }
+.l3-belt { display: grid; grid-template-columns: 70px repeat(10, minmax(0, 1fr)); gap: 4px; align-items: center; }
+.l3-belt-name { font: 600 11px var(--mono); letter-spacing: 0.08em; color: var(--belt); }
+.l3-d {
+  display: grid; place-items: center; height: 30px; border-radius: 6px;
+  font: 12px var(--mono); text-decoration: none; color: var(--fg);
+  background: var(--bg-3); border: 1px solid var(--line);
+}
+a.l3-d:hover { border-color: var(--belt); box-shadow: 0 0 0 1px var(--belt) inset; }
+.l3-d.cleared { background: color-mix(in srgb, var(--belt) 22%, var(--bg-3)); }
+.l3-d.locked { color: var(--fg-faint); opacity: 0.45; }
+.l3-shop { display: grid; gap: 12px; }
+.l3-item { display: flex; gap: 14px; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line-soft); padding-bottom: 12px; }
+.l3-item p { margin: 4px 0 0; font-size: 13px; color: var(--fg-dim); line-height: 1.45; }
+.l3-item .btn { white-space: nowrap; }
+.l3-dev { margin-top: 18px; opacity: 0.8; }
+.l3-dev kbd { font-family: var(--mono); background: var(--bg-3); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; }
+/* a section's own display rule must never beat the hidden attribute */
+#hub3d [hidden] { display: none !important; }

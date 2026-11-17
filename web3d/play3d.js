@@ -18,6 +18,10 @@ import { StunGun } from './gun.js';
 import { DistrictRunner } from './runner.js';
 import { mountBanner } from './banner.js';
 import { loadSettings, saveSettings } from './settings3d.js';
+import { createProfileStore3d, ensureGuestSession3d } from './persist3d.js';
+import { Career3D } from './career3d.js';
+import { scoreBreakdown } from '../sim/score.js';
+import { CURVE_CAP } from '../sim/difficulty.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -37,7 +41,10 @@ export class Play3D {
     const q = new URLSearchParams(location.search);
     this.district = Math.max(1, Math.min(100, Number(q.get('d')) || 1));
     this.tier = ['easy', 'medium', 'hard', 'ultra'].includes(q.get('t')) ? q.get('t') : 'medium';
-    this.profileId = q.get('p') || 'graybox';
+    this.profileId = q.get('p') || 'sandbox';
+    /** A real save file, or an unsaved sandbox (?kit=1 and a tier in the URL). */
+    this.careerMode = this.profileId === 'main' || this.profileId === 'guest';
+    this.career = null;
     this.tune = loadTune();
     this.settings = loadSettings();
     this.attempt = 0;
@@ -65,8 +72,19 @@ export class Play3D {
     this.frame = this.frame.bind(this);
   }
 
-  boot() {
+  async boot() {
     mountBanner(document.body, { compact: true }).classList.add('b3-floating');
+    if (this.careerMode) {
+      const { store } = await createProfileStore3d();
+      await ensureGuestSession3d(store);
+      const rec = await store.load(this.profileId);
+      if (!rec.difficulty) { location.replace(`./?p=${this.profileId}`); return; }
+      this.career = new Career3D(store);
+      this.tier = rec.difficulty;
+      this.district = Math.max(1, Math.min(this.district, rec.level));
+      this.dossier = this.career.dossier;
+      document.querySelector('#overlay a.btn.ghost').href = `./?p=${this.profileId}`;
+    }
     this.controls.attach();
     this.controls.on('lock', (locked) => this.onLock(locked));
     this.controls.on('lockerror', () => { $('ov-note').textContent = 'The browser refused to capture the mouse. Click again.'; });
@@ -97,13 +115,15 @@ export class Play3D {
     this.attempt++;
     if (this.world) { this.view.scene.remove(this.world.group); this.world.dispose(); }
     if (this.entities) this.view.scene.remove(this.entities.group);
-    this.runner = new DistrictRunner({
-      profileId: this.profileId, district: n, tier: this.tier,
-      dossier: this.dossier, chain: this.chains.get(n),
-      seedKey: `${this.profileId}#${n}#${this.attempt}`,
-      tickHz: this.tune.tickHz,
-      loadout: this.loadout(),
-    });
+    this.runner = this.career
+      ? this.career.startRun(n, { tickHz: this.tune.tickHz })
+      : new DistrictRunner({
+        profileId: this.profileId, district: n, tier: this.tier,
+        dossier: this.dossier, chain: this.chains.get(n),
+        seedKey: `${this.profileId}#${n}#${this.attempt}`,
+        tickHz: this.tune.tickHz,
+        loadout: this.loadout(),
+      });
     this.runner.session.response = this.tune.response;
     this.dossier = this.runner.dossier;
     this.chains.set(n, this.runner.chain);
@@ -187,14 +207,14 @@ export class Play3D {
     });
   }
 
-  /** Phase 7 replaces this with the real profile. */
-  profileName() { return { displayName: 'GRAYBOX' }; }
+  profileName() { return this.career ? this.career.profile : { displayName: 'SANDBOX' }; }
 
   primary() {
     this.audio.start();
     if (this.ended) {
       const won = this.runner.game.won;
-      this.start(won ? Math.min(100, this.district + 1) : this.district);
+      const cap = this.career ? this.career.profile.level : 100;
+      this.start(won ? Math.min(100, cap, this.district + 1) : this.district);
     }
     this.controls.lock();
   }
@@ -238,29 +258,43 @@ export class Play3D {
     }
     this.narrate();
     clearTimeout(this.overlayTimer);
-    this.overlayTimer = setTimeout(() => this.showEnd(summary), summary.won ? 650 : 900);
+    const saved = this.career ? this.career.finishRun(this.runner) : Promise.resolve(null);
+    if (!this.career) this.dossier.update(this.runner.system.traits || this.runner.system.liveTraits(), { levelCompleted: summary.won });
+    const minWait = new Promise((res) => { this.overlayTimer = setTimeout(res, summary.won ? 650 : 900); });
+    const runner = this.runner;
+    Promise.all([saved, minWait]).then(([result]) => { if (this.runner === runner) this.showEnd(summary, result); });
   }
 
-  endStats(summary) {
+  endStats(summary, result) {
     const hz = this.runner.session.tickHz;
     const secs = realSeconds(summary.ticks, hz).toFixed(1);
-    return [
+    const rows = [];
+    if (result) {
+      const { rows: parts } = scoreBreakdown(result.scored);
+      rows.push(['SCORE', result.scored.score.toLocaleString()]);
+      for (const [label, value] of parts) if (value) rows.push([`· ${label}`, value]);
+      rows.push(['COINS EARNED', `+${result.earned}`]);
+      rows.push(['wallet', this.career.profile.wallet.coins]);
+    }
+    return rows.concat([
       ['keys', `${summary.collected}/${summary.caches}`],
       ['time', `${secs}s (par ${realSeconds(summary.par, hz).toFixed(0)}s)`],
       ['aliens at peak', summary.peakAliens],
       ['coins picked up', summary.coinValue],
       ['aliens stunned', summary.stuns ?? 0],
       ['file depth', `${this.dossier.levelsSeen} districts`],
-    ];
+    ]);
   }
 
-  showEnd(summary) {
+  showEnd(summary, result = null) {
     const secs = realSeconds(summary.ticks, this.runner.session.tickHz).toFixed(1);
     $('ov-title').textContent = summary.won ? 'THROUGH THE PORTAL' : summary.loseReason === 'timeout' ? 'TIMED OUT' : 'CAUGHT';
     $('ov-body').textContent = summary.won
-      ? `District ${this.district} cleared in ${secs}s. The file on you follows you to district ${this.district + 1}.`
+      ? (this.district >= CURVE_CAP
+        ? `District ${this.district} cleared in ${secs}s. The curve caps at ${CURVE_CAP}; from here the districts keep coming and the file keeps thickening.`
+        : `District ${this.district} cleared in ${secs}s. The file on you follows you to district ${this.district + 1}.`)
       : `They reached you after ${secs}s, with ${summary.collected} of ${summary.caches} keys. The run still went into your file.`;
-    $('ov-stats').innerHTML = this.endStats(summary).map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
+    $('ov-stats').innerHTML = this.endStats(summary, result).map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
     $('ov-primary').textContent = summary.won ? `enter district ${this.district + 1}` : 'run it again';
     $('ov-secondary').hidden = !summary.won;
     $('ov-secondary').textContent = 'replay this district';
@@ -438,4 +472,4 @@ export class Play3D {
 
 // Exposed for inspection from the console and the browser checks; read-only by convention.
 window.__noise3d = new Play3D();
-window.__noise3d.boot();
+window.__noise3d.ready = window.__noise3d.boot();

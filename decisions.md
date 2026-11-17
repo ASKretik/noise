@@ -35,7 +35,7 @@ Three markers throughout:
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    9 passed · 4 not demonstrated · 0 failed   (3D build 6, phase 6)
+npm run test3d    12 passed · 1 not demonstrated · 0 failed  (3D build 7, phase 7)
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -1723,10 +1723,40 @@ instantly, because a trigger pull is an input and inputs enter the sim on ticks 
 is what keeps a run replayable from its record. The beam and the zap are immediate, so
 the feedback is not delayed, only the effect.
 
+## R36 · 3D phase 7: a whole game -- saves, tiers, hub, shop
+
+**Built:** `web3d/persist3d.js` (a deliberate duplicate of `web/persist.js` with the
+database, sweep pattern and guest marker renamed), `web3d/career3d.js` (DOM-free:
+difficulty settled once per district, attempts counted at run start, tier 1 carried
+across retries, tier 2 folded per run, `scoreRun`, payout, unlock -- all imported from
+`/sim`), `web3d/hub3d.js` and a new `3d/index.html` (profile slots, the permanent tier
+chooser, a district grid by belt, the shop). `3d/play.html?p=main&d=N` plays a real save;
+links without a profile stay an unsaved sandbox. 3D build **7**.
+
+**Criteria 3D-8, 3D-9, 3D-10 live and passing.** 3D-9 plays district 1 through the real
+body, leash and sim with a bot steering the body, wins, is paid, buys lightning, and
+carries it into district 2.
+
+**What the isolation test caught -- in the test, not the game.** The 2D DOM shim's fake
+IndexedDB keeps a single version counter for all databases, so the second database
+opened in a run never gets `onupgradeneeded`, has no object store, and its writes vanish
+silently. It never mattered for the 2D game, which opens one database. The 3D test opens
+two side by side, so it brings its own small fake (`bench3d/fakeidb.js`) with per-database
+versions plus `databases()` and `deleteDatabase()` -- which also let the test run **both
+games' real sweeps** against one database list: each removed only its own stale builds.
+`bench/domshim.js` is not edited.
+
+**[ASSUMED]** MAIN's 3D districts are the same maps as 2D MAIN (the generator is seeded by
+profile id and district), and the save files are separate. Whether one dossier should
+describe both games is open question 4 in the spec, for integration.
+
+**[ASSUMED]** The shop sells lightning in blocks of ten bought seconds and labels the 3D
+duration in real seconds (×2 at 4 Hz). The price per sim second is the 2D game's.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    9 passed · 4 not demonstrated · 0 failed   (3D build 6, phase 6)
+npm run test3d    12 passed · 1 not demonstrated · 0 failed  (3D build 7, phase 7)
 ```

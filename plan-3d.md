@@ -21,7 +21,7 @@ from the last row marked done. Everything marked done is on `origin/main` and li
 | 4 · Entities and feedback | **done** | 4 | instanced aliens, rings, pickups, capture/win sequences, positional audio; 3D-12 recorded |
 | 5 · The HUD | **done** | 5 | minimap + tactical map via the 2D Renderer, compass, waypoints, threat arcs, noise meter, dispatch subtitles, settings |
 | 6 · The stun gun | **done** | 6 | viewmodel, sim-validated lock-on, beam, recoil, zap/dry-click; ?kit=1 for testing |
-| 7 · The meta loop | not started | | |
+| 7 · The meta loop | **done** | 7 | 3D saves (noise3d-*), hub + tiers + shop, Career3D scoring/payout/unlock; 3D-8/9/10 pass |
 | 8 · Phones and performance | not started | | |
 | 9 · Playtest and polish | not started | | |
 

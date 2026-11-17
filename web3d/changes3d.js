@@ -8,6 +8,27 @@
 
 export const CHANGES = [
   {
+    build: 7,
+    date: '2026-11-17',
+    phase: 7,
+    changed: [
+      'The 3D game is a whole game now: MAIN and GUEST save files, a permanent tier chosen once, a district grid by belt, and the shop.',
+      'Scores, coin payouts, replay decay, best scores and unlocking the next district all work exactly as in 2D.',
+      'The file on you builds across districts: the aliens\' model of how you move follows you, just as in 2D.',
+      'The 3D saves are separate from your 2D saves and cannot touch them. MAIN districts are the same maps as 2D MAIN.',
+      'Lightning bought here is labelled in real seconds: one bought second lasts two in the 3D city.',
+    ],
+    tryThis: [
+      'Open /noise/3d/, make a MAIN file, pick a tier, clear district 1, then come back and buy something.',
+      'Hand it to someone as GUEST: their run must not change your MAIN file.',
+      'Your 2D save on the main page should be exactly where you left it.',
+    ],
+    unverified: [
+      'This build starts every 3D save fresh (new build number), as every update does.',
+      'The shop sells lightning in blocks of ten; say if single seconds would be better.',
+    ],
+  },
+  {
     build: 6,
     date: '2026-11-17',
     phase: 6,

@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../web/style.css?v=6">
-<link rel="stylesheet" href="../web3d/style3d.css?v=6">
+<link rel="stylesheet" href="../web/style.css?v=7">
+<link rel="stylesheet" href="../web3d/style3d.css?v=7">
 <script type="importmap">
 { "imports": { "three": "../vendor/three/0.185.1/three.module.min.js" } }
 </script>
@@ -29,39 +29,55 @@
   </nav>
 </header>
 
-<main class="l3-card">
-  <section class="l3-panel">
-    <h2>Graybox &middot; phase 2</h2>
-    <p>The real game in first person, on the unmodified sim, with placeholder shapes: grey
-      walls, brown rubble, red aliens, gold keys. This is the check on whether the movement
-      feels right. Press <kbd>`</kbd> in a district to tune it live and say which values
-      felt right.</p>
-    <div class="l3-row">
-      <label>District <select id="l3-district"></select></label>
-      <label>Tier <select id="l3-tier">
-        <option value="easy">Easy</option>
-        <option value="medium" selected>Medium</option>
-        <option value="hard">Hard</option>
-        <option value="ultra">Ultra</option>
-      </select></label>
-      <a class="btn primary" id="l3-go" href="play.html?d=1&amp;t=medium">enter district</a>
+<main class="l3-card" id="hub3d">
+  <section class="l3-hero">
+    <p class="eyebrow">First person &middot; same city, same aliens, same file on you</p>
+    <h1 class="logo">NOISE <span class="l3-3d">3D</span></h1>
+    <p class="tagline">The districts you know from above, at street level. The aliens hear you
+      through walls, they learn how you move, and they are waiting where you are going.</p>
+  </section>
+
+  <section id="v-slots" class="l3-slots" hidden></section>
+
+  <section id="v-tier" class="l3-panel" hidden>
+    <h2>Choose a tier for <span id="tier-slot"></span></h2>
+    <p>Permanent for this save file: every score and everything the file learns is measured
+      under it. These are the 3D game's own save files; your 2D saves are untouched.</p>
+    <div id="tier-list" class="l3-tiers"></div>
+    <button class="btn ghost" id="tier-back" type="button">back</button>
+  </section>
+
+  <section id="v-hub" hidden>
+    <div class="l3-panel l3-status">
+      <div><span class="l3-k">profile</span><b id="h-profile"></b></div>
+      <div><span class="l3-k">tier</span><b id="h-tier"></b></div>
+      <div><span class="l3-k">wallet</span><b id="h-wallet"></b></div>
+      <div><span class="l3-k">file on you</span><b id="h-file"></b></div>
+      <div><span class="l3-k">kit</span><b id="h-kit"></b></div>
+      <a class="btn ghost" href="./" id="h-switch">switch profile</a>
     </div>
-    <div class="l3-keys">
-      <div><kbd>W A S D</kbd> move</div>
-      <div><kbd>mouse</kbd> look</div>
-      <div><kbd>Shift</kbd> sprint (with charge)</div>
-      <div><kbd>Esc</kbd> pause</div>
-      <div><kbd>R</kbd> restart district</div>
-      <div><kbd>`</kbd> tuning panel</div>
+    <div class="l3-cols">
+      <div class="l3-panel">
+        <h2>Districts</h2>
+        <p>Ten belts of ten. Clear one to open the next. Hold Tab in a district for the map.</p>
+        <div id="h-grid" class="l3-grid"></div>
+      </div>
+      <div class="l3-panel">
+        <h2>Shop</h2>
+        <p id="h-shop-note"></p>
+        <div id="h-shop" class="l3-shop"></div>
+      </div>
     </div>
   </section>
-  <section class="p3-stage" style="padding:0;margin-top:20px">
-    <canvas id="stage" aria-label="Renderer check: a spinning cube cycling through the ten belt colours"></canvas>
-    <p class="p3-caption" id="caption">Starting the renderer…</p>
+
+  <section class="l3-panel l3-dev">
+    <h2>Dev pages</h2>
+    <p><a href="belts.html">Belt check</a> &middot; all ten palettes side by side.
+      <a href="play.html?d=1&amp;t=medium&amp;kit=1">Sandbox</a> &middot; an unsaved district with a full kit.
+      Press <kbd>`</kbd> in a district for the movement tuning panel.</p>
   </section>
 </main>
 
-<script type="module" src="../web3d/placeholder.js"></script>
-<script type="module" src="../web3d/launch3d.js"></script>
+<script type="module" src="../web3d/hub3d.js"></script>
 </body>
 </html>
