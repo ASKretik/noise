@@ -1855,6 +1855,31 @@ ever drops under half the speed its heading should have. It caught a remaining g
 judged diagonals against straight-line speed). 3D-5's bounds follow the new slack;
 3D-3 parity still holds bit for bit.
 
+## R40 · A spec for the next round
+
+**Asked:** ideas to make the 3D game better -- livelier art per belt and district, a scarier
+capture, a portal ascension, comic-accurate aliens, maps that grow and become multi-floor
+buildings, fewer bolts deeper into each belt, more shop items, an escape by combat, a
+story -- then the same ideas costed with phones allowed to break, then a spec for all of
+them **except the combat escape**, to implement later.
+
+**Written:** [spec-3d-next.md](spec-3d-next.md): ten phases, N0 (the audio still playing
+while paused, found this round) to N9 (multi-floor buildings), each with its numbers,
+files, criteria (3D-14 to 3D-25), estimate and difficulty, and a progress table to resume
+from. About 11–15 weeks of focused work for one developer, desktop first.
+
+**[ASSUMED]** Five decisions are recorded with recommendations rather than taken: the
+rules split from N6 on (a `classic` ruleset keeps 2D parity, `next` carries the changes),
+procedural textures over CC0 images, an optional size argument in `sim/gen.js` guarded by
+a byte-identical test (the one 2D edit this round would make), keeping the 2D predictor
+constants until a criterion says otherwise, and allowing the language model on capable
+desktops.
+
+**Dropped:** the "Struggle" combat escape, at the user's request. One touch from an
+active alien still ends the run.
+
+Nothing built, nothing deployed, no build stamp changed.
+
 ## Current state
 
 ```

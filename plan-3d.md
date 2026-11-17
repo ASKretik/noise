@@ -25,6 +25,7 @@ from the last row marked done. Everything marked done is on `origin/main` and li
 | 8 · Phones and performance | **done** | 8 | analog touch stick, look pad, RUN/STUN/MAP, aim assist, coins instanced; 3D-11 recorded (M3, 1080p Medium) |
 | 9 · Playtest and polish | **done — human playtest still open** | 9 | killcam; spec rewritten as built; open questions need a person |
 | 9 · first feedback: movement stutter | **fixed** | 10 | grid-metric speed cap + leash slack; new criterion 3D-13 (decisions R39) |
+| Next round | **specified, not started** | — | [spec-3d-next.md](spec-3d-next.md): phases N0–N9 with their own progress table |
 
 ## Ground rules for every phase
 
