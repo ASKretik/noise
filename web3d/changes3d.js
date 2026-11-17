@@ -8,6 +8,25 @@
 
 export const CHANGES = [
   {
+    build: 9,
+    date: '2026-11-17',
+    phase: 9,
+    changed: [
+      'Killcam: when you are caught, "killcam" on the end card replays the last three seconds from above and behind, with you, the alien and its ring.',
+      'spec-3d.md now describes the 3D game as built, including what nobody has checked yet.',
+      'All 13 of the 3D acceptance criteria pass; the 2D game\'s own suites are unchanged.',
+    ],
+    tryThis: [
+      'Get caught, then watch the killcam: does it make clear how they got you?',
+      'Then the open questions in spec-3d.md: does the movement feel right, is 4 ticks a second the right speed, should the minimap show every alien?',
+      'Send back anything that feels off -- every suggestion is either done in the next update or written down with the reason it was not.',
+    ],
+    unverified: [
+      'Nobody has played it with a real mouse, listened to the sound, or run it on a real phone.',
+      'The foresight overlay (each alien\'s predicted path on the floor) was not built.',
+    ],
+  },
+  {
     build: 8,
     date: '2026-11-17',
     phase: 8,

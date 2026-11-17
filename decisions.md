@@ -35,7 +35,7 @@ Three markers throughout:
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    13 passed · 0 not demonstrated · 0 failed  (3D build 8, phase 8)
+npm run test3d    13 passed · 0 not demonstrated · 0 failed  (3D build 9, phase 9)
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -1786,10 +1786,31 @@ spare; **the p95 sits right at the 16.7 ms line**, and that is said rather than 
 viewport, with the stick driven by script. The phone frame-rate target (30 fps at Low on a
 mid-range phone) has no measurement and is not claimed.
 
+## R38 · 3D phase 9: the killcam, and the spec made true
+
+**Built:** a killcam -- after a capture, the end card offers a third-person replay of the
+last three seconds from above and behind: your figure in its teal ring, the alien, its
+detection ring, the sim's own positions from each of the last thirteen ticks. It is a
+picture of what happened, not a re-run, so it costs nothing to the determinism story.
+3D build **9**.
+
+**`spec-3d.md` rewritten to describe the system as built**, the way `spec.md` was after
+the first build, with a departures table and the open questions stated as open.
+
+**What phase 9 could not do, said plainly.** The plan's phase 9 is a playtest: win rates
+by tier from people, the 4 Hz question, full radar against hear-only, the same person's
+dossier in 2D and 3D. None of that can be produced by a script, and none of it has been.
+The bot numbers in `spec.md` apply to the 3D game unchanged in tick terms -- criterion
+3D-3 is the proof -- and that is exactly why they say nothing about how first person
+feels. **The phase is marked done for what was buildable, and the playtest is open.**
+
+**Not built:** the foresight overlay. The minimap's I layer already shows where each alien
+is heading, which covers the information if not the spectacle.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    13 passed · 0 not demonstrated · 0 failed  (3D build 8, phase 8)
+npm run test3d    13 passed · 0 not demonstrated · 0 failed  (3D build 9, phase 9)
 ```

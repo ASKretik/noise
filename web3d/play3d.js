@@ -99,6 +99,7 @@ export class Play3D {
     this.controls.on('fire', () => this.fire());
     $('ov-primary').addEventListener('click', () => this.primary());
     $('ov-secondary').addEventListener('click', () => { this.start(this.district); this.controls.lock(); });
+    $('ov-killcam').addEventListener('click', () => this.playKillcam());
     window.addEventListener('resize', () => this.view.resize());
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.controls.unlock(); });
     this.wireTune();
@@ -146,6 +147,11 @@ export class Play3D {
     this.lastCell = { x: this.runner.game.player.x, y: this.runner.game.player.y };
     this.wasAlert = false;
     this.endAnim = null;
+    this.killcam = null;
+    this.history = [];
+    this.remember();
+    $('ov-killcam').hidden = true;
+    $('killcam').hidden = true;
     document.body.classList.remove('g3-caught', 'g3-won');
     this.buildScene();
     this.hud.setDistrict(this.runner.level, this.tier);
@@ -200,7 +206,62 @@ export class Play3D {
     this.entities.reset(this.runner.game);
   }
 
+  /**
+   * What the killcam replays: the sim's own state after every tick, the last few seconds
+   * of it. Positions only -- the replay is a picture of what happened, not a re-run.
+   */
+  remember() {
+    const g = this.runner.game;
+    this.history.push({
+      tick: g.tick, x: g.player.x, y: g.player.y, yaw: this.controls.yaw,
+      patrols: g.patrols.map((p) => ({ id: p.id, x: p.x, y: p.y, mode: p.mode, stunnedUntil: p.stunnedUntil || 0 })),
+    });
+    if (this.history.length > 16) this.history.shift();
+  }
+
+  playKillcam() {
+    const frames = this.history.slice(-13);
+    if (frames.length < 2) return;
+    $('overlay').hidden = true;
+    $('hud').hidden = true;
+    $('killcam').hidden = false;
+    document.body.classList.remove('g3-caught');
+    this.entities.vis.clear();
+    this.killcam = { t0: this.t, frames };
+  }
+
+  /** Drive the scene from a remembered frame instead of the live game. */
+  killcamFrame(dt) {
+    const k = this.killcam, g = this.runner.game, hz = this.runner.session.tickHz;
+    const pos = (this.t - k.t0) * hz;
+    const i = Math.min(k.frames.length - 1, Math.floor(pos));
+    const f = k.frames[i], next = k.frames[Math.min(k.frames.length - 1, i + 1)];
+    const a = Math.min(1, pos - i);
+    const px = f.x + (next.x - f.x) * a, py = f.y + (next.y - f.y) * a;
+    const view = Object.create(g);
+    Object.defineProperties(view, {
+      tick: { value: f.tick }, patrols: { value: f.patrols },
+      player: { value: { x: Math.round(px), y: Math.round(py) } },
+    });
+    this.entities.sync(view, 1, this.t, { dt, tickHz: hz, camera: this.view.camera });
+    this.entities.showHuman(true, px, py, f.yaw);
+    // Above and behind you, looking down at where it happened.
+    const cellM = this.tune.cellM, cam = this.view.camera;
+    const yaw = f.yaw, cx = (px + 0.5) * cellM, cz = (py + 0.5) * cellM;
+    cam.position.set(cx + Math.sin(yaw) * 4.5, 6.5, cz + Math.cos(yaw) * 4.5);
+    cam.lookAt(cx, 0.6, cz);
+    if (pos > k.frames.length + 2) {
+      this.killcam = null;
+      this.entities.showHuman(false);
+      $('killcam').hidden = true;
+      $('hud').hidden = false;
+      $('overlay').hidden = false;
+      document.body.classList.add('g3-caught');
+    }
+  }
+
   afterTick() {
+    this.remember();
     const g = this.runner.game;
     if (g.player.x !== this.lastCell.x || g.player.y !== this.lastCell.y) {
       const tile = this.runner.map.tiles[g.player.y * this.runner.map.w + g.player.x];
@@ -320,6 +381,7 @@ export class Play3D {
     $('ov-primary').textContent = summary.won ? `enter district ${this.district + 1}` : 'run it again';
     $('ov-secondary').hidden = !summary.won;
     $('ov-secondary').textContent = 'replay this district';
+    $('ov-killcam').hidden = summary.won || this.history.length < 2;
     $('overlay').hidden = false;
   }
 
@@ -334,6 +396,14 @@ export class Play3D {
     const intent = this.touch ? this.touch.intent(this.controls.yaw) : this.controls.intent();
     this.fps += ((dt > 0 ? 1 / dt : 60) - this.fps) * 0.05;
     if (!this.paused && !g.over) r.update(dt, intent);
+
+    if (this.killcam) {
+      this.killcamFrame(dt);
+      this.world.animate(this.t);
+      this.view.render();
+      if (!once) requestAnimationFrame(this.frame);
+      return;
+    }
 
     const cellM = this.tune.cellM;
     const cam = this.view.camera;

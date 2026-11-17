@@ -383,3 +383,13 @@ a.l3-d:hover { border-color: var(--belt); box-shadow: 0 0 0 1px var(--belt) inse
   .t3-touch .h3-tr { top: 34px; }
   .t3-touch .h3-objective { margin-top: 6px; font-size: 12px; }
 }
+
+/* killcam */
+.g3-killcam {
+  position: fixed; left: 50%; top: 52px; transform: translateX(-50%); z-index: 15;
+  display: grid; justify-items: center; gap: 2px; pointer-events: none;
+  text-shadow: 0 1px 4px #000;
+}
+.g3-killcam b { font-weight: 800; letter-spacing: 0.4em; color: #ff4d5e; font-size: 16px; }
+.g3-killcam span { font-size: 12px; color: var(--fg-dim); }
+.g3-killcam[hidden] { display: none; }

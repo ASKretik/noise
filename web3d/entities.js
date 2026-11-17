@@ -72,6 +72,19 @@ export class Entities {
     this.discs = mk(new THREE.CircleGeometry(1, 64).rotateX(-Math.PI / 2), ringMat.clone());
     this.rings.renderOrder = this.discs.renderOrder = 4;
 
+    // You, seen from outside -- only ever visible in the killcam.
+    this.human = new THREE.Group();
+    const coat = new THREE.MeshStandardMaterial({ color: COLORS.humanJacket, roughness: 0.7 });
+    const skinH = new THREE.MeshStandardMaterial({ color: COLORS.human, roughness: 0.6 });
+    const hb = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.7, 4, 10), coat); hb.position.y = 0.95;
+    const hh = new THREE.Mesh(new THREE.SphereGeometry(0.17, 14, 10), skinH); hh.position.y = 1.6;
+    const beacon = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.5, 40).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: COLORS.beacon, transparent: true, opacity: 0.9, depthWrite: false }));
+    beacon.position.y = 0.04;
+    this.human.add(hb, hh, beacon);
+    this.human.visible = false;
+    this.group.add(this.human);
+
     this.vis = new Map();         // alien id -> { x, y, heading, gait, stun }
     this.slotIds = [];            // instance slot -> alien id (torso/head meshes)
     this.pickups = [];
@@ -326,6 +339,14 @@ export class Entities {
       this.portal.children[0].material.opacity = 0.22 + Math.sin(t * 3) * 0.06;
       this.portal.children[1].rotation.y = t * 0.8;
     }
+  }
+
+  /** Show or hide your own figure (killcam only). x, y in cells. */
+  showHuman(on, x = 0, y = 0, heading = 0) {
+    this.human.visible = on;
+    if (!on) return;
+    this.human.position.set((x + 0.5) * this.cellM, 0, (y + 0.5) * this.cellM);
+    this.human.rotation.y = heading;
   }
 
   /** Visual position of an alien in metres, or null. */

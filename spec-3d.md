@@ -1,494 +1,291 @@
 # NOISE 3D — build spec
 
-Written Nov 17, 2026 · **status: proposed, nothing built yet**
+Written Nov 17, 2026 as a plan · **rewritten the same day to describe the system as built**
+(3D build 9, plan phases 0–9)
 
-> This is a plan-stage spec, the way `spec.md` started. When the 3D build lands, this
-> document gets rewritten to describe the system *as built*, and every departure from it
-> goes into `decisions.md` with the measurement that forced it. The phased build order is
-> in [plan-3d.md](plan-3d.md).
+> This is the description, not the plan. The plan-stage version is in git history
+> (`git log --follow spec-3d.md`); the phased build order and its progress table are in
+> [plan-3d.md](plan-3d.md); the reasoning for every departure is in
+> [decisions.md](decisions.md), rounds R29–R38. Where this document and those disagree
+> about *why*, those are the record.
 
 NOISE 3D is the same game as NOISE — same districts, same aliens, same predictor, same
-rules — played in **first person**, with the camera, controls and HUD conventions of a
-modern shooter (mouse look, WASD, a minimap, a crosshair, objective markers, a weapon
-viewmodel). It is built as a **separate page** of the same site, at `/noise/3d/`, reached
-from day one by a **"3D · in development"** link in the main page's header. It is
-reviewed live after every update while it is built (see "Development preview"). A
-deliberate integration step at the end replaces that link with a proper 2D / 3D switch.
+rules — played in **first person**, with a shooter's camera, controls and HUD: mouse look,
+WASD, a minimap, a compass, objective waypoints, a crosshair, a weapon in hand, a killcam.
+It lives at `/noise/3d/`, reached from the main page's **3D · in development** link.
 
-## The one constraint above all others
-
-**The 2D game stays exactly as it is.** Concretely, until the integration phase:
+## The constraint that shaped everything: the 2D game stays exactly as it is
 
 - No file under `sim/`, `web/`, `bots/` or `bench/`, and none of `play.html`,
-  `districts.html`, `tools/stamp-build.mjs` or `web/build.js`, is modified. `index.html`
-  gets exactly one change: the header link to the 3D page (below).
+  `districts.html`, `tools/stamp-build.mjs` or `web/build.js`, was modified. `index.html`
+  has exactly one change: the header link.
 - `npm test` stays **12 passed / 1 not demonstrated / 0 failed** and `npm run webcheck`
-  stays green, on every commit.
-- **3D work never bumps the 2D build stamp.** The stamp namespaces the 2D save database,
-  so bumping it for a 3D-only commit would wipe every 2D player's save for a change they
-  cannot see. The 3D build has its own stamp (see "Persistence").
-- Nothing in `sim/` or `web/` imports anything 3D. The arrows run one way: 3D code imports
-  the 2D core; the 2D core never knows 3D exists. This is checked by a test.
+  **39/39**, checked by criterion 3D-1.
+- **3D work never bumps the 2D build stamp**, so no 3D update resets a 2D save. The 3D game
+  has its own stamp and its own databases.
+- Nothing in `sim/` or `web/` imports anything 3D (criterion 3D-2). 3D code imports the 2D
+  core and leaves it as it is.
 
-The only existing files the 3D work may touch before integration are **additive** edits to
-`index.html` (one header link), `package.json` (new scripts), the two workflow files (new
-steps), `CLAUDE.md` (the 3D working loop) and `decisions.md` (the change log). Each is
-listed in the plan.
-
-## Development preview
-
-The 3D game is public while it is built, labelled as unfinished, so it can be played and
-corrected after every update rather than judged once at the end.
-
-**The link.** One `<a>` in `index.html`'s `.site-nav`, before Benchmarks, reading
-**3D · in development** and pointing at `3d/`. It uses the existing `.site-nav a` style
-unchanged. That restraint is what keeps it cheap: a new style would mean editing
-`web/style.css`, which means `npm run stamp`, which wipes every 2D save. An HTML-only edit
-needs no stamp, and the stylesheet's `?v=` stays exactly where it was. It is the only
-place the 2D site mentions 3D before integration; `districts.html` and `play.html` do not
-change.
-
-**The build banner.** Every 3D page carries a thin strip, dismissible per session:
-
-> 3D · in development · build 7 · *what changed* ▾
-
-Expanded, it lists the latest entries from `web3d/changes3d.js` — a plain data module, one
-entry per build: `{ build, date, changed, tryThis, unverified }`. Two jobs:
-
-1. **Proving you are on the newest build.** GitHub Pages caches pages and modules for
-   about ten minutes, so "I don't see the change" is usually a stale cache. If the number
-   in the banner is not the number in the update note, that is the answer; a hard reload
-   fixes it.
-2. **Telling you what to look at.** `tryThis` names the district, the tier and the thing
-   to try, so a review takes two minutes instead of a hunt. `unverified` says what has not
-   been checked — the same honesty `spec.md` keeps about the 2D game.
-
-`npm run stamp3d` refuses to bump the build without a `changes3d.js` entry for the new
-number, so the banner can never be blank or behind.
-
-**The review loop.** Every update ends with: the live link, the build number, what
-changed, what to try, and what is unverified. Suggestions come back in conversation; each
-one is either done in the next update or written down in `decisions.md` with the reason it
-was not. A phase that changes what the game looks or feels like is not closed until it
-has been played on the live site — the plan marks each such checkpoint.
+Outside the new directories, the 3D build touched only: `index.html` (one link),
+`package.json` (`test3d`, `stamp3d`), both workflows (a `test3d` step), `CLAUDE.md` (the 3D
+working loop) and `decisions.md`.
 
 ## Scope and non-goals
 
-Ships: a first-person, mouse-and-keyboard (and later touch) version of NOISE in WebGL,
-running on the **unmodified** sim core, with its own launch page, hub, shop and save files.
+"Like COD" means the camera, controls, HUD language and feel. It does not mean combat.
 
-"Like COD" means the **camera, controls, HUD language and feel**. It does not mean combat.
-Each line below is a decision, not an oversight:
-
-- **No lethal weapons, no health bar.** One touch from an active alien still ends the run.
-  The stun gun is still the only weapon and it still only disables. A shooter's HUD and
-  controls are borrowed; a shooter's damage model is not, because it would be a different
-  game with a different balance that none of the existing measurements describe.
-- **No jumping, crouching, prone or vertical levels.** The sim is a 2D grid. A jump that
-  the sim cannot express is either fake (does nothing) or a new rule (and then every
-  balance number and both generated predictor tables are stale). Neither ships in v1.
-- **No line of sight for the aliens.** Detection stays radius plus terrain, unchanged.
-  In first person this is presented as what it plausibly is: **they hear you**. Walls do
-  not stop sound, water dampens it (half radius), a black box is soundproof (zero). The
-  game is called NOISE; the fiction was always available.
-- **No imported art.** No model files, no texture images, no audio files. Every mesh is
-  built from primitives in code and every texture is drawn into a canvas at load, the same
-  rule as the 2D board. The site stays a static upload of text files.
-- **No multiplayer, no backend, no accounts.** Unchanged.
-- **No language model on the 3D page in v1.** The dispatch layer runs on its templated
-  path only. A 3D scene and a 200 MB model on the same GPU is exactly the device-crash
-  class `modelAdvisable()` exists to prevent, and the templated path already passes
-  criteria 12 and 13.
+- **No lethal weapons, no health.** One touch from an active alien ends the run. The stun
+  gun disables; it does not kill.
+- **No jumping, crouching or vertical levels.** The sim is a 2D grid; a jump it cannot
+  express is either fake or a new rule.
+- **No line of sight for the aliens.** Detection is radius plus terrain, unchanged, and
+  presented as what it plausibly is: **they hear you**. Walls do not stop sound, water
+  muffles it (half radius), a black box is soundproof (zero).
+- **No imported art or audio.** Every mesh is built from primitives and every texture is
+  drawn into a canvas at load. Every sound is synthesised.
+- **No language model on the 3D page.** Dispatch runs on its templated path only
+  (criterion 3D-10).
 
 ## Architecture
 
 ```
 sim/        UNCHANGED. The authoritative rules for both games.
-sim3d/      pure, Node-runnable, imports only sim/ and sim3d/. No DOM, no WebGL.
-  units.js      CELL_M, TICK_HZ_3D, metre <-> cell <-> tick conversions
-  body.js       the continuous player body: circle-vs-tile collision and sliding
-  leash.js      turns a continuous body position into the sim's 4-direction input
-  raycast.js    grid DDA ray march, for aim validation and the stun gun
-  game3d.js     class Game3D extends Game -- targeted stun, nothing else
-  record.js     the per-tick 3D input record, for replay and determinism
-web3d/      browser-only leaves for the 3D page
-  play3d.js     orchestration -- the 3D counterpart of web/play.js
-  scene.js      three.js scene, camera, lights, fog, quality tier
-  world.js      level -> meshes (instanced walls, floor, water, rubble, black boxes)
-  entities.js   aliens, keys, coins, bolts, portal; interpolation
-  controls.js   pointer lock, mouse look, WASD, sprint, fire, settings
-  touch3d.js    analog stick + look pad + RUN/STUN for phones
-  hud3d.js      crosshair, minimap, compass, waypoints, threat arcs, meters, subtitles
-  audio3d.js    positional alien audio on top of web/sound.js
-  persist3d.js  IndexedDB under the noise3d-<build> namespace
-  build3d.js    the 3D build stamp
-  changes3d.js  one entry per build, shown in the in-development banner
-  style3d.css
-3d/         the pages: index.html (launch + hub + shop), play.html
-vendor/three/   one pinned, unmodified three.js ES module build + its LICENSE
-bench3d/    the 3D acceptance suite (`npm run test3d`)
+sim3d/      pure, Node-runnable, imports only sim/ and sim3d/
+  units.js      CELL_M 1.5, TICK_HZ_3D 4, conversions (realSeconds, simSecondsToReal)
+  body.js       continuous body: circle (r 0.2 cell) sliding against blocked tiles
+  leash.js      continuous body -> four-direction sim input
+  raycast.js    Amanatides-Woo grid march; lineOfSight for the stun gun
+  game3d.js     class Game3D extends Game -- overrides step() and fireStun() only
+  record.js     per-tick input record { dir, sprint, stunTarget } and replay()
+  session.js    one district in real time: body every frame, sim every 1/TICK_HZ_3D s
+web3d/      browser leaves, plus two DOM-free modules
+  runner.js     DOM-free: level, predictor system, Game3D, Session3D for one district
+  career3d.js   DOM-free: difficulty, attempts, scoring, payout, unlocks from /sim
+  play3d.js     the district page: frame loop, camera, overlays, killcam, benchmark()
+  scene.js world.js entities.js gun.js hud3d.js controls.js touch3d.js audio3d.js
+  hub3d.js persist3d.js settings3d.js quality.js banner.js build3d.js changes3d.js
+  beltcheck.js  dev page: all ten belts side by side
+3d/         index.html (hub), play.html (district), belts.html (dev)
+vendor/three/0.185.1/   three.js, unmodified, hash-checked (VERSION.md)
+bench3d/    acceptance3d.js, criteria/{core,meta,measured}.js, fakeidb.js, measured.json
 tools/stamp3d.mjs
 ```
 
-### Why the sim is not forked
+**The sim is not forked.** The predictor's generated constants and all thirteen 2D criteria
+describe this exact sim; a continuous-space fork would have made every one of them stale.
+3D is a new front end on the same core, and the cost of that is reconciling a free body
+with a sim that moves one cell per tick in four directions. That is the leash.
 
-The thing this project is *about* is the predictor, and the predictor is calibrated
-against this exact sim: the trait priors and the coupling table are generated from it,
-the difficulty controller is tuned on it, and 13 acceptance criteria measure it. A 3D
-game on a forked, continuous-space sim would inherit none of that — every generated
-constant would be stale on day one, and "the same game in 3D" would quietly become a
-different game with a familiar name.
+**three.js 0.185.1, vendored.** The newest release that still ships minified builds
+(0.186 onwards publish only unminified files, about 2.1 MB against 0.75 MB). Loaded through
+an import map from the repository, never a CDN; criterion 3D-0 checks the hashes.
 
-So 3D is a **new front end on the same core**. The cost of that choice is that a
-first-person body moving in continuous space has to be reconciled with a sim that only
-understands one cell per tick in four directions. That reconciliation is the leash, below,
-and it is the single biggest design risk in the project — which is why the plan builds and
-judges it before any art.
+## Scale and time
 
-### Rendering technology
-
-**three.js, one pinned release, vendored** into `vendor/three/` as the unmodified upstream
-ES module build plus its MIT licence, imported through an import map on the 3D pages.
-
-- Not raw WebGL: the world is boxes and planes, but fog, lighting, shadows, instancing,
-  raycasting against meshes and a post-processing chain are each days of work that
-  three.js has already debugged.
-- Vendored rather than loaded from a CDN: the dispatch model comes from a CDN because it
-  is an optional leaf that degrades; the renderer is not optional. A CDN outage must not
-  take the page down, and a pinned file in the repo cannot change underneath the build.
-- Still no npm dependency and no build step. The 3D pages are plain ES modules exactly
-  like the 2D ones. `package.json` keeps zero dependencies.
-
-## The world
-
-### Scale
-
-Two constants in `sim3d/units.js`, both placeholders until the feel prototype settles
-them (plan, phase 2):
-
-| Constant | Starting value | Meaning |
+| Constant | Value | Meaning |
 |---|---|---|
-| `CELL_M` | 1.5 m | Width of one sim cell in the world |
-| `TICK_HZ_3D` | 4 | Sim ticks per real second on the 3D page |
+| `CELL_M` | 1.5 m | One sim cell |
+| `TICK_HZ_3D` | 4 | Sim ticks per real second (2D runs at 8) |
+| Walls / eye / body | 3.2 m / 1.65 m / 0.3 m radius | |
 
-The 2D game runs at 8 ticks a second. At first-person scale that is unplayable: with
-1.5 m cells it is 12 m/s walking, about twice a shooter's sprint. Shrinking cells instead
-gives 0.75 m corridors. So **the 3D page runs the same sim more slowly**:
+Walking is 6 m/s and sprinting 12 m/s; a district is 48 × 30 m. Everything is unchanged
+**in ticks** — chase periods, alert length, stun length, division, par, the score — so
+the 3D city is the 2D city at half speed. The 3D HUD converts ticks with `TICK_HZ_3D` and
+never shows a sim-computed "seconds". One visible consequence: a bought second of
+lightning (8 ticks) lasts two real seconds in 3D, and the 3D shop says so.
 
-- 4 Hz × 1.5 m = **6 m/s walking, 12 m/s sprinting**, which is quick but in the range
-  shooters use.
-- Everything is unchanged **in ticks** — alien chase periods, alert duration, stun
-  length, division interval, arrival rate. The game is the same game at half speed in
-  wall-clock time. Determinism, par and the score equation are all defined in ticks and
-  need nothing.
-- The sim converts ticks to seconds with its own `TICKS_PER_SECOND = 8` in a few labels
-  (sprint seconds, shop lightning seconds, the run summary). The 3D HUD **does its own
-  conversion with `TICK_HZ_3D`** and never displays a sim-computed "seconds" value. One
-  consequence to state plainly: a "second" of lightning bought in the 3D shop is 8 ticks,
-  which is 2 real seconds at 4 Hz. The 3D shop labels it in real seconds.
-
-A district is 32 × 20 cells, so **48 × 30 m** — a compact map with five to eight rooms of
-roughly 8–12 m. Walls are 3.2 m tall, eye height 1.65 m. There is no ceiling: districts
-are outdoor city blocks under a belt-tinted sky with fog.
-
-### Terrain in 3D
-
-| Tile | Looks like | Human | Alien | Notes |
-|---|---|---|---|---|
-| Floor | Paved ground, belt-tinted, faint grid seams every cell | walk | walk | Seams keep the cell legible without drawing a board |
-| Wall | Solid 3.2 m blocks, instanced | blocked | blocked | Bevelled top edge catches the light |
-| Water | Shallow sheet, 10 cm deep, animated normals | walk | walk | Footsteps go quiet; HUD noise meter halves |
-| Building | Rubble heaps 1.2–2.2 m, irregular, seeded per cell | blocked | **walk through** | Aliens wade through it; you cannot climb it |
-| Black box | Translucent dark cube, full wall height, faint scanlines | walk in | **blocked** | Inside, the view tints dark and the world goes muffled |
-| Portal | Hidden; on reveal, a light column visible over every wall | — | — | Also a HUD waypoint |
-
-Every irregular shape (rubble heaps, wall wear) is generated from a seeded `Rng` keyed on
-the cell, so a district looks identical every time it is entered. **Nothing calls
-`Math.random`**, including the renderer.
-
-### Belts
-
-The ten belt palettes (`web/themes.js`) map to 3D materials: floor, wall and rubble tints,
-fog colour and sky gradient. Entities keep one colour everywhere, exactly as in 2D —
-aliens red, keys gold, coins by value, bolts electric — because those are the game's
-vocabulary. Light/dark mode changes the page chrome only, never the scene; the same reason
-the 2D board does not change.
-
-### Entities
-
-| Entity | Form | Behaviour in view |
-|---|---|---|
-| Alien | Procedural low-poly creature built from primitives, ~1.9 m, two emissive eyes | Glides between cells over its move period; head turns toward its target |
-| Stunned alien | Same, slumped, eyes dark, crackle effect | Can be walked through, exactly as in 2D |
-| Key | Floating gold key, slow spin, point glow | Collected on the tick the sim says so |
-| Coin | Small spinning disc, colour by value | Ditto |
-| Bolt | Spinning lightning glyph | Ditto |
-| Detection ring | Floor-projected ring per alien, radius = its effective radius on you | Red when it contains you, shrinks when you step into water |
-
-Alien motion is interpolated from `prevX/prevY` to `x/y` using `moveAcc` and the alien's
-move period, so an alien with a 2.33-tick period glides continuously instead of hopping
-every 580 ms. Interpolation is presentation only; the sim position is the truth.
-
-The detection ring survives into 3D on purpose. In 2D it is the main thing that makes the
-game readable, and "the radius you can be heard in" is not something a first-person player
-can otherwise infer.
+Both constants are adjustable live from the tuning panel (backquote) so they can be
+settled by feel; the defaults have not yet been confirmed by a person playing.
 
 ## The player
 
-### Controls (mouse and keyboard)
-
-| Input | Action |
-|---|---|
-| Mouse | Look (pointer lock). Sensitivity and invert-Y in settings |
-| WASD / arrows | Move, camera-relative |
-| Shift (hold) | Sprint — same rule as 2D: held, never latched, field charge first |
-| Left click | Fire the stun gun at the locked target |
-| L | Toggle banked lightning |
-| Tab / M (hold) | Tactical map: the full 2D board, overlaid |
-| Esc | Release the pointer and pause |
-| R | Restart the district |
-| H / V / I | Dev overlays: prediction tint on the floor, visited cells, alien targets |
-
-Losing pointer lock (Esc, alt-tab) **pauses the sim**. A first-person player who cannot
-see the screen must not be hunted.
-
 ### The leash: continuous body, grid truth
 
-The player moves a continuous **body** — a 0.3 m-radius circle with smooth acceleration,
-sliding along walls and rubble. The sim moves a **cell**. The leash keeps them in
-agreement:
+1. **The sim cell is the truth.** Pickups, the portal, detection and capture happen where
+   the sim says.
+2. **The body may lead but never escape:** its cell is always reachable from the sim's
+   cell in at most 1 step walking, 2 sprinting, over human-walkable tiles. Cells beyond
+   that act as walls for the body, so the clamp is a slide, not a snap. The body's own
+   cell is never forbidden, even when the allowance shrinks under it.
+3. **Each tick the leash emits one direction**: the first step of a shortest walkable path
+   to the body's cell, preferring the axis the body has moved along most; a double step
+   only when the body is two cells straight ahead.
+4. **A stopped body and the sim agree within two ticks** (measured worst case: one).
 
-1. **The sim cell is the truth.** Pickups, the portal, detection and capture all happen
-   when the *sim* says so, as they do in 2D. The camera follows the body.
-2. **The body may lead the cell but never escape it.** The body's cell must always be
-   reachable from the sim's cell in at most `speed` four-direction steps over
-   human-walkable tiles (1 walking, 2 sprinting). Motion that would break this is clamped,
-   softly, at the boundary.
-3. **Each tick the leash emits one sim direction** — the one that most reduces the
-   body–cell gap along the axis with the larger displacement (ties go to the axis the body
-   crossed first). When the body is in the sim's cell, it emits `STAY`.
-4. **When the player stops, the sim catches up** within at most two ticks, so a stationary
-   player is never standing in a cell the sim does not think they are in.
+Diagonals cost the 1/√2 that a four-direction grid always charges. Criterion 3D-3: fed the
+cell paths of 54 recorded 2D runs, a `Game3D` driven only by the leash reproduces every
+tick log bit for bit. **To the sim and the predictor, a 3D player is a player.**
 
-The consequences are stated rather than hidden:
+### Controls
 
-- **Diagonal movement is slower than straight movement**, by the 1/√2 a four-direction
-  grid always charges for it. The 2D spec already refused to manufacture eight-direction
-  input the sim cannot express; first person does not get an exemption.
-- A pickup can trail your body by up to one tick (250 ms). A short "magnet" animation
-  covers it.
-- An alien can catch your *cell* while your body is half a cell ahead of it. The capture
-  animation snaps the camera to face it, so the death is never ambiguous about who did it.
+| Mouse and keyboard | Phone (landscape) | Action |
+|---|---|---|
+| Mouse (pointer lock) | Right half: drag | Look |
+| WASD / arrows | Left half: floating analog stick | Move, camera-relative |
+| Shift (hold) | RUN (latches) | Sprint, when there is charge |
+| Left click | STUN, with an aim-assist cone | Fire at the locked alien |
+| Tab / M (hold) | MAP | Tactical map |
+| Esc | II | Pause (losing the pointer pauses too) |
+| R | — | Restart the district |
+| H / V / I | — | Heatmap, visited cells, alien targets on the maps |
+| \` | — | Tuning panel |
 
-The leash's output is an ordinary four-direction input stream. To the sim, the predictor,
-the dossier and the difficulty controller, a 3D player is a player.
+Mouse look is allowed during the opening freeze; the first step starts the clock. The
+district opens facing its most open corridor. Head bob follows distance walked and a +5°
+FOV kick follows sprinting; both are off under "reduce motion", which defaults to the
+system's `prefers-reduced-motion`.
 
-**Fallback if the leash does not feel right** (decided at the end of plan phase 2): a
-sub-cell sim in `sim3d/` with continuous positions, sampled onto the grid for the
-predictor. It is listed so the decision is a choice and not a surprise — and it is the
-expensive path: the generated constants would have to be regenerated against it and the
-acceptance criteria re-validated against a sim that is no longer the 2D one.
-
-### Camera
-
-Horizontal FOV 90° by default (settings: 65–110). Subtle head bob and a +5° FOV kick while
-sprinting, both off under "reduce motion", which is also honoured from
-`prefers-reduced-motion`. Mouse look is allowed during the opening freeze: you can turn
-around to orient yourself before your first step starts the clock.
-
-### The opening freeze
-
-Unchanged in rule, translated in presentation. The Game is created with
-`freezeUntilFirstMove: true`. Until the first movement key, nothing ticks; the HUD shows
-"MOVE TO BEGIN", every key's waypoint is visible, and looking around is free.
-
-## The stun gun
-
-The one rule that changes, because in first person you **aim**.
+## The stun gun — the one rule that changes
 
 | | 2D | 3D |
 |---|---|---|
-| Trigger | `E` | Left click |
-| Targets | Every alien whose detection range contains you, nearest first, one charge each | **The one alien under the crosshair** |
-| Range | Your effective detection radius | The alien's detection radius on you (unhalved) |
-| Line of sight | None needed | **Required** — walls and rubble block the shot, water does not |
-| No valid target | Nothing happens, nothing spent | Nothing happens, nothing spent ("no lock" click) |
+| Targets | Every alien whose range contains you | **The one under the crosshair** |
+| Range | Your effective radius | Its detection radius (unhalved) |
+| Line of sight | Not needed | **Required**: walls and rubble block, water does not |
+| No valid target | Nothing spent | Nothing spent — a dry click |
 
-There are **no misses**: the crosshair shows a lock when the target under it is valid, and
-a locked shot always lands. The skill is acquiring the lock, not the shot. This preserves
-the economy — six charges are still six stuns — while making the gun feel like a gun.
+The crosshair shows red brackets only when `Game3D.canStun()` would accept the shot, and
+a locked shot always lands, so six charges are still six stuns. The renderer picks an
+alien body; the sim re-validates. A shot exactly through the corner where two blocks meet
+touches both and is blocked if either is solid. The trigger pull enters the sim on the
+next tick (up to 250 ms), so replays stay exact; the beam and the sound are immediate.
 
-It is implemented as `Game3D extends Game`, overriding `fireStun()` only, with the target
-id passed through the per-tick action record so a replay reproduces it. The renderer picks
-a candidate by raycasting meshes; `sim3d/raycast.js` re-validates it against the tile grid
-(walls and buildings opaque) before the sim accepts it. The renderer proposes, the core
-disposes.
+On touch only, a 0.14 rad cone locks the valid alien nearest the centre of the screen.
 
-A shot from cell centre to cell centre often passes **exactly** through the corner where
-two cells meet. Such a shot touches both cells beside the corner, and is blocked if either
-is opaque: two blocks meeting corner to corner read on screen as one solid seam, and a shot
-that slips through a zero-width gap would look like a bug.
+## The world
 
-Before the gun is owned, there is no viewmodel and left click does nothing. The viewmodel
-is procedural, sits bottom-right, and shows its charge count on the body of the gun.
+Each belt's palette from `web/themes.js`, lifted **in sRGB** to a floor lightness (the 2D
+grounds are dark enough to read as black under 3D lighting): ground and an alternate
+shade per cell, walls with a lighter cap, rubble, water, fog and a sky dome. Canvas-drawn
+textures: paving with a seam on every cell edge, weathered wall panels, a scrolling ripple
+normal map, scanlines on black boxes. Rubble is a seeded heap of 5–8 tumbled blocks per
+cell. Inside a black box the view dims. Entity colours never change with the belt.
+
+| Tier | Selected when | Pixel ratio | Shadows |
+|---|---|---|---|
+| High | Fine pointer and ≥ 8 GB | ≤ 2 | Directional shadow map |
+| Medium | Default | ≤ 1.5 | Off |
+| Low | Coarse pointer, `saveData`, < 4 GB (forced on phones) | 1 | Off, no antialiasing |
+
+### Entities
+
+Aliens are hunched red creatures with white eyes and long arms, **instanced by body part
+across all aliens** (six draw calls for any number). They glide toward their sim cell at
+the speed their move period implies, face where they are going, slump grey when stunned.
+A floor ring per alien shows the radius at which it hears you — red when it does, easing
+smaller when you step into water. Keys glow; coins are coloured and sized by value and
+instanced by value; bolts are extruded glyphs; the open portal is a beam visible over
+every wall. Pickups fly to the camera. When you are caught the camera turns to the alien
+that did it, and a **killcam** can replay the last three seconds from above and behind.
 
 ## The HUD
 
-Shooter conventions, mapped one-to-one onto information the 2D game already shows. **The
-3D player is never shown more than the 2D player sees**, and in v1 is never shown less —
-the balance numbers were measured against full information.
+The 3D player is never shown more than the 2D player sees, and never less.
 
-| Element | Where | Shows | 2D equivalent |
-|---|---|---|---|
-| Crosshair | Centre | Dot; brackets and red when a stun target is locked | — |
-| Minimap | Top-left, rotates with heading | The 2D renderer's own drawing, cropped around you: walls, water, rubble, boxes, every alien, its ring, pickups | The board |
-| Tactical map | Tab / M, full screen | The full 2D board | The board |
-| Compass strip | Top-centre | Heading, plus markers for keys and the revealed portal | — |
-| Waypoints | In world | A diamond over each uncollected key with its distance in metres; a column over the portal once revealed | Visible keys |
-| Threat arcs | Around crosshair | One red arc per alien that currently detects you, pointing at it | Red ring |
-| Noise meter | Bottom-left | How deep inside the nearest detection radius you are | Ring proximity |
-| Objective | Under minimap | KEYS 2 / 4 → REACH THE PORTAL | Status strip |
-| Sprint / lightning | Bottom-centre | Charge in real seconds; lit while draining | Status strip |
-| Stun charges | On the gun, bottom-right | Charges left | Status strip |
-| Dispatch | Bottom-left, subtitle style | The surveillance system's monologue as intercepted radio | Dispatch panel |
-| District, tier, score | Top-right | — | Top bar |
+| Element | Shows |
+|---|---|
+| Minimap (rotating) and tactical map (Tab/M) | **The 2D game's own `Renderer`, unchanged**, drawn offscreen |
+| Compass strip | Heading, key bearings, portal bearing |
+| Waypoints | Every uncollected key and the open portal, with distance, through walls |
+| Threat arcs | One per alien that can hear you, pointing at it |
+| Noise meter | How deep inside the nearest radius you are; water and black boxes named |
+| Objective, alert line, time, tier, belt | |
+| Sprint bar, stun charges | Real seconds; charges also lit on the gun |
+| Dispatch | The predictor's state as intercepted radio, templated |
 
-**The minimap and tactical map reuse `web/render.js`'s `Renderer` unchanged**, drawn into
-an offscreen canvas. That guarantees information parity by construction and means there
-is exactly one drawing of the board in the project.
-
-The H overlay — the predictor's distribution tinted onto the floor of each region — is the
-3D answer to the 2D heatmap: the ground glows where the system thinks you are going.
+H draws the prediction heatmap on the two maps rather than tinting the floor: one
+drawing of it in the project, exact parity with 2D.
 
 ## Audio
 
-`web/sound.js`'s `Ambience` is reused unchanged for the drone and the threat-rate pulse.
-`audio3d.js` adds, synthesised, no files:
+`web/sound.js`'s ambience unchanged (the pulse rate is still the information), plus an
+HRTF-panned growl per alien so one can be heard behind a wall, footsteps that go quiet in
+water and silent in a black box, a zap and a dry click. **Never listened to** — checked for
+errors only.
 
-- **Positional alien sound** through Web Audio `PannerNode`s, one per alien, so you can
-  hear one behind a wall. The rule is symmetric with theirs: you hear what can hear you.
-- Footsteps whose loudness tracks your detection radius — full on floor, muffled in water,
-  silent in a black box — so the noise mechanic is audible.
-
-## Persistence and builds
-
-The 3D game has **its own save files**, separate from the 2D game's, for two reasons:
-
-1. The isolation rule. Until integration is decided, a 3D session must not be able to
-   alter a 2D dossier, wallet or progress — the same reasoning as criterion 9, one level up.
-2. The dossier measures *how you move*. Movement through a mouse-look first-person camera
-   with partial visibility is plausibly different behaviour from a top-down god view.
-   Whether one dossier should describe both is a question for measurement, not a default.
+## Persistence and the meta loop
 
 | | 2D | 3D |
 |---|---|---|
 | Database | `noise-<BUILD>` | `noise3d-<BUILD3D>` |
-| Stamp | `web/build.js`, `npm run stamp` | `web3d/build3d.js`, `npm run stamp3d` |
+| Stamp | `npm run stamp` | `npm run stamp3d` (refuses without a `changes3d.js` entry) |
 | Sweep | `/^noise(-\d+)?$/` | `/^noise3d(-\d+)?$/` |
-| Profiles | main, guest | main, guest |
+| Guest marker | `noise.guestSession` | `noise3d.guestSession` |
 
-The 2D sweep pattern does not match `noise3d-*` and the 3D one does not match `noise-*`;
-a test pins both. The profile model, the isolation mechanism (`sim/profile.js`'s single
-active id), guest-is-session-scoped, discard-below-schema and "every published update
-starts every save fresh" are all reused as-is — the last one now per game, so a 3D deploy
-resets 3D saves and leaves 2D saves alone.
+`persist3d.js` duplicates `web/persist.js` rather than parameterising it, so the 2D file
+stays untouched until integration. Profiles, the isolation rule, guest-per-tab and
+"every published update starts every save fresh" are the 2D game's — per game, so a 3D
+update resets only 3D saves. MAIN's 3D districts are the same maps as 2D MAIN.
 
-`persist3d.js` duplicates `web/persist.js` with a different name and pattern rather than
-parameterising it, because parameterising it means editing the 2D file. Integration is
-where that duplication gets folded back.
+`3d/index.html` is the hub: MAIN and GUEST slots, the permanent tier chooser, a district
+grid by belt, and the shop (2D prices; lightning sold in blocks of ten). `career3d.js`
+applies the 2D game's rules — difficulty settled once per district, attempts counted at
+run start, tier 1 carried across retries, tier 2 folded per run, `scoreRun`, payout,
+unlock. A district link without a profile is an unsaved **sandbox**; `?kit=1` equips it.
 
-## Meta loop
+## Development preview
 
-`3d/index.html` combines the 2D launch, hub and shop into one page — profile cards, the
-permanent tier chooser, the district grid and the shop — using `web/style.css`'s tokens
-plus `web3d/style3d.css`. `3d/play.html?p=&d=` is the district. Scoring, the economy, the
-shop's prices, tier multipliers, attempt decay, settled per-district difficulty and the
-100 districts in 10 belts are all the 2D game's, imported from `sim/`, not copied.
-
-`web3d/play3d.js` mirrors `web/play.js`'s orchestration — system, chains per district,
-difficulty settlement, run recording, scoring, persistence — with the renderer, input and
-HUD **injected**, so the whole loop also runs under Node against a null renderer and the
-existing DOM shim. That is how the meta loop gets tested without a GPU.
-
-## Phones
-
-Supported, second-class, and built last (plan, phase 8).
-
-- Left half: a floating **analog** stick. Unlike the 2D stick it is not quantised to four
-  headings — it drives the body, and the leash does the quantising, as for a keyboard.
-- Right half: drag to look.
-- **RUN** latches (as in 2D) and **STUN** fires at the current lock, with a generous
-  aim-assist cone on touch only.
-- Landscape only, `visualViewport` / `100dvh` sizing, controls behind
-  `(hover: none) and (pointer: coarse)` — all lessons already paid for in 2D.
-- The low quality tier (below) is forced on coarse pointers.
-
-## Performance and quality
-
-| Tier | Selected when | Pixel ratio | Shadows | Post-processing |
-|---|---|---|---|---|
-| High | Fine pointer and ≥ 8 GB reported memory | up to 2 | One directional shadow map | Bloom, vignette |
-| Medium | Default | up to 1.5 | Off | Vignette |
-| Low | Coarse pointer, `saveData`, or < 4 GB | 1 | Off | None |
-
-Selectable in settings, remembered in `localStorage` (a property of the device, like the
-theme). Budgets: **60 fps at 1080p** on an integrated-GPU laptop at Medium; **30 fps** on a
-mid-range phone at Low; under **150 draw calls** in any district (walls, rubble, coins are
-instanced — a district has 640 cells, so this is comfortable).
+Every 3D page carries a banner with the build number and the latest `changes3d.js`
+entry: what changed, what to try, what is not verified. GitHub Pages caches for about ten
+minutes; if the banner's number is behind the update note, reload.
 
 ## Acceptance criteria
 
-`npm run test3d`, same three verdicts as the 2D suite.
+`npm run test3d` (CI runs it with `--skip-2d`, the 2D suites having just run).
+**13 passed · 0 not demonstrated · 0 failed** at 3D build 9.
 
-| # | Criterion | How |
+| # | Criterion | Result |
 |---|---|---|
-| 3D-1 | The 2D suites are untouched: `npm test` 12 / 1 / 0, `npm run webcheck` green | Run both, every commit |
-| 3D-2 | Arrows run one way: nothing in `sim/` or `web/` imports `sim3d/`, `web3d/`, `3d/` or `vendor/`; `sim3d/` imports only `sim/` and `sim3d/` and references no DOM global | Static scan |
-| 3D-3 | **Parity**: driving `Game3D` through the leash with the cell paths of recorded 2D runs reproduces those runs' tick-log hashes exactly (runs with no stun fired, since that one rule differs by design) | Recorded corpus, 5 bots × several seeds |
-| 3D-4 | Determinism: same seed and same 3D input record → identical tick-log hash | Hash twice |
-| 3D-5 | Leash invariants hold over 10,000 random continuous control sequences: body never inside a human-blocked tile; body cell always reachable from the sim cell within `speed` steps; a stopped body and the sim cell agree within 2 ticks | Fuzz |
-| 3D-6 | Targeted stun never stuns an inert, out-of-range or occluded alien, and never spends a charge without a stun | Fuzz against brute force |
-| 3D-7 | Grid raycast visits exactly the cells an exhaustive segment–cell test finds, on 10,000 random rays and a sweep of centre-to-centre rays | Fuzz |
-| 3D-8 | Save isolation: 3D writes never touch the 2D database; each sweep pattern spares the other game; a 3D guest run leaves the 3D main dossier byte-identical | DOM shim + in-process IndexedDB |
-| 3D-9 | The full meta loop — launch, tier, hub, district, win, score, payout, shop — runs headless with a null renderer | DOM shim |
-| 3D-10 | The page is playable with the dispatch on its templated path and nothing optional loaded | DOM shim |
-| 3D-11 | Frame budget met at Medium, 1080p | Measured in a real browser, recorded in `decisions.md` |
-| 3D-12 | Every belt renders legibly: aliens, keys, coins and rings readable against all ten palettes | Screenshot set, reviewed, recorded |
+| 3D-0 | Build hygiene: vendor hashes, stylesheet `?v=` = BUILD3D, banner entry exists | PASS |
+| 3D-1 | 2D suites untouched: 12/1/0 and webcheck green | PASS (39/39) |
+| 3D-2 | Arrows one way; `sim3d` pure; nothing 3D calls `Math.random` | PASS |
+| 3D-3 | Parity: leash-driven `Game3D` reproduces 54 recorded 2D runs bit for bit | PASS |
+| 3D-4 | Determinism: same seed and controls → same run; the input record replays it | PASS |
+| 3D-5 | Leash invariants over 10,000 random control sequences (~494k frames) | PASS |
+| 3D-6 | Aimed stun matches an independent reference on 4,000 trigger pulls | PASS |
+| 3D-7 | Ray march = exhaustive segment–cell test (10,000 random + centre-to-centre rays) | PASS |
+| 3D-8 | Save isolation, both sweeps run against each other, guest leaves MAIN byte-identical | PASS |
+| 3D-9 | Headless career: win, score, payout, dossier, unlock, purchase, kit carried on | PASS |
+| 3D-10 | Nothing optional or off-site loads; templated dispatch narrates live 3D state | PASS |
+| 3D-11 | Frame budget, 1080p Medium (recorded: M3, mean 10.9–12.2 ms, p95 at 16.7 ms) | PASS, by hand |
+| 3D-12 | All ten belts legible (recorded screenshot review) | PASS, by hand |
 
-3D-11 and 3D-12 are measured by hand in a browser and recorded, not asserted by the suite;
-the suite reports them as NOT DEMONSTRATED until a recorded measurement exists, rather than
-passing them on faith.
+3D-11 and 3D-12 pass only on an entry in `bench3d/measured.json` naming the build, the
+date and who measured — in both cases Claude in the browser pane, not a human.
 
-## Integration (later, not part of this build)
+## Departures from the plan-stage spec
 
-When the 3D game is complete on its own page, integrating it is a separate change with its
-own decisions:
+| Plan | Built | Why |
+|---|---|---|
+| `index.html` untouched until integration | One header link from phase 0 | Requested: a visible, reviewable "in development" tab |
+| Bloom and vignette at High | Shadows only | Not needed for legibility; no post-processing addons vendored |
+| H tints the floor | H tints the maps | The 2D renderer already draws it; one implementation, exact parity |
+| Ray march picks a side at an exact corner | Both side cells count | Corner-to-corner blocks read as a solid seam |
+| Coins one mesh each | Instanced by value | 97 → 59 draw calls at district 10 |
+| "Dense point sampling" for 3D-7 | Exhaustive segment–cell test | Exact, and catches corner cases sampling misses |
+| One stun gun rule for both pages | As specified, plus a touch-only aim cone | A thumb is not a mouse |
+| — | Killcam | Plan-9 stretch goal, built; the foresight overlay was not |
 
-- The "3D · in development" link becomes a proper **2D / 3D switch** (with its own
-  styling, so this is where the stamp is bumped) in the headers of every page, 2D and 3D,
-  and the build banner is removed.
-- **Shared or separate saves.** Recommended starting point: separate dossiers, because they
-  measure different behaviour, with the question settled by comparing trait distributions
-  of the same people in both. Wallet and progress could reasonably be shared.
-- One stamp or two. Two independent stamps were chosen precisely so the games could deploy
-  without resetting each other; merging them is only right if the saves merge.
-- Folding `persist3d.js` back into a parameterised `web/persist.js`.
-- `spec.md`, `README.md` and the launch page's mechanics grid describe both.
+## Open questions and known gaps
 
-## Open questions
+1. **Nobody has played it.** Every check was a test, a script or a screenshot. Whether the
+   leash feels like a shooter or a dungeon crawler with smoothing — the phase-2 go/no-go —
+   is still open, and it is a person's call.
+2. **Is 4 Hz right?** Half speed gives a human twice the reaction time; losing the god view
+   takes much of it back. Bots cannot answer this: they have perfect information.
+3. **Full radar or hear-only?** v1 shows every alien on the minimap for parity with what
+   the balance was measured against.
+4. **One dossier or two?** Separate for now; the same person's trait profile in 2D and 3D
+   is the evidence that would settle it.
+5. **Audio unheard; no real phone.** Touch was tested in an emulated 740×360 viewport.
+   iPhone Safari allows neither full screen nor an orientation lock for a page.
+6. **Is 48 × 30 m too small?** Larger 3D maps would need the generator parameterised and
+   both generated predictor tables regenerated.
+7. **Not built:** the foresight overlay (each alien's predicted path on the floor).
 
-1. **Does the leash feel like a shooter, or like a dungeon crawler with smoothing?** The
-   biggest risk in the project; answered by a graybox prototype before any art.
-2. **Is 4 Hz right?** Halving the tick rate gives a human twice the reaction time; losing
-   the god view takes most of that back. Whether those cancel is a playtest question. The
-   bot benchmarks are blind to it: bots have perfect information and no reaction time.
-3. **Should the minimap show every alien?** v1 says yes, for parity with what the balance
-   was measured against. A "hear-only" radar (aliens shown only within twice their
-   detection radius, as you hear them) is the obvious harder mode, and would want its own
-   score multiplier.
-4. **Does first-person play produce a different dossier?** If the same person's traits
-   differ sharply between 2D and 3D, separate dossiers are right at integration; if not, a
-   shared one is better, because it has twice the data.
-5. **Is 48 × 30 m too small?** A 32 × 20 grid was sized for a whole-board view. Larger
-   3D-only maps would need the generator's size parameterised and both generated constant
-   tables regenerated against them — out of scope for v1, and listed so it is a choice.
+## Integration (a separate decision, plan phase 10)
+
+The "3D · in development" link becomes a styled 2D / 3D switch on every page (a
+`web/style.css` change, so that update bumps the 2D stamp and resets 2D saves — say so in
+its note); the banner and tuning panel come off; save sharing is decided; `persist3d.js`
+folds into a parameterised `web/persist.js`; `README.md` and `spec.md` describe both games.
