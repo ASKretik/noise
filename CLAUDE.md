@@ -90,3 +90,32 @@ When visual work is unavoidable, render it and look at it rather than trusting t
 emit SVG from the real data (or record the actual canvas calls and replay them as SVG) and
 view the result. That is how invisible buildings and a hair cap that read as sunglasses
 were both caught. State plainly what remains unverified.
+
+## 3D work (`/3d`, `sim3d/`, `web3d/`, `bench3d/`)
+
+The first-person version is built on its own page, phase by phase, per
+[plan-3d.md](plan-3d.md) and [spec-3d.md](spec-3d.md). For a commit that only touches 3D
+files, the loop above is replaced by:
+
+```sh
+# add the new build's entry to web3d/changes3d.js first
+npm run stamp3d   # 3D build stamp only: resets 3D saves, never 2D ones
+npm test          # 2D suite must stay 12 passed / 1 ND / 0 failed
+npm run webcheck  # must stay green
+npm run test3d -- --skip-2d
+git add <named files>    # never -A: the tree has unrelated untracked files
+git commit && git push origin main
+gh run watch <id> --exit-status
+```
+
+**Never run `npm run stamp` for a 3D-only change.** It wipes every 2D save for a change no
+2D player can see. The 2D files are not edited before plan phase 10, with one exception
+already made: the "3D · in development" link in `index.html`'s header (HTML only, no
+stylesheet change, so no stamp).
+
+**Every phase is pushed when it completes**, and its row in plan-3d.md's progress table is
+updated in the same commit, so an interrupted build always resumes from the last pushed
+phase. Every update ends with a review note: live link, build number, what changed, what
+to try, what is unverified — the same text as that build's `changes3d.js` entry.
+
+A browser pane **is** available in current sessions: look at the 3D pages, don't assume.

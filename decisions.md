@@ -35,6 +35,7 @@ Three markers throughout:
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
+npm run test3d    2 passed · 11 not demonstrated · 0 failed   (3D build 1, phase 0)
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -1531,9 +1532,36 @@ annoying rather than principled.
 A test now fails if the stylesheet `?v=` drifts from the build stamp, which turns "remember
 to run `npm run stamp`" into something the suite enforces.
 
+## R29 · NOISE in first person: spec, plan, and phase 0
+
+**Asked:** make the game 3D and first person, "like how it does in games like COD", as a
+separate page so nothing that is already there is hampered; then add it as a tab on the
+main page marked in development, reviewable after every update; then build it phase by
+phase, pushing after each phase so no completed phase can be lost.
+
+**Written:** [spec-3d.md](spec-3d.md) and [plan-3d.md](plan-3d.md). The 3D game is a new
+front end on the **unmodified** sim, because the predictor's generated constants and all
+13 criteria describe this exact sim; a forked continuous-space core would have
+invalidated every one of them.
+
+**Built (phase 0):** `/3d/` placeholder page with the in-development banner; three.js
+0.185.1 vendored and hash-checked; the 3D build stamp (`web3d/build3d.js`,
+`npm run stamp3d`) independent of the 2D one; `npm run test3d` with criteria 3D-0 and
+3D-2 live; a test3d step in both workflows; one header link in `index.html`.
+
+**[ASSUMED]** three.js **0.185.1**, not the newest 0.187.0: 0.186 onwards publish only
+unminified builds (2.1 MB against 0.75 MB). Nothing the plan needs arrived after 0.185.
+
+**[ASSUMED]** The `index.html` link is HTML-only with the existing `.site-nav a` style, so
+the 2D build stamp is **not** bumped and no 2D save is reset by this round.
+
+**[ASSUMED]** CI runs `test3d -- --skip-2d`, because the two 2D suites already ran in the
+steps before it; locally 3D-1 re-runs them so a 3D change cannot go in without them.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
+npm run test3d    2 passed · 11 not demonstrated · 0 failed   (3D build 1, phase 0)
 ```

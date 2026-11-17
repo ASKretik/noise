@@ -1,0 +1,82 @@
+/* web3d/style3d.css -- the 3D pages. Layered on top of web/style.css, whose tokens
+ * (surfaces, ink, accents, radius, shadows, the two typefaces) it uses and never redefines.
+ * Nothing here can affect a 2D page: no 2D page links this file. */
+
+/* ============================== dev banner ============================== */
+
+.b3-banner {
+  position: relative;
+  z-index: 50;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--fg);
+  background: linear-gradient(90deg, rgba(139, 125, 255, 0.18), rgba(25, 224, 200, 0.12));
+  border-bottom: 1px solid var(--line);
+}
+.b3-bar {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 16px;
+  cursor: pointer;
+}
+.b3-bar:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.b3-tag { font-weight: 700; letter-spacing: 0.04em; color: var(--violet); }
+.b3-build, .b3-phase { font-family: var(--mono); color: var(--fg-dim); }
+.b3-more { margin-left: auto; color: var(--accent); }
+.b3-more::after { content: ' ▾'; }
+.b3-banner.open .b3-more::after { content: ' ▴'; }
+.b3-body {
+  display: none;
+  gap: 18px 28px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  padding: 4px 16px 14px;
+  max-height: 50vh;
+  overflow: auto;
+}
+.b3-banner.open .b3-body { display: grid; }
+.b3-sec h4 {
+  margin: 6px 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-faint);
+}
+.b3-sec ul { margin: 0; padding-left: 16px; line-height: 1.5; color: var(--fg-dim); }
+.b3-sec b { font-family: var(--mono); font-weight: 500; color: var(--fg); }
+
+/* overlaid variant, used on the play page above the canvas */
+.b3-banner.overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: rgba(8, 7, 10, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+/* ============================== placeholder ============================== */
+
+.p3-stage {
+  position: relative;
+  max-width: 1080px;
+  margin: 24px auto;
+  padding: 0 24px;
+}
+.p3-stage canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: #050507;
+  box-shadow: var(--shadow-2);
+}
+.p3-caption {
+  margin: 12px 0 0;
+  color: var(--fg-dim);
+  font-size: 14px;
+}
+.p3-caption code, .p3-mono { font-family: var(--mono); color: var(--fg); }

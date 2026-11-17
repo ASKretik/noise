@@ -43,6 +43,9 @@ jobs:
         run: npm test
       - name: Web layer smoke test
         run: npm run webcheck
+      - name: 3D acceptance criteria
+        # The 2D suites just ran above, so 3D-1 is not repeated here.
+        run: npm run test3d -- --skip-2d
 
   deploy:
     needs: verify
