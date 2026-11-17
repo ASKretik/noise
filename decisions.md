@@ -35,7 +35,7 @@ Three markers throughout:
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    2 passed · 11 not demonstrated · 0 failed   (3D build 1, phase 0)
+npm run test3d    8 passed · 5 not demonstrated · 0 failed   (3D build 1, phase 1)
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -1558,10 +1558,40 @@ the 2D build stamp is **not** bumped and no 2D save is reset by this round.
 **[ASSUMED]** CI runs `test3d -- --skip-2d`, because the two 2D suites already ran in the
 steps before it; locally 3D-1 re-runs them so a 3D change cannot go in without them.
 
+## R30 · 3D phase 1: the pure core
+
+**Built:** `sim3d/` -- `units.js`, `body.js` (circle-vs-tile sliding), `leash.js`,
+`raycast.js` (Amanatides–Woo), `game3d.js` (`Game3D extends Game`, overriding `step` and
+`fireStun` only), `record.js`, `session.js` (one district in real time: body every frame,
+sim every 1/`TICK_HZ_3D` s). Criteria 3D-3 to 3D-7 live and passing.
+
+**The parity result is the one that matters.** Fed the cell paths of 54 recorded runs (the
+five bots and a sprinting wanderer, three districts, three seeds), a `Game3D` whose only
+input is the leash reproduces every tick log bit for bit. "The same game in 3D" is
+literally true: a 3D player is, to the sim and the predictor, a player.
+
+**Two things the tests caught.**
+
+- *Parity, sprint cut short.* A double step that ends after one cell (caught, or on the
+  portal) still went out as a sprint, so the tick log carries the BOOSTED flag. The test
+  had been placing the body where the player **ended**; it now places it where the sprint
+  was **aimed**, which is what a real body does. No core change.
+- *Corner shots.* Centre-to-centre shots often pass exactly through a cell corner, which
+  random rays never do. The ray march had been picking one of the two side cells
+  arbitrarily. **[ASSUMED]** It now visits both and is blocked if either is opaque: two
+  blocks meeting corner to corner look like a solid seam, and a shot through a zero-width
+  gap would look like a bug. The fuzz now includes a sweep of centre-to-centre rays.
+
+**Leash fuzz:** 10,000 random control sequences, ~494,000 frames at random frame rates
+(30–144 Hz): no solid overlap, never more than two steps ahead, never snapped back, and a
+stopped body and the sim agree within one tick (the bound is two).
+
+**Not stamped.** Nothing on any page changed; the 3D build stays 1.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    2 passed · 11 not demonstrated · 0 failed   (3D build 1, phase 0)
+npm run test3d    8 passed · 5 not demonstrated · 0 failed   (3D build 1, phase 1)
 ```

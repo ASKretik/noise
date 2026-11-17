@@ -324,6 +324,11 @@ a candidate by raycasting meshes; `sim3d/raycast.js` re-validates it against the
 (walls and buildings opaque) before the sim accepts it. The renderer proposes, the core
 disposes.
 
+A shot from cell centre to cell centre often passes **exactly** through the corner where
+two cells meet. Such a shot touches both cells beside the corner, and is blocked if either
+is opaque: two blocks meeting corner to corner read on screen as one solid seam, and a shot
+that slips through a zero-width gap would look like a bug.
+
 Before the gun is owned, there is no viewmodel and left click does nothing. The viewmodel
 is procedural, sits bottom-right, and shows its charge count on the body of the gun.
 
@@ -443,7 +448,7 @@ instanced — a district has 640 cells, so this is comfortable).
 | 3D-4 | Determinism: same seed and same 3D input record → identical tick-log hash | Hash twice |
 | 3D-5 | Leash invariants hold over 10,000 random continuous control sequences: body never inside a human-blocked tile; body cell always reachable from the sim cell within `speed` steps; a stopped body and the sim cell agree within 2 ticks | Fuzz |
 | 3D-6 | Targeted stun never stuns an inert, out-of-range or occluded alien, and never spends a charge without a stun | Fuzz against brute force |
-| 3D-7 | Grid raycast agrees with dense point sampling on 10,000 random rays | Fuzz |
+| 3D-7 | Grid raycast visits exactly the cells an exhaustive segment–cell test finds, on 10,000 random rays and a sweep of centre-to-centre rays | Fuzz |
 | 3D-8 | Save isolation: 3D writes never touch the 2D database; each sweep pattern spares the other game; a 3D guest run leaves the 3D main dossier byte-identical | DOM shim + in-process IndexedDB |
 | 3D-9 | The full meta loop — launch, tier, hub, district, win, score, payout, shop — runs headless with a null renderer | DOM shim |
 | 3D-10 | The page is playable with the dispatch on its templated path and nothing optional loaded | DOM shim |

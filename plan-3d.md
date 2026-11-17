@@ -15,7 +15,7 @@ from the last row marked done. Everything marked done is on `origin/main` and li
 | Phase | Status | 3D build | Commit notes |
 |---|---|---|---|
 | 0 · Scaffolding and guardrails | **done** | 1 | link, banner, vendored three.js, stamp3d, test3d |
-| 1 · Pure 3D core | not started | | |
+| 1 · Pure 3D core | **done** | 1 | body, leash, raycast, Game3D, record, session; 3D-3…3D-7 pass |
 | 2 · Graybox feel prototype | not started | | |
 | 3 · The world, properly | not started | | |
 | 4 · Entities and feedback | not started | | |
