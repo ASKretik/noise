@@ -25,7 +25,7 @@ Written Nov 18, 2026 · **status: proposed, nothing built** · follows 3D build 
 
 | Phase | What | Estimate | Difficulty | Status |
 |---|---|---|---|---|
-| N0 | Audio stops when paused | ½ day | Low | not started |
+| N0 | Audio stops when paused | ½ day | Low | **done** (3D build 11) |
 | N1 | Fewer bolts deeper into each belt | ½ day | Low | not started |
 | N2 | Comic-accurate aliens (first species) | 3 days (+1½ per species) | Medium | not started |
 | N3 | Jumpscare and portal ascension | 3–3½ days | Low–medium | not started |

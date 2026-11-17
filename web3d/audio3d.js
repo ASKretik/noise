@@ -37,6 +37,26 @@ export class Audio3D {
     for (let i = 0; i < len; i++) { x = (Math.imul(x, 1664525) + 1013904223) >>> 0; d[i] = (x / 2147483648 - 1) * (1 - i / len); }
   }
 
+  /**
+   * Silence everything without tearing it down. Web Audio oscillators run on their own
+   * clock, independent of the frame loop, so a paused game -- or a hidden tab -- kept
+   * droning until the audio clock itself was stopped. Suspending it freezes the drone,
+   * every alien voice and the pulse scheduler (which only ever schedules a 0.3 s window
+   * ahead of that clock, so nothing piles up while it is frozen). Safe before start().
+   */
+  pause() {
+    this.held = true;
+    try { this.ctx?.suspend?.(); } catch { /* already closed */ }
+  }
+
+  resume() {
+    this.held = false;
+    try { this.ctx?.resume?.(); } catch { /* already closed */ }
+  }
+
+  /** 'running' | 'suspended' | 'closed' | 'none' -- for the checks. */
+  get state() { return this.ctx ? this.ctx.state : 'none'; }
+
   setEnabled(on) {
     this.enabled = on;
     this.amb.setEnabled(on);

@@ -101,7 +101,17 @@ export class Play3D {
     $('ov-secondary').addEventListener('click', () => { this.start(this.district); this.controls.lock(); });
     $('ov-killcam').addEventListener('click', () => this.playKillcam());
     window.addEventListener('resize', () => this.view.resize());
-    document.addEventListener('visibilitychange', () => { if (document.hidden) this.controls.unlock(); });
+    // A hidden tab is silent, always, and on a phone (no pointer lock to lose) the game
+    // pauses too. Coming back resumes the sound only if the game is actually playing.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        this.controls.unlock();
+        if (this.touch && !this.paused) this.onLock(false);
+        this.audio.pause();
+      } else if (!this.paused && !this.ended) {
+        this.audio.resume();
+      }
+    });
     this.wireTune();
     this.wireSettings();
     if (this.touch) {
@@ -304,7 +314,10 @@ export class Play3D {
 
   onLock(locked) {
     this.paused = !locked;
-    if (locked) this.audio.start();
+    // Paused means silent. Not at the moment of capture, though: finish() releases the
+    // pointer too, and the capture keeps its sound until the end card (showEnd).
+    if (locked) { this.audio.start(); this.audio.resume(); }
+    else if (!this.ended) this.audio.pause();
     $('overlay').hidden = locked || this.ended;
     $('hud').hidden = false;
     if (!locked) this.hud.showMap(false);
@@ -383,6 +396,7 @@ export class Play3D {
     $('ov-secondary').textContent = 'replay this district';
     $('ov-killcam').hidden = summary.won || this.history.length < 2;
     $('overlay').hidden = false;
+    this.audio.pause();
   }
 
   // ---------------------------------------------------------------- the frame

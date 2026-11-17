@@ -8,6 +8,23 @@
 
 export const CHANGES = [
   {
+    build: 11,
+    date: '2026-11-18',
+    phase: 'N0',
+    changed: [
+      'The sound stops when the game stops: pausing (Esc), switching tabs, and the end card all go silent, and it comes back when you resume.',
+      'On a phone, switching away from the tab now pauses the game as well as the sound.',
+    ],
+    tryThis: [
+      'Play, press Esc: silence. Click to resume: the sound returns.',
+      'Switch to another tab mid-run: silence, and nothing moved while you were away.',
+      'Get caught: the sound carries through the capture and stops when the end card appears.',
+    ],
+    unverified: [
+      'Checked through the browser\'s audio state, not by ear.',
+    ],
+  },
+  {
     build: 10,
     date: '2026-11-18',
     phase: 9,

@@ -35,7 +35,7 @@ Three markers throughout:
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    13 passed · 0 not demonstrated · 0 failed  (3D build 10)
+npm run test3d    13 passed · 0 not demonstrated · 0 failed  (3D build 11)
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -1880,10 +1880,26 @@ active alien still ends the run.
 
 Nothing built, nothing deployed, no build stamp changed.
 
+## R41 · N0: the sound stops when the game does
+
+**Asked:** "why is the audio playing in the background? stop it" (R40's round), then
+"implement N0 and N1".
+
+**Built:** `Audio3D.pause()` / `resume()` suspend and resume the audio clock itself.
+Web Audio oscillators run independently of the frame loop, so a paused game kept
+droning, and a hidden tab droned indefinitely. Paused (Esc, lost pointer) is silent; a
+hidden tab is silent and, on a phone, also paused; the end card is silent. The moment of
+capture is deliberately **not** silenced -- `finish()` releases the pointer too, and N3's
+jumpscare will need its sound. 3D build **11**.
+
+**Checked in the browser pane** through `AudioContext.state`: running while playing,
+suspended on Esc, running on resume, suspended with the tab hidden, running on return,
+still running at the capture, suspended at the end card. Not listened to.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    13 passed · 0 not demonstrated · 0 failed  (3D build 10)
+npm run test3d    13 passed · 0 not demonstrated · 0 failed  (3D build 11)
 ```
