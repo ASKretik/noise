@@ -35,7 +35,7 @@ Three markers throughout:
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    15 passed · 0 not demonstrated · 0 failed  (3D build 12)
+npm run test3d    15 passed · 0 not demonstrated · 0 failed  (3D build 13)
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -1919,10 +1919,53 @@ the banner.
 runner, and still matches the 2D game bit for bit. The optional second lever in the spec
 (shorter charge per bolt) is not built; it stays off until someone has played this.
 
+## R43 · N2: the aliens become Greys
+
+**Asked:** "now start N2" -- the aliens "look like some red humans"; make them
+comic-accurate.
+
+**Built:** `web3d/alien.js` (the body) and `web3d/species.js` (the parameter table, one
+species so far). A lathe cranium tipped back over a thin neck; almond eyes made by pinching
+a sphere's height toward its ends, glossy black with clearcoat, slanted 20° and wrapped
+round the face, each with a red cat-slit; a hinged jaw, closed (N3 opens it); a lathe
+ribcage hunched forward; two-segment arms with three long fingers; digitigrade legs
+(knee forward, ankle back, toes forward), all posed by forward kinematics each frame and
+lifted so the toes touch the ground. Drawn by part across all aliens: cranium, jaw,
+torso, bones (17 per alien), joints (12), eyes, slits -- seven draw calls for any number.
+Skin is grey-green; the threat colour is carried by red markings and a red fresnel rim
+light in an injected shader, scaled by a per-instance glow. 3D build **13**.
+
+**Behaviour, all presentation:** the head turns to you and tilts 18° when the alien can
+hear you (measured: the full turn in about 0.1 s, clamped at 66°); idle twitches on a
+schedule from a hash of the alien's id (no `Math.random`); a stun is a 0.6 s convulsion,
+then the existing slump, eye slits dark, glow off.
+
+**What looking caught**, in order:
+
+1. *A mannequin.* The first body was cylinders and oversized ball joints; it read as a
+   wooden artist's figure. Now a shaped ribcage torso, joints only slightly wider than the
+   bones.
+2. *Eyes on the jaw.* The eyes sat at chin height, below the widest part of the head; a
+   Grey's are at the widest part. Raised and set into the face.
+3. *Invisible slits.* They sat inside the eye's surface. Now just in front of it.
+4. *Stale screenshots.* Twice the pane showed the previous frame after a scripted
+   render, once making the front look like the back. Every verdict above is from a
+   screenshot taken after a deliberate wait.
+
+**3D-12 re-recorded** (ten belts; the Greys read on all of them, as pale figures with a red
+edge at distance -- less loud than the old red bodies, not harder to find) and **3D-11
+re-measured**: 1080p Medium, mean 4.2–4.5 ms, p95 5.2–7.5 ms, 50 draw calls, ~41k
+triangles. Build 8 measured 11 ms mean with the same recipe on the same machine; N1's
+fewer bolts explain part of the draw-call drop, the rest is not attributed. Both are
+within budget.
+
+**Not built:** the other nine species. Every belt has Greys; the table in
+`spec-3d-next.md` lists the rest.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    15 passed · 0 not demonstrated · 0 failed  (3D build 12)
+npm run test3d    15 passed · 0 not demonstrated · 0 failed  (3D build 13)
 ```

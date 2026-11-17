@@ -2,10 +2,10 @@
 //
 // The sim position is the truth; everything here is presentation of it.
 //
-// Aliens are drawn by PART across all aliens -- one instanced mesh for every torso, one
-// for every head, one for every limb -- so twelve aliens cost the same six draw calls as
-// one. They glide toward their sim cell at the speed their move period implies instead of
-// hopping, which at 4 Hz with a 2.33-tick period would be a jump every 580 ms.
+// Aliens are built and posed by web3d/alien.js (the body) from web3d/species.js (what it
+// looks like), drawn by part across all aliens, so twelve aliens cost the same draw calls
+// as one. They glide toward their sim cell at the speed their move period implies instead
+// of hopping, which at 4 Hz with a 2.33-tick period would be a jump every 580 ms.
 //
 // Entity colours are the 2D game's vocabulary (web/render.js COLORS) and never change
 // with the belt: red alien, gold key, coin colour = value, electric bolt, teal portal.
@@ -13,8 +13,9 @@
 import * as THREE from 'three';
 import { COLORS } from '../web/render.js';
 import { euclid } from '../sim/grid.js';
+import { AlienKit, MAX_ALIENS, twitchOffset } from './alien.js';
+import { speciesFor } from './species.js';
 
-const MAX_ALIENS = 48;
 const UP = new THREE.Vector3(0, 1, 0);
 
 function haloTexture() {
@@ -48,9 +49,9 @@ export class Entities {
     scene.add(this.group);
     this.halo = haloTexture();
 
-    // ---- alien parts, instanced across every alien
-    const skin = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.45, metalness: 0.05, emissive: 0x2a0006 });
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
+    // ---- the aliens' bodies (web3d/alien.js), and the rings, instanced
+    this.species = speciesFor(1);
+    this.kit = new AlienKit(this.group, this.species);
     const mk = (geo, mat) => {
       const m = new THREE.InstancedMesh(geo, mat, MAX_ALIENS);
       m.count = 0;
@@ -59,13 +60,6 @@ export class Entities {
       this.group.add(m);
       return m;
     };
-    this.parts = {
-      torso: mk(new THREE.CapsuleGeometry(0.27, 0.72, 4, 12), skin),
-      head: mk(new THREE.SphereGeometry(1, 16, 12), skin),
-      eye: mk(new THREE.SphereGeometry(0.055, 8, 6), eyeMat),
-      limb: mk(new THREE.CapsuleGeometry(0.075, 0.55, 3, 8), skin),
-    };
-    this.parts.eye.count = 0;
     // Detection rings on the floor: additive, so a dimmer colour is a fainter ring.
     const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
     this.rings = mk(new THREE.RingGeometry(0.965, 1, 96).rotateX(-Math.PI / 2), ringMat);
@@ -208,15 +202,17 @@ export class Entities {
     this.radius = this.radius == null ? targetR : this.radius + (targetR - this.radius) * (1 - Math.exp(-dt * 8));
 
     const seen = new Set();
-    let n = 0, e = 0, l = 0;
-    const P = this.parts;
+    let n = 0;
+    const kit = this.kit, sp = this.species;
+    kit.begin();
     this.slotIds.length = 0;
+    const cam = o.camera ? o.camera.position : null;
     for (const p of game.patrols) {
       if (n >= MAX_ALIENS) break;
       seen.add(p.id);
       let a = this.vis.get(p.id);
       if (!a) {
-        a = { x: p.x, y: p.y, heading: 0, gait: 0, stun: 0, born: t };
+        a = { x: p.x, y: p.y, heading: 0, gait: 0, stun: 0, born: t, look: 0, tilt: 0, stunT0: null, wasInert: false };
         this.vis.set(p.id, a);
       }
       const inert = (p.stunnedUntil || 0) > game.tick;
@@ -236,46 +232,42 @@ export class Entities {
         a.heading += diff * (1 - Math.exp(-dt * 10));
       }
       a.stun += ((inert ? 1 : 0) - a.stun) * (1 - Math.exp(-dt * 7));
+      if (inert && !a.wasInert) a.stunT0 = t;           // a stun starts with a convulsion
+      a.wasInert = inert;
 
-      // body transform: stand, face the heading, slump when stunned
-      const bob = inert ? 0 : Math.abs(Math.sin(a.gait)) * 0.05;
+      // It hears you: the head turns to you and tilts, over about a quarter second.
+      const onYou = !inert && euclid(p.x, p.y, game.player.x, game.player.y) <= game.effectiveRadius;
+      let wantLook = 0, wantTilt = 0;
+      if (onYou && cam) {
+        const toYou = Math.atan2(-(cam.x - (a.x + 0.5) * c), -(cam.z - (a.y + 0.5) * c));
+        let rel = toYou - a.heading;
+        rel = Math.atan2(Math.sin(rel), Math.cos(rel));
+        wantLook = Math.max(-1.15, Math.min(1.15, rel));
+        wantTilt = sp.hearTilt * (rel >= 0 ? 1 : -1);
+      }
+      const ease = 1 - Math.exp(-dt * 12);
+      a.look += (wantLook - a.look) * ease;
+      a.tilt += (wantTilt - a.tilt) * ease;
+
+      // body transform: stand, face the heading, slump when stunned, grow in when new
       const grow = Math.min(1, (t - a.born) * 3);
       q.setFromAxisAngle(UP, a.heading);
       const slump = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), a.stun * 1.25);
       q.multiply(slump);
+      const bob = inert ? 0 : Math.abs(Math.sin(a.gait)) * 0.04;
       base.compose(v.set((a.x + 0.5) * c, bob - a.stun * 0.35, (a.y + 0.5) * c), q, s.setScalar(grow));
 
-      const tint = col.set(inert ? COLORS.stunned : hunting ? COLORS.alien : COLORS.alienCalm);
-      // A hunched torso, a long head pushed forward, arms that hang wide: the silhouette
-      // has to read as "creature" at thirty metres, not as a red pill.
-      const hunch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -0.22);
-      P.torso.setMatrixAt(n, m4.multiplyMatrices(base, local.compose(v.set(0, 1.0, 0), hunch, s.set(1, 1, 0.85))));
-      P.torso.setColorAt(n, tint);
-      P.head.setMatrixAt(n, m4.multiplyMatrices(base, local.compose(v.set(0, 1.74, -0.14), q.identity(), s.set(0.27, 0.31, 0.34))));
-      P.head.setColorAt(n, tint);
-      for (const side of [-1, 1]) {
-        P.eye.setMatrixAt(e, m4.multiplyMatrices(base, local.compose(v.set(side * 0.12, 1.79, -0.44), q.identity(), s.setScalar(1.35))));
-        P.eye.setColorAt(e, col.set(inert ? 0x222226 : COLORS.alienEye));
-        e++;
-      }
-      const swing = inert ? 0 : Math.sin(a.gait) * 0.6;
-      const X = new THREE.Vector3(1, 0, 0), Z = new THREE.Vector3(0, 0, 1);
-      const limbs = [
-        // [x, y, swing, splay, length scale]
-        [-0.46, 1.0, swing, 0.28, 1.3], [0.46, 1.0, -swing, -0.28, 1.3],
-        [-0.16, 0.38, -swing, 0.05, 1.0], [0.16, 0.38, swing, -0.05, 1.0],
-      ];
-      for (const [lx, ly, sw, splay, len] of limbs) {
-        const rot = new THREE.Quaternion().setFromAxisAngle(X, sw).multiply(new THREE.Quaternion().setFromAxisAngle(Z, splay));
-        local.compose(v.set(lx, ly, 0), rot, s.set(1, len, 1));
-        P.limb.setMatrixAt(l, m4.multiplyMatrices(base, local));
-        P.limb.setColorAt(l, col.set(inert ? COLORS.stunned : hunting ? COLORS.alien : COLORS.alienCalm).multiplyScalar(0.78));
-        l++;
-      }
+      const convulse = a.stunT0 != null && t - a.stunT0 < 0.6 ? 1 - (t - a.stunT0) / 0.6 : 0;
+      kit.pose(base, {
+        gait: a.gait, t, inert, hunting, convulse,
+        look: inert ? 0 : a.look + twitchOffset(a, p.id, t, sp),
+        tilt: inert ? 0.25 : a.tilt,
+        pitch: inert ? 0.5 : -0.05,
+        jaw: a.jaw || 0,
+      });
 
       // the ring: the radius at which this alien detects YOU, red when it does
       const R = this.radius * c * (1 - a.stun);
-      const onYou = !inert && euclid(p.x, p.y, game.player.x, game.player.y) <= game.effectiveRadius;
       base.compose(v.set((a.x + 0.5) * c, 0.035, (a.y + 0.5) * c), q.identity(), s.set(Math.max(R, 0.001), 1, Math.max(R, 0.001)));
       this.rings.setMatrixAt(n, base);
       this.rings.setColorAt(n, col.set(onYou ? 0xff4d5e : 0x7a1f2a).multiplyScalar(onYou ? 0.9 + Math.sin(t * 9) * 0.1 : 0.55));
@@ -285,9 +277,9 @@ export class Entities {
       n++;
     }
     for (const id of [...this.vis.keys()]) if (!seen.has(id)) this.vis.delete(id);
-    for (const mesh of [P.torso, P.head, this.rings, this.discs]) mesh.count = n;
-    P.eye.count = e; P.limb.count = l;
-    for (const mesh of [P.torso, P.head, P.eye, P.limb, this.rings, this.discs]) {
+    kit.end();
+    for (const mesh of [this.rings, this.discs]) {
+      mesh.count = n;
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
@@ -357,13 +349,10 @@ export class Entities {
 
   /** Raycast the alien bodies; returns the alien id under the ray, or null. */
   pick(raycaster) {
-    // An InstancedMesh caches the bounding sphere of its instances the first time it is
-    // raycast, and these move every frame: without a recompute the ray is rejected
-    // against wherever the aliens were at the first pick (or against nothing at all).
-    for (const m of [this.parts.torso, this.parts.head]) { m.computeBoundingSphere(); }
-    const hits = raycaster.intersectObjects([this.parts.torso, this.parts.head], false);
-    if (!hits.length) return null;
-    return this.slotIds[hits[0].instanceId] ?? null;
+    // (AlienKit.pick recomputes the instanced bounds first: an InstancedMesh caches them
+    // on the first raycast, and these move every frame -- see decisions.md R35.)
+    const slot = this.kit.pick(raycaster);
+    return slot < 0 ? null : this.slotIds[slot] ?? null;
   }
 
   /** Current visual positions, for positional audio. */

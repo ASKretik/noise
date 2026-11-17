@@ -8,6 +8,26 @@
 
 export const CHANGES = [
   {
+    build: 13,
+    date: '2026-11-18',
+    phase: 'N2',
+    changed: [
+      'New aliens: classic big-headed Greys. A huge domed head, enormous black almond eyes with glowing red slits, a narrow chin, a thin hunched body, long three-fingered hands, and backward-bending legs.',
+      'They still read as the threat: red markings glow along their skin and a red rim of light traces their silhouette, brighter when they hunt.',
+      'When an alien can hear you, its head turns to stare at you and tilts. Watch the heads: they tell you who has you before the HUD does.',
+      'Idle aliens twitch now and then. A stunned one convulses, then collapses with its eyes gone dark.',
+    ],
+    tryThis: [
+      'Walk into an alien\'s ring and watch its head snap round to you.',
+      'With a gun (?kit=1 on a district link), stun one and watch it fall.',
+      'Every belt has Greys for now; the other nine species are listed in spec-3d-next.md for later.',
+    ],
+    unverified: [
+      'Close-ups were checked in screenshots, not in motion at full frame rate.',
+      'Whether they are scary enough is your call; the jumpscare (N3) builds on these heads and jaws.',
+    ],
+  },
+  {
     build: 12,
     date: '2026-11-18',
     phase: 'N1',
