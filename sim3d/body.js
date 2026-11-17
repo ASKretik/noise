@@ -13,6 +13,13 @@ import { BODY_RADIUS_M, CELL_M } from './units.js';
 export const BODY_RADIUS = BODY_RADIUS_M / CELL_M;
 /** How fast velocity approaches its target, per second. ~0.12 s to full speed. */
 export const RESPONSE = 18;
+/**
+ * Spare sim capacity kept on a pure diagonal, as a fraction of top speed (scaled down
+ * toward zero for straight lines). The smallest values with no stalled frames at any
+ * heading from 0 to 45 degrees.
+ */
+export const WALK_DIAGONAL_HEADROOM = 0.10;
+export const SPRINT_DIAGONAL_HEADROOM = 0.25;
 /** Largest distance moved in one collision substep, in cells. Under the radius. */
 const MAX_SUBSTEP = 0.1;
 
@@ -34,12 +41,27 @@ export const bodyCell = (body) => ({ x: Math.floor(body.x), y: Math.floor(body.y
  * @param {number} dt       seconds
  * @param {(cx:number, cy:number) => boolean} blocked
  * @param {number} [response] how fast velocity approaches its target, per second
+ * @param {{sprint?: boolean}} [opts]
  */
-export function moveBody(body, ix, iy, maxSpeed, dt, blocked, response = RESPONSE) {
+export function moveBody(body, ix, iy, maxSpeed, dt, blocked, response = RESPONSE, opts = {}) {
   const len = Math.hypot(ix, iy);
   if (len > 1) { ix /= len; iy /= len; }
-  const tx = ix * maxSpeed;
-  const ty = iy * maxSpeed;
+  let tx = ix * maxSpeed;
+  let ty = iy * maxSpeed;
+  // Speed is capped in the grid's own metric. The sim crosses at most `maxSpeed` cells
+  // per second ACROSS PLUS ALONG -- it cannot step diagonally -- so a body moving at
+  // `maxSpeed` on a diagonal would outrun it by 41% and slam into the leash every few
+  // frames. That stop-start was the "discrete, laggy" movement of builds 2-9.
+  //
+  // Off-axis, the cap also leaves some headroom. At exactly the sim's capacity, every
+  // tick on which the body has not quite crossed into the next cell is a step lost for
+  // good, the lag builds, and the body meets the leash anyway. A few percent of spare
+  // capacity lets the sim catch up instead. Straight lines need none: their crossings
+  // land on the same tick phase every time. Measured in decisions.md R39.
+  const l1 = Math.abs(tx) + Math.abs(ty);
+  const diag = l1 > 0 ? (2 * Math.min(Math.abs(tx), Math.abs(ty))) / l1 : 0;
+  const cap = maxSpeed * (1 - (opts.sprint ? SPRINT_DIAGONAL_HEADROOM : WALK_DIAGONAL_HEADROOM) * diag);
+  if (l1 > cap) { tx *= cap / l1; ty *= cap / l1; }
   const k = 1 - Math.exp(-response * dt);
   body.vx += (tx - body.vx) * k;
   body.vy += (ty - body.vy) * k;

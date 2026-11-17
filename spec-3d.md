@@ -1,12 +1,12 @@
 # NOISE 3D — build spec
 
 Written Nov 17, 2026 as a plan · **rewritten the same day to describe the system as built**
-(3D build 9, plan phases 0–9)
+(3D build 10, plan phases 0–9 plus the R39 movement fix)
 
 > This is the description, not the plan. The plan-stage version is in git history
 > (`git log --follow spec-3d.md`); the phased build order and its progress table are in
 > [plan-3d.md](plan-3d.md); the reasoning for every departure is in
-> [decisions.md](decisions.md), rounds R29–R38. Where this document and those disagree
+> [decisions.md](decisions.md), rounds R29–R39. Where this document and those disagree
 > about *why*, those are the record.
 
 NOISE 3D is the same game as NOISE — same districts, same aliens, same predictor, same
@@ -104,15 +104,19 @@ settled by feel; the defaults have not yet been confirmed by a person playing.
 1. **The sim cell is the truth.** Pickups, the portal, detection and capture happen where
    the sim says.
 2. **The body may lead but never escape:** its cell is always reachable from the sim's
-   cell in at most 1 step walking, 2 sprinting, over human-walkable tiles. Cells beyond
-   that act as walls for the body, so the clamp is a slide, not a snap. The body's own
-   cell is never forbidden, even when the allowance shrinks under it.
-3. **Each tick the leash emits one direction**: the first step of a shortest walkable path
-   to the body's cell, preferring the axis the body has moved along most; a double step
-   only when the body is two cells straight ahead.
-4. **A stopped body and the sim agree within two ticks** (measured worst case: one).
+   cell in at most 2 steps walking, 3 sprinting, over human-walkable tiles. That is
+   slack, not a speed limit: cells beyond it act as walls for the body, and normal
+   movement never reaches them.
+3. **The speed limit is the grid's own.** The body's speed is capped in Manhattan terms
+   to what the sim can follow (one cell per tick across-plus-along, two when sprinting),
+   with a little spare capacity off-axis so a missed step can be made up
+   (`WALK_DIAGONAL_HEADROOM` 0.10, `SPRINT_DIAGONAL_HEADROOM` 0.25).
+4. **Each tick the leash emits one direction**: the first step of a shortest walkable path
+   to the body's cell, preferring the axis the body has moved along most; when
+   sprinting, a straight double step along any direction that stays on a shortest path.
+5. **A stopped body and the sim agree within the slack** (measured worst case: two ticks).
 
-Diagonals cost the 1/√2 that a four-direction grid always charges. Criterion 3D-3: fed the
+A pure diagonal runs at about 64% of straight speed walking and 53% sprinting — the price of a sim that cannot step diagonally. Builds 2–9 had no grid-metric cap and one step of slack, and stuttered off-axis (frozen on an exact diagonal); criterion 3D-13 now guards against that (decisions R39). Criterion 3D-3: fed the
 cell paths of 54 recorded 2D runs, a `Game3D` driven only by the leash reproduces every
 tick log bit for bit. **To the sim and the predictor, a 3D player is a player.**
 
@@ -232,7 +236,7 @@ minutes; if the banner's number is behind the update note, reload.
 ## Acceptance criteria
 
 `npm run test3d` (CI runs it with `--skip-2d`, the 2D suites having just run).
-**13 passed · 0 not demonstrated · 0 failed** at 3D build 9.
+**14 passed · 0 not demonstrated · 0 failed** at 3D build 10.
 
 | # | Criterion | Result |
 |---|---|---|
@@ -241,7 +245,7 @@ minutes; if the banner's number is behind the update note, reload.
 | 3D-2 | Arrows one way; `sim3d` pure; nothing 3D calls `Math.random` | PASS |
 | 3D-3 | Parity: leash-driven `Game3D` reproduces 54 recorded 2D runs bit for bit | PASS |
 | 3D-4 | Determinism: same seed and controls → same run; the input record replays it | PASS |
-| 3D-5 | Leash invariants over 10,000 random control sequences (~494k frames) | PASS |
+| 3D-5 | Leash invariants over 10,000 random control sequences (~494k frames), slack 2 / 3 | PASS |
 | 3D-6 | Aimed stun matches an independent reference on 4,000 trigger pulls | PASS |
 | 3D-7 | Ray march = exhaustive segment–cell test (10,000 random + centre-to-centre rays) | PASS |
 | 3D-8 | Save isolation, both sweeps run against each other, guest leaves MAIN byte-identical | PASS |
@@ -249,6 +253,7 @@ minutes; if the banner's number is behind the update note, reload.
 | 3D-10 | Nothing optional or off-site loads; templated dispatch narrates live 3D state | PASS |
 | 3D-11 | Frame budget, 1080p Medium (recorded: M3, mean 10.9–12.2 ms, p95 at 16.7 ms) | PASS, by hand |
 | 3D-12 | All ten belts legible (recorded screenshot review) | PASS, by hand |
+| 3D-13 | Movement never stutters: no frame under half its heading's speed, walking and sprinting, 0–45° | PASS |
 
 3D-11 and 3D-12 pass only on an entry in `bench3d/measured.json` naming the build, the
 date and who measured — in both cases Claude in the browser pane, not a human.

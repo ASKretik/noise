@@ -7,16 +7,27 @@
 //      the sim says, exactly as in 2D.
 //   2. The body may lead the cell but never escape it: the body's cell must be reachable
 //      from the sim's cell in at most `allowance` four-direction steps over human-walkable
-//      tiles (1 walking, 2 sprinting). prepare() turns everything farther away into a
+//      tiles (2 walking, 3 sprinting). prepare() turns everything farther away into a
 //      wall for the body's collision, so the clamp is a soft slide, not a snap.
+//
+//      The allowance is SLACK, not the speed limit. The speed limit is body.js's
+//      Manhattan cap, which keeps the body followable; the leash only has to catch what
+//      timing leaves over. Builds 2-9 used 1 and 2, which was no slack at all: the body
+//      met the clamp on most diagonal frames, and on an exact diagonal both the body and
+//      the sim waited on each other forever (the cell ahead diagonally is two steps
+//      away). Measured in decisions.md R39.
 //   3. Each tick, decide() emits the one sim direction that starts a shortest walkable
 //      path to the body's cell, preferring the axis the body has moved along most.
-//   4. When the body stops, the sim catches up within `allowance` ticks.
+//   4. When the body stops, the sim catches up within `allowance` ticks (one, in practice).
 //
 // To the sim, the predictor, the dossier and the difficulty controller, the output is an
 // ordinary four-direction input stream. A 3D player is a player.
 
 import { DIRS, STAY, isWalkable } from '../sim/grid.js';
+
+/** Slack, in four-direction steps, between the body's cell and the sim's. */
+export const LEAD_WALK = 2;
+export const LEAD_SPRINT = 3;
 
 const W = 9;               // BFS window, centred: covers 4 steps in every direction
 const HALF = 4;
@@ -73,12 +84,12 @@ export class Leash {
    * @returns {boolean} false if the body had escaped and was snapped back (never expected)
    */
   prepare(game, body, sprintHeld) {
-    this.allowance = sprintHeld ? 2 : 1;
+    this.allowance = sprintHeld ? LEAD_SPRINT : LEAD_WALK;
     this.simX = game.player.x; this.simY = game.player.y;
     this._bfs(this._fromSim, this.simX, this.simY);
     const bx = Math.floor(body.x), by = Math.floor(body.y);
     const d = this._dist(this._fromSim, this.simX, this.simY, bx, by);
-    if (d < 0 || d > 2) {
+    if (d < 0 || d > LEAD_SPRINT) {
       body.x = this.simX + 0.5; body.y = this.simY + 0.5; body.vx = 0; body.vy = 0;
       this.keepX = this.simX; this.keepY = this.simY;
       return false;
@@ -108,11 +119,21 @@ export class Leash {
     }
     if (best === STAY) return { dir: STAY, sprint: false };
 
-    let sprint = false;
+    // A sprint tick moves the sim two cells, but only in a straight line. Take a double
+    // step along ANY direction that stays on a shortest path, not just the preferred
+    // one: off-axis, the preferred axis is usually the one with a single cell of lag,
+    // and insisting on it threw away half of every sprint tick.
     if (sprintHeld && game.sprintTicks > 0 && dS >= 2) {
-      const tx = sx + 2 * DIRS[best].dx, ty = sy + 2 * DIRS[best].dy;
-      sprint = this._dist(this._fromBody, bx, by, tx, ty) === dS - 2;
+      let dbl = STAY, dblScore = -Infinity;
+      for (let d = 0; d < 4; d++) {
+        const tx = sx + 2 * DIRS[d].dx, ty = sy + 2 * DIRS[d].dy;
+        if (this._dist(this._fromBody, bx, by, tx, ty) !== dS - 2) continue;
+        if (this._dist(this._fromBody, bx, by, sx + DIRS[d].dx, sy + DIRS[d].dy) !== dS - 1) continue;
+        const score = DIRS[d].dx * ox + DIRS[d].dy * oy;
+        if (score > dblScore) { dblScore = score; dbl = d; }
+      }
+      if (dbl !== STAY) return { dir: dbl, sprint: true };
     }
-    return { dir: best, sprint };
+    return { dir: best, sprint: false };
   }
 }

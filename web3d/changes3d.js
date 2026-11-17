@@ -8,6 +8,25 @@
 
 export const CHANGES = [
   {
+    build: 10,
+    date: '2026-11-18',
+    phase: 9,
+    changed: [
+      'Movement no longer stutters. Off-axis your body kept slamming into an invisible limit and stopping: at 20 degrees it stalled on a quarter of all frames, on an exact diagonal it froze outright, and sprinting stalled on up to half.',
+      'Your speed is now capped to what the grid underneath can follow, with more slack behind you, so the body never hits that limit in normal movement. Measured: zero stalled frames at every heading, walking and sprinting.',
+      'The trade-off, stated plainly: moving diagonally is slower than straight (about 64% walking, 53% sprinting on a pure diagonal), because the game underneath cannot step diagonally.',
+    ],
+    tryThis: [
+      'Hold W+D and sweep the mouse slowly through a full turn: the motion should stay smooth the whole way round.',
+      'Sprint along a corridor and then across an open room at an angle.',
+      'Say whether the slower diagonals bother you: a fully free, shooter-style movement is possible but means a bigger change to the engine underneath.',
+    ],
+    unverified: [
+      'Measured by script, frame by frame; not yet felt by a person with a real mouse.',
+      'Aliens still glide-and-pause slightly between cells (they move on the 4 Hz grid). Say if that reads as choppy too.',
+    ],
+  },
+  {
     build: 9,
     date: '2026-11-17',
     phase: 9,

@@ -35,7 +35,7 @@ Three markers throughout:
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    13 passed · 0 not demonstrated · 0 failed  (3D build 9, phase 9)
+npm run test3d    13 passed · 0 not demonstrated · 0 failed  (3D build 10)
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -1807,10 +1807,58 @@ feels. **The phase is marked done for what was buildable, and the playtest is op
 **Not built:** the foresight overlay. The minimap's I layer already shows where each alien
 is heading, which covers the information if not the spectacle.
 
+## R39 · The movement stuttered, and the tests could not see it
+
+**Asked:** "the movements look laggy, unlike in the games of cod. why is the movement
+looking so discrete?"
+
+**Measured before touching anything.** The renderer was not the problem (82–92 fps,
+R37), and straight-line walking was perfectly smooth: a constant 4.00 cells/s, frame
+after frame. Off-axis it was not:
+
+| heading | walking, stalled frames | sprinting, stalled frames |
+|---|---|---|
+| 0° | 0% | 11% * |
+| 20° | 25% | 45% |
+| 30° | 13% | 43% |
+| 45° | **100% — frozen** | 55% |
+
+\* in a small open patch; down long lanes straight sprinting was clean all along.
+
+**Why.** Two flaws in the leash design (R30), both mine:
+
+1. *No slack.* The body could lead the sim by 1 step walking, 2 sprinting. The cell
+   diagonally ahead is 2 steps away, so on an exact diagonal the body met a forbidden
+   corner while the sim, seeing the body still in its own cell, emitted STAY -- each
+   waiting on the other forever. Off-axis, the body ground against that corner on a
+   quarter of all frames.
+2. *No speed limit the grid could honour.* The sim covers at most one cell per tick
+   across-plus-along; a body moving at top speed on a diagonal asks for 41% more.
+
+**Fixed:** the body's speed is capped in the grid's own (Manhattan) metric, with a little
+spare capacity off-axis (`WALK_DIAGONAL_HEADROOM` 0.10, `SPRINT_DIAGONAL_HEADROOM` 0.25 --
+each the smallest value with no stall at any heading), the leash's slack is now 2 / 3
+steps, and a sprint tick takes a straight double step along *any* direction on a
+shortest path rather than only the preferred one. After: **zero stalled frames** at every
+heading from 0° to 45°, walking and sprinting, and down every long lane.
+
+**The trade-off, stated rather than hidden.** A pure diagonal is now slower than a
+straight line: about 64% of straight speed walking and 53% sprinting. A four-direction sim
+cannot do better without overrunning; a shooter's equal-speed diagonals would need the
+sub-cell sim the spec lists as the fallback, which re-opens the generated constants and
+parity. That is the user's call, and the banner asks.
+
+**Why no test caught it.** Every criterion asked whether the body ended up in the right
+place; none asked how *smoothly* it got there. **3D-13** now does: it fails if the body
+ever drops under half the speed its heading should have. It caught a remaining gap at a
+25° sprint while this fix was being tuned, and an error in its own first version (it
+judged diagonals against straight-line speed). 3D-5's bounds follow the new slack;
+3D-3 parity still holds bit for bit.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    13 passed · 0 not demonstrated · 0 failed  (3D build 9, phase 9)
+npm run test3d    13 passed · 0 not demonstrated · 0 failed  (3D build 10)
 ```

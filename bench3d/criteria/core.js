@@ -14,6 +14,7 @@ import { Game3D } from '../../sim3d/game3d.js';
 import { Session3D } from '../../sim3d/session.js';
 import { replay } from '../../sim3d/record.js';
 import { BODY_RADIUS } from '../../sim3d/body.js';
+import { LEAD_WALK, LEAD_SPRINT } from '../../sim3d/leash.js';
 import { marchCells, lineOfSight, opaqueToShot } from '../../sim3d/raycast.js';
 
 const PASS = 'PASS', FAIL = 'FAIL';
@@ -211,7 +212,7 @@ export const criteria = [
   },
   {
     n: 5,
-    text: 'Leash invariants over 10,000 random continuous control sequences: never inside a solid tile, never more than 2 steps ahead, never snapped, stopped body and sim agree within 2 ticks',
+    text: `Leash invariants over 10,000 random continuous control sequences: never inside a solid tile, never more than ${LEAD_WALK} steps ahead walking or ${LEAD_SPRINT} sprinting, never snapped, a stopped body and the sim agree within ${LEAD_SPRINT} ticks`,
     async fn() {
       const SEQ = 10000;
       const rng = new Rng(424242);
@@ -253,8 +254,8 @@ export const criteria = [
             }
           }
           const d = distSimBody();
-          if (d < 0 || d > 2) leadViolations++;
-          if (!sprintSeq && d > 1) leadViolations++;
+          if (d < 0 || d > LEAD_SPRINT) leadViolations++;
+          if (!sprintSeq && d > LEAD_WALK) leadViolations++;
           worstLead = Math.max(worstLead, d);
         }
         if (game.over) continue;
@@ -271,7 +272,7 @@ export const criteria = [
         }
         snaps += s.snapped; s.snapped = 0;
       }
-      const ok = overlap === 0 && leadViolations === 0 && snaps === 0 && catchupWorst <= 2;
+      const ok = overlap === 0 && leadViolations === 0 && snaps === 0 && catchupWorst <= LEAD_SPRINT;
       return [ok ? PASS : FAIL,
         `${SEQ} sequences, ${frames} frames: ${overlap} solid overlaps, ${leadViolations} lead violations (worst lead ${worstLead}), ${snaps} snaps, worst catch-up ${catchupWorst} ticks`];
     },

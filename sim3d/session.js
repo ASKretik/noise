@@ -55,7 +55,7 @@ export class Session3D {
     if (g.over) return 0;
     const sprintHeld = this.sprintHeld(controls);
     if (!this.leash.prepare(g, this.body, sprintHeld)) this.snapped++;
-    moveBody(this.body, controls.moveX || 0, controls.moveY || 0, this.speed(controls), dt, this.leash.blocked, this.response);
+    moveBody(this.body, controls.moveX || 0, controls.moveY || 0, this.speed(controls), dt, this.leash.blocked, this.response, { sprint: sprintHeld });
 
     this.acc += dt;
     const step = 1 / this.tickHz;
