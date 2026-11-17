@@ -35,7 +35,7 @@ Three markers throughout:
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    12 passed · 1 not demonstrated · 0 failed  (3D build 7, phase 7)
+npm run test3d    13 passed · 0 not demonstrated · 0 failed  (3D build 8, phase 8)
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -1753,10 +1753,43 @@ describe both games is open question 4 in the spec, for integration.
 **[ASSUMED]** The shop sells lightning in blocks of ten bought seconds and labels the 3D
 duration in real seconds (×2 at 4 Hz). The price per sim second is the 2D game's.
 
+## R37 · 3D phase 8: phones and the frame budget
+
+**Built:** `web3d/touch3d.js` -- a floating analog stick on the left half (not quantised:
+the leash quantises, as for a keyboard), drag-to-look on the right, RUN (latches, as in
+2D), STUN and MAP buttons, a pause button; a touch-only aim-assist cone (0.14 rad) in
+`gun.js`; a portrait "turn sideways" card; full-screen and landscape lock requested on
+the first tap where allowed; a phone HUD layout. `play3d.js` gains `benchmark()`.
+Coins are instanced by value. 3D build **8**.
+
+**What measuring caught:**
+
+1. *Counting the wrong pass.* `renderer.info` resets on every `render()`, and the gun is
+   drawn in a second pass, so the first readings (11 draw calls, 536 triangles) were the
+   gun's. The world pass's counters are now captured before the gun pass.
+2. *Measuring a dead run.* A standing player is caught within seconds, and a finished run
+   shows the camera pressed against an alien. The benchmark parks the player inside a
+   black box -- the one place aliens cannot enter -- lets 90 s of sim run so aliens
+   arrive and divide, and turns the camera through a full circle while timing.
+3. *Coins were most of the draw calls.* 97 calls at district 10, two per coin (disc and
+   halo). Instanced by value, with halos only on 5s and 10s: 59. The frame time barely
+   moved, so draw calls were not the bottleneck on this machine -- the change is for
+   phones, where they cost more.
+
+**3D-11 recorded as PASS** in `bench3d/measured.json`, with the conditions: Apple M3
+(integrated GPU) in the Claude desktop browser pane, 1080p at pixel ratio 1, GPU forced
+to finish every frame, which is pessimistic. Medium: mean 10.9–12.2 ms over three runs,
+p95 15.7–16.9 ms. High with shadows: 12.4 / 17.7 ms. The mean clears 60 fps with room to
+spare; **the p95 sits right at the 16.7 ms line**, and that is said rather than rounded.
+
+**Not verified: any real phone.** Touch was exercised in a 740×360 emulated touch
+viewport, with the stick driven by script. The phone frame-rate target (30 fps at Low on a
+mid-range phone) has no measurement and is not claimed.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    12 passed · 1 not demonstrated · 0 failed  (3D build 7, phase 7)
+npm run test3d    13 passed · 0 not demonstrated · 0 failed  (3D build 8, phase 8)
 ```

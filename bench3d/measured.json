@@ -5,5 +5,12 @@
     "date": "2026-11-17",
     "by": "Claude, screenshot review of 3d/belts.html in the browser pane (not a human review)",
     "note": "All ten belts, one district each, raised camera: red alien, gold key, coins 1/2/5/10 by colour and the bolt all read clearly. Detection rings read but are faint on the darkest grounds (TIDE, SOLAR) -- flagged for human review."
+  },
+  "11": {
+    "status": "pass",
+    "build": 8,
+    "date": "2026-11-17",
+    "by": "Claude, play.html benchmark() in the Claude desktop browser pane on an Apple M3 laptop (integrated GPU), not a human-observed frame counter",
+    "note": "District 10 HARD, 4 aliens mid-hunt, 41 coins, camera turning a full circle, 1920x1080 at pixel ratio 1, GPU forced to finish every frame by a 1-pixel readback (pessimistic: it removes CPU/GPU overlap). Medium, three runs: mean 10.9-12.2 ms (82-92 fps), p95 15.7-16.9 ms, 59 draw calls, 21k triangles. High (shadows): mean 12.4 ms, p95 17.7 ms. The mean clears 60 fps comfortably; p95 sits at the 16.7 ms line. Phones: not measured on a real device."
   }
 }

@@ -60,10 +60,29 @@ export class StunGun {
   }
 
   /** Lock-on: what is under the crosshair, and would the sim accept a shot at it? */
-  aim(mainCamera, entities, game) {
+  /**
+   * @param {number} [assist] touch only: radians of cone in which the nearest-to-centre
+   *   valid alien locks even if the crosshair is not exactly on it. A thumb is not a mouse.
+   */
+  aim(mainCamera, entities, game, assist = 0) {
     if (!game.loadout.stunGun) return null;
     this.raycaster.setFromCamera(new THREE.Vector2(0, 0), mainCamera);
-    const id = entities.pick(this.raycaster);
+    let id = entities.pick(this.raycaster);
+    if (id != null) {
+      const check = game.canStun(id);
+      if (check.ok || !assist) return { id, ok: check.ok, reason: check.reason };
+    }
+    if (assist > 0) {
+      const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(mainCamera.quaternion);
+      let best = null, bestA = assist;
+      for (const p of game.patrols) {
+        const pos = entities.alienPosition(p.id);
+        if (!pos) continue;
+        const a = fwd.angleTo(pos.sub(mainCamera.position));
+        if (a < bestA && game.canStun(p.id).ok) { bestA = a; best = p.id; }
+      }
+      if (best != null) return { id: best, ok: true, reason: null, assisted: true };
+    }
     if (id == null) return { id: null, ok: false, reason: null };
     const check = game.canStun(id);
     return { id, ok: check.ok, reason: check.reason };

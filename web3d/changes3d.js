@@ -8,6 +8,27 @@
 
 export const CHANGES = [
   {
+    build: 8,
+    date: '2026-11-17',
+    phase: 8,
+    changed: [
+      'Phones: left thumb is a floating analog stick, right thumb drags to look, and RUN, STUN and MAP buttons sit under your right thumb. Pause sits at the top.',
+      'A touch-only aim assist: STUN locks the alien nearest the centre of the screen within a small cone, because a thumb is not a mouse.',
+      'Phones get the Low quality tier automatically; portrait shows a "turn sideways" card. Tapping play asks for full screen and landscape where the browser allows it.',
+      'Coins are now drawn in four batches instead of one each: a busy district went from 97 to 59 draw calls.',
+      'Measured on a laptop at 1080p Medium: about 82-92 frames per second on average.',
+    ],
+    tryThis: [
+      'Open /noise/3d/ on your phone, sideways. Play district 1: can you steer and look at the same time?',
+      'With a gun (?kit=1 on a district link), tap STUN with an alien roughly ahead.',
+      'Rotate to portrait and back.',
+    ],
+    unverified: [
+      'Never run on a real phone: tested in a desktop browser emulating a 740x360 touch screen. Your phone is the first real device.',
+      'Full-screen and landscape lock depend on the browser; iPhone Safari does not allow either for a web page.',
+    ],
+  },
+  {
     build: 7,
     date: '2026-11-17',
     phase: 7,

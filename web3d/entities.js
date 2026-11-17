@@ -84,6 +84,7 @@ export class Entities {
   reset(game) {
     for (const p of this.pickups) this.group.remove(p.obj);
     for (const f of this.flying) this.group.remove(f.obj);
+    for (const set of this.coinSets || []) for (const it of set.items) if (it.halo) this.group.remove(it.halo);
     this.pickups = []; this.flying = [];
     this.vis.clear();
     this.radius = null;
@@ -105,18 +106,29 @@ export class Entities {
       this._pickup('key', k, key, at(k, 1.15));
     }
 
+    // Coins are instanced by value: a district-10 floor carries thirty or more, and one
+    // draw call each (plus a halo) was most of the frame's draw calls. Only the 5s and 10s
+    // keep a halo -- worth is still readable from colour and size alone.
     const coinGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.045, 24).rotateX(Math.PI / 2);
-    for (const k of game.coins) {
-      const color = COLORS[`coin${k.value}`] || COLORS.coin1;
-      const m = new THREE.Mesh(coinGeo, new THREE.MeshStandardMaterial({
-        color, metalness: 0.8, roughness: 0.3, emissive: new THREE.Color(color).multiplyScalar(0.22),
-      }));
-      const g = new THREE.Group();
-      g.add(m);
-      // Worth is readable without counting: colour is the value, and bigger coins glow more.
-      g.add(this._halo(color, 0.8 + k.value * 0.04, 0.22 + k.value * 0.025));
-      g.scale.setScalar(0.9 + Math.min(k.value, 10) * 0.03);
-      this._pickup('coin', k, g, at(k, 0.75));
+    this.coinSets = [];
+    const byValue = new Map();
+    for (const k of game.coins) (byValue.get(k.value) || byValue.set(k.value, []).get(k.value)).push(k);
+    for (const [value, list] of byValue) {
+      const color = COLORS[`coin${value}`] || COLORS.coin1;
+      const mat = new THREE.MeshStandardMaterial({ color, metalness: 0.8, roughness: 0.3, emissive: new THREE.Color(color).multiplyScalar(0.22) });
+      const mesh = new THREE.InstancedMesh(coinGeo, mat, list.length);
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      mesh.frustumCulled = false;
+      this.group.add(mesh);
+      const scale = 0.9 + Math.min(value, 10) * 0.03;
+      const items = list.map((ref) => {
+        const base = at(ref, 0.75);
+        let halo = null;
+        if (value >= 5) { halo = this._halo(color, 0.8 + value * 0.04, 0.22 + value * 0.025); halo.position.copy(base); this.group.add(halo); }
+        return { ref, base, halo, gone: false };
+      });
+      this.coinSets.push({ mesh, items, scale, geo: coinGeo, mat });
+      this.pickups.push({ kind: 'coinset', obj: mesh, ref: { taken: false }, base: new THREE.Vector3(), gone: false, set: true });
     }
 
     const boltGeo = new THREE.ExtrudeGeometry(boltShape(), { depth: 0.05, bevelEnabled: false }).center();
@@ -268,7 +280,27 @@ export class Entities {
     }
 
     // pickups: bob and spin, and fly to you when the sim says you took one
+    const cm = new THREE.Matrix4(), cq = new THREE.Quaternion(), cs = new THREE.Vector3(), cv = new THREE.Vector3();
+    for (const set of this.coinSets || []) {
+      set.items.forEach((it, i) => {
+        if (it.ref.taken && !it.gone) {
+          it.gone = true;
+          if (it.halo) this.group.remove(it.halo);
+          const fly = new THREE.Mesh(set.geo, set.mat);
+          fly.position.copy(it.base);
+          fly.scale.setScalar(set.scale);
+          this.group.add(fly);
+          this.flying.push({ obj: fly, from: it.base.clone(), t0: t });
+        }
+        if (it.gone) { set.mesh.setMatrixAt(i, cm.makeScale(0, 0, 0)); return; }
+        cq.setFromAxisAngle(UP, t * 2.4 + i);
+        cv.set(it.base.x, it.base.y + Math.sin(t * 2 + it.base.x) * 0.07, it.base.z);
+        set.mesh.setMatrixAt(i, cm.compose(cv, cq, cs.setScalar(set.scale)));
+      });
+      set.mesh.instanceMatrix.needsUpdate = true;
+    }
     for (const p of this.pickups) {
+      if (p.set) continue;
       const gone = p.kind === 'key' ? p.ref.collected : p.ref.taken;
       if (gone && !p.gone) {
         p.gone = true;

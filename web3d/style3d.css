@@ -326,3 +326,60 @@ a.l3-d:hover { border-color: var(--belt); box-shadow: 0 0 0 1px var(--belt) inse
 .l3-dev kbd { font-family: var(--mono); background: var(--bg-3); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; }
 /* a section's own display rule must never beat the hidden attribute */
 #hub3d [hidden] { display: none !important; }
+
+/* ============================== phones (phase 8) ============================== */
+
+.t3 { position: fixed; inset: 0; z-index: 12; touch-action: none; user-select: none; -webkit-user-select: none; }
+.t3[hidden] { display: none; }
+.t3-zone { position: absolute; top: 0; bottom: 0; }
+.t3-left { left: 0; width: 45%; }
+.t3-right { right: 0; width: 55%; }
+.t3-base {
+  position: absolute; width: 112px; height: 112px; margin: -56px 0 0 -56px;
+  border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.22); background: rgba(255, 255, 255, 0.06);
+  opacity: 0; transition: opacity 120ms; pointer-events: none;
+}
+.t3-base.on { opacity: 1; }
+.t3-knob {
+  position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35); transform: translate(-50%, -50%);
+}
+.t3-buttons {
+  position: absolute; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom));
+  display: grid; grid-template-columns: auto auto; gap: 12px; align-items: end;
+}
+.t3-btn {
+  all: unset; box-sizing: border-box; width: 66px; height: 66px; border-radius: 50%;
+  display: grid; place-items: center; font: 700 11px var(--mono); letter-spacing: 0.06em; color: #fff;
+  background: rgba(10, 12, 18, 0.45); border: 2px solid rgba(255, 255, 255, 0.3);
+}
+.t3-map { width: 52px; height: 52px; grid-column: 1; }
+.t3-run.on { border-color: var(--bolt); color: var(--bolt); box-shadow: 0 0 14px rgba(255, 230, 109, 0.5); }
+.t3-stun { width: 78px; height: 78px; grid-column: 2; grid-row: 1 / span 2; opacity: 0.55; }
+.t3-stun.ready { opacity: 1; border-color: #9fd8ff; color: #9fd8ff; }
+.t3-stun.locked { background: rgba(255, 77, 94, 0.35); border-color: #ff4d5e; color: #fff; }
+.t3-stun[hidden] { display: none; }
+.t3-pause {
+  all: unset; position: absolute; left: 50%; top: max(36px, env(safe-area-inset-top)); transform: translateX(-50%);
+  width: 40px; height: 30px; border-radius: 8px; text-align: center; font: 700 12px/30px var(--mono); color: #fff;
+  background: rgba(10, 12, 18, 0.45); border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.t3-rotate {
+  position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; text-align: center;
+  background: #050507; color: var(--fg); font-size: 18px; font-weight: 700; padding: 24px;
+}
+.t3-rotate span { font-size: 14px; font-weight: 400; color: var(--fg-dim); }
+.t3-rotate[hidden] { display: none; }
+
+/* the HUD gives way to thumbs */
+.t3-touch .h3-mini { width: 118px; height: 118px; }
+.t3-touch .h3-tl { top: 34px; left: max(12px, env(safe-area-inset-left)); }
+.t3-touch .h3-bl { display: none; }
+.t3-touch .h3-ammo { display: none; }
+.t3-touch .h3-sprint { bottom: 10px; }
+.t3-touch .h3-compass { top: 72px; width: 46vw; }
+.t3-touch .b3-banner .b3-more { display: none; }
+@media (max-height: 420px) {
+  .t3-touch .h3-tr { top: 34px; }
+  .t3-touch .h3-objective { margin-top: 6px; font-size: 12px; }
+}

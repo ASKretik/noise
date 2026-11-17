@@ -15,6 +15,7 @@ import { Audio3D } from './audio3d.js';
 import { Controls } from './controls.js';
 import { Hud3D } from './hud3d.js';
 import { StunGun } from './gun.js';
+import { Touch3D, isTouchDevice } from './touch3d.js';
 import { DistrictRunner } from './runner.js';
 import { mountBanner } from './banner.js';
 import { loadSettings, saveSettings } from './settings3d.js';
@@ -68,6 +69,9 @@ export class Play3D {
     this.gun = new StunGun();
     this.lock = null;
     this.kit = q.get('kit') === '1';
+    this.touchMode = isTouchDevice();
+    this.touch = this.touchMode ? new Touch3D($('touch3d'), this.controls) : null;
+    this.fps = 60;
     this.applySettings();
     this.frame = this.frame.bind(this);
   }
@@ -99,8 +103,18 @@ export class Play3D {
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.controls.unlock(); });
     this.wireTune();
     this.wireSettings();
-    if (matchMedia('(hover: none) and (pointer: coarse)').matches) {
-      $('ov-note').textContent = 'Touch controls arrive in phase 8. For now this needs a mouse and keyboard.';
+    if (this.touch) {
+      this.touch.attach();
+      this.touch.on('fire', () => this.fire());
+      this.touch.on('map', () => { this.mapOpen = !this.mapOpen; this.hud.showMap(this.mapOpen); });
+      this.touch.on('pause', () => this.onLock(false));
+      this.touch.on('move', () => this.audio.start());
+      document.body.classList.add('t3-touch');
+      $('ov-primary').textContent = 'tap to play';
+      this.gun.rest.set(0.13, -0.25, -0.5);      // lower and inward, clear of the thumb buttons
+      $('ov-body').textContent = 'Left thumb moves, right thumb looks. RUN latches sprint, STUN fires at whatever is locked, MAP shows the district.';
+      const orient = () => { $('rotate3d').hidden = innerHeight <= innerWidth; };
+      addEventListener('resize', orient); orient();
     }
     this.view.resize();
     this.start(this.district);
@@ -216,6 +230,14 @@ export class Play3D {
       const cap = this.career ? this.career.profile.level : 100;
       this.start(won ? Math.min(100, cap, this.district + 1) : this.district);
     }
+    if (this.touch) {
+      // No pointer lock on a phone: playing is simply "not paused". Full screen and a
+      // landscape lock where the browser allows it, because height is the scarce thing.
+      try { document.documentElement.requestFullscreen?.({ navigationUI: 'hide' })?.catch?.(() => {}); } catch { /* fine */ }
+      try { screen.orientation?.lock?.('landscape')?.catch?.(() => {}); } catch { /* fine */ }
+      this.onLock(true);
+      return;
+    }
     this.controls.lock();
   }
 
@@ -303,13 +325,14 @@ export class Play3D {
 
   // ---------------------------------------------------------------- the frame
 
-  frame(now) {
+  frame(now, once = false) {
     const dt = Math.min(((now - (this.last ?? now)) / 1000), 0.1);
     this.last = now;
     this.t += dt;
     const r = this.runner;
     const g = r.game;
-    const intent = this.controls.intent();
+    const intent = this.touch ? this.touch.intent(this.controls.yaw) : this.controls.intent();
+    this.fps += ((dt > 0 ? 1 / dt : 60) - this.fps) * 0.05;
     if (!this.paused && !g.over) r.update(dt, intent);
 
     const cellM = this.tune.cellM;
@@ -342,7 +365,12 @@ export class Play3D {
     document.body.classList.toggle('g3-in-box', inBox);
 
     cam.updateMatrixWorld();
-    this.lock = !this.paused && !g.over ? this.gun.aim(cam, this.entities, g) : null;
+    this.lock = !this.paused && !g.over ? this.gun.aim(cam, this.entities, g, this.touch ? 0.14 : 0) : null;
+    if (this.touch) {
+      // RUN latches, but the sim refuses sprint on an empty charge: keep the latch honest.
+      if (this.touch.run && g.sprintTicks <= 0) this.touch.run = false;
+      this.touch.setState({ running: g.sprinting, charges: g.loadout.bullets, gun: g.loadout.stunGun, locked: this.lock?.ok });
+    }
     this.gun.update(dt, cam, g, { yaw: this.controls.yaw, pitch: this.controls.pitch, bob: bobY, reduceMotion: calm });
     this.hud.update({
       game: g, level: r.level, body: b, camera: cam, yaw: this.controls.yaw,
@@ -351,8 +379,11 @@ export class Play3D {
     });
     if (this.tune.debug) this.debugReadout();
     this.view.render();
+    // Read the world pass's counters before the gun pass resets them.
+    const info = this.view.renderer.info.render;
+    this.worldInfo = { calls: info.calls, tris: info.triangles };
     this.gun.render(this.view.renderer);
-    requestAnimationFrame(this.frame);
+    if (!once) requestAnimationFrame(this.frame);
   }
 
   debugReadout() {
@@ -365,7 +396,40 @@ export class Play3D {
       `emitted   ${row ? (row.dir < 0 ? 'STAY' : DIRS[row.dir].name) + (row.sprint ? ' x2' : '') : '-'}\n` +
       `aliens    ${g.patrols.length}  alert ${g.alertTicks}\n` +
       `snaps     ${r.session.snapped}\n` +
-      `draws     ${this.view.renderer.info.render.calls}`;
+      `fps       ${this.fps.toFixed(0)}  quality ${this.quality.id}\n` +
+      `draws     ${this.worldInfo?.calls ?? 0}  tris ${this.worldInfo?.tris ?? 0}`;
+  }
+
+  /**
+   * Frame cost at a given resolution, with the GPU forced to finish every frame (a
+   * one-pixel readback), so the number includes GPU time and not just command submission.
+   * Used for criterion 3D-11; the browser's own frame pacing is not involved.
+   */
+  benchmark({ width = 1920, height = 1080, pixelRatio = 1, frames = 120, spin = true } = {}) {
+    const R = this.view.renderer, gl = R.getContext();
+    const prevRatio = R.getPixelRatio();
+    R.setPixelRatio(pixelRatio);
+    R.setSize(width, height, false);
+    this.view.camera.aspect = width / height;
+    this.view.setHFov(this.settings.fov);
+    const px = new Uint8Array(4);
+    const times = [];
+    let calls = 0, tris = 0;
+    for (let i = 0; i < frames + 10; i++) {
+      // Turn through a full circle over the run, so every view direction is in the sample.
+      if (spin) this.controls.yaw += (Math.PI * 2) / frames;
+      const t0 = performance.now();
+      this.frame(performance.now(), true);
+      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      const ms = performance.now() - t0;
+      if (i >= 10) times.push(ms);
+      calls = Math.max(calls, this.worldInfo.calls); tris = Math.max(tris, this.worldInfo.tris);
+    }
+    R.setPixelRatio(prevRatio);
+    this.view.resize();
+    times.sort((a, b) => a - b);
+    const mean = times.reduce((a, b) => a + b, 0) / times.length;
+    return { width, height, pixelRatio, frames, mean, p95: times[Math.floor(times.length * 0.95)], max: times[times.length - 1], calls, tris, quality: this.quality.id };
   }
 
   // ---------------------------------------------------------------- settings
