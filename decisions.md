@@ -35,7 +35,7 @@ Three markers throughout:
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    9 passed · 4 not demonstrated · 0 failed   (3D build 4, phase 4)
+npm run test3d    9 passed · 4 not demonstrated · 0 failed   (3D build 5, phase 5)
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -1677,10 +1677,33 @@ on TIDE and SOLAR, flagged in the banner.
 
 **Not verified:** the audio has been checked for errors only; nobody has listened to it.
 
+## R34 · 3D phase 5: the HUD
+
+**Built:** `web3d/hud3d.js` -- minimap and tactical map drawn by `web/render.js`'s
+`Renderer`, **unchanged**, into an offscreen canvas (its `resize()` measures a page layout
+the 3D page does not have, so the HUD sets the tile size and backing store directly
+instead of calling it); a compass strip with key and portal bearings; waypoints projected
+over every uncollected key and the open portal; threat arcs around the crosshair, one per
+alien that can hear you; a noise meter; sprint bar; dispatch subtitles from
+`web/dispatch.js`'s `buildState` + `templated`, unchanged. `web3d/settings3d.js` and a
+settings section in the pause card. Head bob from distance walked, sprint FOV kick, both
+off under reduce motion (default follows `prefers-reduced-motion`). 3D build **5**.
+
+**[ASSUMED] The H overlay is on the maps, not on the floor.** The spec said the
+prediction would be tinted onto the floor of each region. The 2D renderer already draws
+the heatmap, so H turns it on in the minimap and the tactical map: one drawing, exact
+parity with 2D, no second implementation of the same overlay. A floor tint can still be
+added if the map version proves too indirect.
+
+**Checked in the browser pane:** the minimap rotates with heading and shows the 2D board
+with aliens and their rings; the compass carries the key bearing; the HUNTED line, threat
+arc and noise meter light together when an alien has you; the narration appears as
+intercepted radio; the tactical map with the heatmap on shows the predicted regions in red.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    9 passed · 4 not demonstrated · 0 failed   (3D build 4, phase 4)
+npm run test3d    9 passed · 4 not demonstrated · 0 failed   (3D build 5, phase 5)
 ```

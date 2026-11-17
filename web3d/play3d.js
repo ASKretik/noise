@@ -4,41 +4,48 @@
 // decides what happens lives in DistrictRunner (DOM-free) and below it in /sim3d and
 // /sim; nothing there knows this file exists.
 
-import { DIRS, isWalkable } from '../sim/grid.js';
+import { DIRS, isWalkable, TILE } from '../sim/grid.js';
 import { CELL_M, TICK_HZ_3D, EYE_M, realSeconds } from '../sim3d/units.js';
 import { RESPONSE } from '../sim3d/body.js';
 import { createScene } from './scene.js';
 import { buildWorld, lightScene } from './world.js';
-import { currentQuality } from './quality.js';
-import { TILE } from '../sim/grid.js';
+import { currentQuality, setQuality } from './quality.js';
 import { Entities } from './entities.js';
 import { Audio3D } from './audio3d.js';
 import { Controls } from './controls.js';
+import { Hud3D } from './hud3d.js';
 import { DistrictRunner } from './runner.js';
 import { mountBanner } from './banner.js';
+import { loadSettings, saveSettings } from './settings3d.js';
 
 const $ = (id) => document.getElementById(id);
 
+/** Dispatch is asked for a line this often (ticks), plus whenever a hunt starts. */
+const DISPATCH_EVERY_TICKS = 32;
+
 const TUNE_KEY = 'noise3d-tune-v1';
-const DEFAULTS = Object.freeze({ cellM: CELL_M, tickHz: TICK_HZ_3D, response: RESPONSE, fov: 90, sens: 1, debug: false });
+const DEFAULTS = Object.freeze({ cellM: CELL_M, tickHz: TICK_HZ_3D, response: RESPONSE, debug: false });
 
 function loadTune() {
   try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(TUNE_KEY) || '{}') }; } catch { return { ...DEFAULTS }; }
 }
 function saveTune(t) { try { localStorage.setItem(TUNE_KEY, JSON.stringify(t)); } catch { /* not remembered */ } }
 
-class Play3D {
+export class Play3D {
   constructor() {
     const q = new URLSearchParams(location.search);
     this.district = Math.max(1, Math.min(100, Number(q.get('d')) || 1));
     this.tier = ['easy', 'medium', 'hard', 'ultra'].includes(q.get('t')) ? q.get('t') : 'medium';
     this.profileId = q.get('p') || 'graybox';
     this.tune = loadTune();
+    this.settings = loadSettings();
     this.attempt = 0;
     this.chains = new Map();
     this.dossier = null;
     this.paused = true;
     this.t = 0;
+    this.bob = 0;
+    this.fovKick = 0;
 
     this.quality = currentQuality();
     this.view = createScene($('view'), {
@@ -46,11 +53,11 @@ class Play3D {
       antialias: this.quality.antialias,
     });
     this.view.renderer.shadowMap.enabled = this.quality.shadows;
-    this.view.setHFov(this.tune.fov);
 
     this.audio = new Audio3D();
     this.controls = new Controls($('view'));
-    this.controls.sensitivity = this.tune.sens;
+    this.hud = new Hud3D($('hud'));
+    this.applySettings();
     this.frame = this.frame.bind(this);
   }
 
@@ -59,13 +66,16 @@ class Play3D {
     this.controls.attach();
     this.controls.on('lock', (locked) => this.onLock(locked));
     this.controls.on('lockerror', () => { $('ov-note').textContent = 'The browser refused to capture the mouse. Click again.'; });
-    this.controls.on('restart', () => this.start(this.district));
+    this.controls.on('restart', () => { if (this.controls.locked) this.start(this.district); });
     this.controls.on('tune', () => this.toggleTune());
+    this.controls.on('map', (on) => this.hud.showMap(on));
+    this.controls.on('toggle', (what) => this.hud.toggleLayer(what));
     $('ov-primary').addEventListener('click', () => this.primary());
     $('ov-secondary').addEventListener('click', () => { this.start(this.district); this.controls.lock(); });
     window.addEventListener('resize', () => this.view.resize());
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.controls.unlock(); });
     this.wireTune();
+    this.wireSettings();
     if (matchMedia('(hover: none) and (pointer: coarse)').matches) {
       $('ov-note').textContent = 'Touch controls arrive in phase 8. For now this needs a mouse and keyboard.';
     }
@@ -73,6 +83,8 @@ class Play3D {
     this.start(this.district);
     requestAnimationFrame(this.frame);
   }
+
+  // ---------------------------------------------------------------- a district
 
   start(n) {
     clearTimeout(this.overlayTimer);
@@ -85,17 +97,20 @@ class Play3D {
       dossier: this.dossier, chain: this.chains.get(n),
       seedKey: `${this.profileId}#${n}#${this.attempt}`,
       tickHz: this.tune.tickHz,
-      loadout: { boltSeconds: 0 },
+      loadout: this.loadout(),
     });
     this.runner.session.response = this.tune.response;
     this.dossier = this.runner.dossier;
     this.chains.set(n, this.runner.chain);
     this.runner.onEnd = (summary) => this.finish(summary);
-    this.runner.onTick = () => this.afterTick();
+    this.runner.onTick = (row) => this.afterTick(row);
     this.lastCell = { x: this.runner.game.player.x, y: this.runner.game.player.y };
+    this.wasAlert = false;
     this.endAnim = null;
     document.body.classList.remove('g3-caught', 'g3-won');
     this.buildScene();
+    this.hud.setDistrict(this.runner.level, this.tier);
+
     // Face the most open direction, so the first thing you see is a corridor, not a wall.
     const g = this.runner.game;
     let best = 0, bestRun = -1;
@@ -106,11 +121,13 @@ class Play3D {
     }
     this.controls.yaw = [0, -Math.PI / 2, Math.PI, Math.PI / 2][best];
     this.controls.pitch = 0;
-    $('hud-district').textContent = `DISTRICT ${n}`;
-    $('hud-tier').textContent = this.tier.toUpperCase();
     $('ov-secondary').hidden = true;
     this.ended = false;
+    this.narrate();
   }
+
+  /** What the player carries in. Phase 7 reads this from the save file. */
+  loadout() { return { stunGun: false, bullets: 0, boltSeconds: 0 }; }
 
   buildScene() {
     const cellM = this.tune.cellM;
@@ -130,7 +147,22 @@ class Play3D {
       this.audio.footstep(tile === TILE.COVER ? 'water' : tile === TILE.SAFE ? 'safe' : 'floor', g.sprinting);
       this.lastCell = { x: g.player.x, y: g.player.y };
     }
+    const alert = g.alertTicks > 0;
+    if ((g.started && g.tick % DISPATCH_EVERY_TICKS === 0) || (alert && !this.wasAlert)) this.narrate();
+    this.wasAlert = alert;
   }
+
+  narrate() {
+    const r = this.runner;
+    this.hud.narrate({
+      game: r.game, prediction: r.prediction, dossier: r.dossier, chain: r.chain,
+      lastSpawn: r.system.lastSpawn, level: r.district,
+      profile: this.profileName(), mode: r.mode,
+    });
+  }
+
+  /** Phase 7 replaces this with the real profile. */
+  profileName() { return { displayName: 'GRAYBOX' }; }
 
   primary() {
     this.audio.start();
@@ -146,6 +178,7 @@ class Play3D {
     if (locked) this.audio.start();
     $('overlay').hidden = locked || this.ended;
     $('hud').hidden = false;
+    if (!locked) this.hud.showMap(false);
     if (!locked && !this.ended) {
       $('ov-title').textContent = 'PAUSED';
       $('ov-body').textContent = 'Nothing moves while the mouse is released. Click to resume.';
@@ -177,8 +210,22 @@ class Play3D {
     } else {
       document.body.classList.add('g3-won');
     }
+    this.narrate();
     clearTimeout(this.overlayTimer);
     this.overlayTimer = setTimeout(() => this.showEnd(summary), summary.won ? 650 : 900);
+  }
+
+  endStats(summary) {
+    const hz = this.runner.session.tickHz;
+    const secs = realSeconds(summary.ticks, hz).toFixed(1);
+    return [
+      ['keys', `${summary.collected}/${summary.caches}`],
+      ['time', `${secs}s (par ${realSeconds(summary.par, hz).toFixed(0)}s)`],
+      ['aliens at peak', summary.peakAliens],
+      ['coins picked up', summary.coinValue],
+      ['aliens stunned', summary.stuns ?? 0],
+      ['file depth', `${this.dossier.levelsSeen} districts`],
+    ];
   }
 
   showEnd(summary) {
@@ -186,18 +233,15 @@ class Play3D {
     $('ov-title').textContent = summary.won ? 'THROUGH THE PORTAL' : summary.loseReason === 'timeout' ? 'TIMED OUT' : 'CAUGHT';
     $('ov-body').textContent = summary.won
       ? `District ${this.district} cleared in ${secs}s. The file on you follows you to district ${this.district + 1}.`
-      : `They reached you after ${secs}s, with ${summary.collected} of ${summary.caches} keys.`;
-    $('ov-stats').innerHTML = [
-      ['keys', `${summary.collected}/${summary.caches}`],
-      ['time', `${secs}s (par ${realSeconds(summary.par, this.runner.session.tickHz).toFixed(0)}s)`],
-      ['aliens at peak', summary.peakAliens],
-      ['coins picked up', summary.coinValue],
-    ].map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
+      : `They reached you after ${secs}s, with ${summary.collected} of ${summary.caches} keys. The run still went into your file.`;
+    $('ov-stats').innerHTML = this.endStats(summary).map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
     $('ov-primary').textContent = summary.won ? `enter district ${this.district + 1}` : 'run it again';
     $('ov-secondary').hidden = !summary.won;
     $('ov-secondary').textContent = 'replay this district';
     $('overlay').hidden = false;
   }
+
+  // ---------------------------------------------------------------- the frame
 
   frame(now) {
     const dt = Math.min(((now - (this.last ?? now)) / 1000), 0.1);
@@ -205,13 +249,24 @@ class Play3D {
     this.t += dt;
     const r = this.runner;
     const g = r.game;
-    if (!this.paused && !g.over) r.update(dt, this.controls.intent());
+    const intent = this.controls.intent();
+    if (!this.paused && !g.over) r.update(dt, intent);
 
     const cellM = this.tune.cellM;
     const cam = this.view.camera;
     const b = r.session.body;
-    cam.position.set(b.x * cellM, EYE_M, b.y * cellM);
+    const speed = Math.hypot(b.vx, b.vy);
+    const calm = this.settings.reduceMotion;
+    // Head bob from distance actually walked, not from time: standing still is still.
+    this.bob += speed * dt * 2.4;
+    const bobY = calm ? 0 : Math.sin(this.bob * 2) * 0.035 * Math.min(1, speed / r.session.tickHz);
+    cam.position.set(b.x * cellM, EYE_M + bobY, b.y * cellM);
     cam.rotation.set(this.controls.pitch, this.controls.yaw, 0);
+    // A small FOV kick while actually sprinting.
+    const kick = !calm && g.sprinting && speed > r.session.tickHz * 1.2 ? 5 : 0;
+    this.fovKick += (kick - this.fovKick) * (1 - Math.exp(-dt * 8));
+    this.view.setHFov(this.settings.fov + this.fovKick);
+
     if (this.endAnim) {
       const k = Math.min(1, (this.t - this.endAnim.t0) / 0.45);
       const e = 1 - (1 - k) * (1 - k);
@@ -223,32 +278,69 @@ class Play3D {
     this.audio.update(g, { x: cam.position.x, y: EYE_M, z: cam.position.z, yaw: this.controls.yaw }, this.entities.alienVoices());
     this.world.animate(this.t);
     // Inside a black box the world goes dark and quiet: nothing can see in, and you know it.
-    const inBox = this.runner.map.tiles[Math.floor(b.y) * this.runner.map.w + Math.floor(b.x)] === TILE.SAFE;
+    const inBox = r.map.tiles[Math.floor(b.y) * r.map.w + Math.floor(b.x)] === TILE.SAFE;
     document.body.classList.toggle('g3-in-box', inBox);
-    this.hud();
+
+    cam.updateMatrixWorld();
+    this.hud.update({
+      game: g, level: r.level, body: b, camera: cam, yaw: this.controls.yaw,
+      tickHz: r.session.tickHz, cellM, prediction: r.prediction, entities: this.entities,
+      lock: this.lock,
+    });
+    if (this.tune.debug) this.debugReadout();
     this.view.render();
     requestAnimationFrame(this.frame);
   }
 
-  hud() {
-    const r = this.runner, g = r.game;
-    $('hud-objective').textContent = g.portalRevealed ? 'REACH THE PORTAL' : `KEYS ${g.collected} / ${g.caches.length}`;
-    $('hud-time').textContent = `${realSeconds(g.tick, r.session.tickHz).toFixed(1)} s`;
-    $('hud-begin').hidden = g.started;
-    const sprintLeft = realSeconds(g.sprintTicks, r.session.tickHz);
-    $('hud-sprint').textContent = sprintLeft > 0 ? `SPRINT ${sprintLeft.toFixed(1)} s${g.sprinting ? ' ·' : ''}` : '';
-    if (this.tune.debug) {
-      const b = r.session.body;
-      const row = r.lastRow;
-      $('hud-debug').textContent =
-        `tick ${g.tick}  ${g.started ? '' : '(frozen)'}\n` +
-        `sim cell  ${g.player.x},${g.player.y}\n` +
-        `body cell ${Math.floor(b.x)},${Math.floor(b.y)}  (${b.x.toFixed(2)}, ${b.y.toFixed(2)})\n` +
-        `speed     ${Math.hypot(b.vx, b.vy).toFixed(2)} cells/s\n` +
-        `emitted   ${row ? (row.dir < 0 ? 'STAY' : DIRS[row.dir].name) + (row.sprint ? ' x2' : '') : '-'}\n` +
-        `aliens    ${g.patrols.length}  alert ${g.alertTicks}\n` +
-        `snaps     ${r.session.snapped}`;
-    }
+  debugReadout() {
+    const r = this.runner, g = r.game, b = r.session.body, row = r.lastRow;
+    $('hud-debug').textContent =
+      `tick ${g.tick}  ${g.started ? '' : '(frozen)'}\n` +
+      `sim cell  ${g.player.x},${g.player.y}\n` +
+      `body cell ${Math.floor(b.x)},${Math.floor(b.y)}  (${b.x.toFixed(2)}, ${b.y.toFixed(2)})\n` +
+      `speed     ${Math.hypot(b.vx, b.vy).toFixed(2)} cells/s\n` +
+      `emitted   ${row ? (row.dir < 0 ? 'STAY' : DIRS[row.dir].name) + (row.sprint ? ' x2' : '') : '-'}\n` +
+      `aliens    ${g.patrols.length}  alert ${g.alertTicks}\n` +
+      `snaps     ${r.session.snapped}\n` +
+      `draws     ${this.view.renderer.info.render.calls}`;
+  }
+
+  // ---------------------------------------------------------------- settings
+
+  applySettings() {
+    const s = this.settings;
+    this.controls.sensitivity = s.sens;
+    this.controls.invertY = s.invertY;
+    this.view.setHFov(s.fov);
+    this.audio.setEnabled(s.sound);
+  }
+
+  wireSettings() {
+    const s = this.settings;
+    const bindRange = (id, out, key, fmt) => {
+      const el = $(id);
+      el.value = s[key];
+      $(out).textContent = fmt(Number(el.value));
+      el.addEventListener('input', () => {
+        s[key] = Number(el.value);
+        $(out).textContent = fmt(s[key]);
+        this.applySettings(); saveSettings(s);
+      });
+    };
+    bindRange('s-sens', 'o-sens', 'sens', (v) => `${v.toFixed(2)}×`);
+    bindRange('s-fov', 'o-fov', 'fov', (v) => `${v}°`);
+    const bindCheck = (id, key) => {
+      const el = $(id);
+      el.checked = !!s[key];
+      el.addEventListener('change', () => { s[key] = el.checked; this.applySettings(); saveSettings(s); });
+    };
+    bindCheck('s-invert', 'invertY');
+    bindCheck('s-motion', 'reduceMotion');
+    bindCheck('s-sound', 'sound');
+    let stored = '';
+    try { stored = localStorage.getItem('noise3d-quality') || ''; } catch { /* fine */ }
+    $('s-quality').value = stored;
+    $('s-quality').addEventListener('change', (e) => setQuality(e.target.value));
   }
 
   // ---------------------------------------------------------------- tuning panel
@@ -264,8 +356,6 @@ class Play3D {
       ['t-cell', 'o-cell', 'cellM', (v) => `${v.toFixed(2)} m`],
       ['t-hz', 'o-hz', 'tickHz', (v) => `${v} Hz`],
       ['t-resp', 'o-resp', 'response', (v) => `${v}/s`],
-      ['t-fov', 'o-fov', 'fov', (v) => `${v}°`],
-      ['t-sens', 'o-sens', 'sens', (v) => `${v.toFixed(2)}×`],
     ];
     const derived = () => {
       const walk = this.tune.cellM * this.tune.tickHz;
@@ -293,7 +383,7 @@ class Play3D {
     });
     $('t-copy').addEventListener('click', async () => {
       const t = this.tune;
-      const text = `cell ${t.cellM} m, tick ${t.tickHz} Hz, accel ${t.response}/s, fov ${t.fov}, sens ${t.sens}`;
+      const text = `cell ${t.cellM} m, tick ${t.tickHz} Hz, accel ${t.response}/s, fov ${this.settings.fov}, sens ${this.settings.sens}`;
       try { await navigator.clipboard.writeText(text); $('t-copy').textContent = 'copied'; } catch { $('t-copy').textContent = text; }
       setTimeout(() => { $('t-copy').textContent = 'copy values'; }, 1500);
     });
@@ -307,8 +397,6 @@ class Play3D {
   }
 
   applyTune(key) {
-    if (key === 'fov') this.view.setHFov(this.tune.fov);
-    if (key === 'sens') this.controls.sensitivity = this.tune.sens;
     if (key === 'tickHz') this.runner.session.tickHz = this.tune.tickHz;
     if (key === 'response') this.runner.session.response = this.tune.response;
     if (key === 'cellM') {

@@ -19,7 +19,7 @@ from the last row marked done. Everything marked done is on `origin/main` and li
 | 2 · Graybox feel prototype | **done — provisional go** | 2 | playable graybox, tuning panel; feel not yet judged by a person |
 | 3 · The world, properly | **done** | 3 | belt materials, procedural textures, rubble, water, black boxes, sky, quality tiers; belt check page |
 | 4 · Entities and feedback | **done** | 4 | instanced aliens, rings, pickups, capture/win sequences, positional audio; 3D-12 recorded |
-| 5 · The HUD | not started | | |
+| 5 · The HUD | **done** | 5 | minimap + tactical map via the 2D Renderer, compass, waypoints, threat arcs, noise meter, dispatch subtitles, settings |
 | 6 · The stun gun | not started | | |
 | 7 · The meta loop | not started | | |
 | 8 · Phones and performance | not started | | |

@@ -8,6 +8,27 @@
 
 export const CHANGES = [
   {
+    build: 5,
+    date: '2026-11-17',
+    phase: 5,
+    changed: [
+      'A full HUD: a minimap that turns with you (it is the 2D game\'s own board), a compass with key markers, waypoints over every key with the distance in metres.',
+      'Hold Tab or M for the tactical map: the whole district from above. H adds the prediction heatmap, V where you have been, I where the aliens are heading.',
+      'Red arcs around the crosshair point at every alien that can hear you; a noise meter says how deep inside its range you are, and when water or a black box is hiding you.',
+      'The surveillance system narrates as intercepted radio subtitles, from its live prediction of you.',
+      'Settings in the pause menu: sensitivity, invert Y, field of view, reduce motion, sound, quality. Subtle head bob and a sprint FOV kick, both off under reduce motion.',
+    ],
+    tryThis: [
+      'Play a district without holding Tab once. Is the minimap plus waypoints enough?',
+      'Get spotted and turn on the spot: do the red arcs tell you where to look?',
+      'Press H, then hold Tab: the red tint is where the system expects you next.',
+    ],
+    unverified: [
+      'HUD layout checked at one window size only; small laptop screens may crowd it.',
+      'The narration uses the templated path only on this page (no language model here, by design).',
+    ],
+  },
+  {
     build: 4,
     date: '2026-11-17',
     phase: 4,

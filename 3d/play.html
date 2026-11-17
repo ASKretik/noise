@@ -9,8 +9,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../web/style.css?v=4">
-<link rel="stylesheet" href="../web3d/style3d.css?v=4">
+<link rel="stylesheet" href="../web/style.css?v=5">
+<link rel="stylesheet" href="../web3d/style3d.css?v=5">
 <script type="importmap">
 { "imports": { "three": "../vendor/three/0.185.1/three.module.min.js" } }
 </script>
@@ -19,32 +19,33 @@
 
 <canvas id="view" class="g3-view" aria-label="First-person view of the district"></canvas>
 
-<div id="hud" class="g3-hud" hidden>
-  <div class="g3-crosshair" id="crosshair" aria-hidden="true"></div>
-  <div class="g3-topleft">
-    <div class="g3-title" id="hud-district">DISTRICT 1</div>
-    <div class="g3-objective" id="hud-objective">KEYS 0 / 3</div>
-  </div>
-  <div class="g3-topright">
-    <div id="hud-tier">MEDIUM</div>
-    <div class="g3-mono" id="hud-time">0.0 s</div>
-  </div>
-  <div class="g3-center-hint" id="hud-begin">MOVE TO BEGIN</div>
-  <div class="g3-bottom" id="hud-sprint"></div>
-  <pre class="g3-debug" id="hud-debug" hidden></pre>
-</div>
+<div id="hud" class="g3-hud" hidden></div>
+<pre class="g3-debug" id="hud-debug" hidden></pre>
 
 <div id="overlay" class="g3-overlay">
   <div class="g3-card">
     <h1 id="ov-title">NOISE 3D · graybox</h1>
     <p id="ov-body">Click to take control. WASD to move, mouse to look, Shift to sprint.
-      Esc releases the mouse and pauses. <b>`</b> opens the tuning panel.</p>
+      Esc releases the mouse and pauses. Hold Tab for the map. <b>`</b> opens the tuning panel.</p>
     <div class="g3-stats" id="ov-stats"></div>
     <div class="g3-actions">
       <button class="btn primary" id="ov-primary" type="button">click to play</button>
       <button class="btn ghost" id="ov-secondary" type="button" hidden>retry</button>
       <a class="btn ghost" href="./">back</a>
     </div>
+    <details class="g3-settings" id="ov-settings">
+      <summary>Settings</summary>
+      <label>Mouse sensitivity <output id="o-sens"></output><input type="range" id="s-sens" min="0.2" max="3" step="0.05"></label>
+      <label>Field of view <output id="o-fov"></output><input type="range" id="s-fov" min="65" max="110" step="1"></label>
+      <label class="g3-check"><input type="checkbox" id="s-invert"> invert mouse Y</label>
+      <label class="g3-check"><input type="checkbox" id="s-motion"> reduce motion (no head bob, no sprint FOV kick)</label>
+      <label class="g3-check"><input type="checkbox" id="s-sound"> sound</label>
+      <label>Quality <select id="s-quality">
+        <option value="">automatic</option><option value="high">High · shadows</option>
+        <option value="medium">Medium</option><option value="low">Low</option>
+      </select></label>
+      <p class="g3-fine">Quality applies on the next load. Tab or M holds the tactical map.</p>
+    </details>
     <p class="g3-note" id="ov-note"></p>
   </div>
 </div>
@@ -55,8 +56,6 @@
   <label>Cell size <output id="o-cell"></output><input type="range" id="t-cell" min="1" max="2.5" step="0.05"></label>
   <label>Tick rate <output id="o-hz"></output><input type="range" id="t-hz" min="2" max="8" step="0.5"></label>
   <label>Acceleration <output id="o-resp"></output><input type="range" id="t-resp" min="6" max="40" step="1"></label>
-  <label>Field of view <output id="o-fov"></output><input type="range" id="t-fov" min="65" max="110" step="1"></label>
-  <label>Mouse sensitivity <output id="o-sens"></output><input type="range" id="t-sens" min="0.2" max="3" step="0.05"></label>
   <label class="g3-check"><input type="checkbox" id="t-debug"> show leash debug readout</label>
   <div class="g3-actions">
     <button class="btn ghost" id="t-copy" type="button">copy values</button>
