@@ -15,6 +15,7 @@ import { Dossier } from '../sim/predictor/dossier.js';
 import { Game3D } from '../sim3d/game3d.js';
 import { Session3D } from '../sim3d/session.js';
 import { TICK_HZ_3D } from '../sim3d/units.js';
+import { thinBolts } from '../sim3d/bolts.js';
 
 const pool = new FieldPool(32 * 20);
 
@@ -31,6 +32,7 @@ export class DistrictRunner {
    * @param {string}  [o.seedKey]     distinguishes attempts
    * @param {number}  [o.tickHz]
    * @param {string}  [o.mode]
+   * @param {boolean} [o.thinBolts]   default true: fewer bolts deeper into each belt
    */
   constructor(o) {
     this.o = o;
@@ -38,6 +40,10 @@ export class DistrictRunner {
     this.params = levelParams(o.district, o.tier);
     this.level = generateLevel(o.profileId, o.district, { pool, params: this.params });
     this.level.regions.adjacency ||= regionAdjacency(this.level.map, this.level.regions);
+    // Fewer bolts deeper into each belt (spec-3d-next.md, N1). The runner's own copy of the
+    // level; nothing generated for the 2D game is touched. `thinBolts: false` disables it.
+    this.generatedBolts = this.level.bolts.length;
+    if (o.thinBolts !== false) this.level.bolts = thinBolts(this.level.bolts, o.district, o.profileId);
     this.mode = o.mode || 'full';
     this.difficulty = o.difficulty || resolveDifficulty({ mode: this.mode, params: this.params, runs: [] });
     this.dossier = o.dossier || new Dossier();

@@ -8,6 +8,23 @@
 
 export const CHANGES = [
   {
+    build: 12,
+    date: '2026-11-18',
+    phase: 'N1',
+    changed: [
+      'Fewer lightning bolts the deeper you go into each belt: a belt\'s first district keeps all of its bolts (about 18), its tenth keeps about a third (about 6), and the next belt starts full again.',
+      'Which bolts remain is fixed per district, so a district always looks the same each time you play it.',
+      'Bought lightning from the shop is now the way to keep sprinting late in a belt.',
+    ],
+    tryThis: [
+      'Compare district 1 and district 10 of your save: count the bolts on the Tab map.',
+      'Late in a belt, notice whether you ration your sprint differently.',
+    ],
+    unverified: [
+      'Balance with a person playing: the test bots never sprint, so their win rates cannot show what fewer bolts does.',
+    ],
+  },
+  {
     build: 11,
     date: '2026-11-18',
     phase: 'N0',

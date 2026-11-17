@@ -1,7 +1,7 @@
 # NOISE 3D — build spec
 
 Written Nov 17, 2026 as a plan · **rewritten the same day to describe the system as built**
-(3D build 10, plan phases 0–9 plus the R39 movement fix)
+(3D build 12: plan phases 0–9, the R39 movement fix, and next-round phases N0–N1)
 
 > This is the description, not the plan. The plan-stage version is in git history
 > (`git log --follow spec-3d.md`); the phased build order and its progress table are in
@@ -158,6 +158,12 @@ On touch only, a 0.14 rad cone locks the valid alien nearest the centre of the s
 
 ## The world
 
+**Bolts thin out deeper into each belt** (`sim3d/bolts.js`): the generator's bolts are
+kept in full in a belt's first district and cut to `max(1, round(n × (1 − 2k/27)))` at
+depth `k` (0–9), about a third by its tenth; the next belt starts full again. The kept set
+is a seeded choice, applied by the runner to its own copy of the level, so nothing the 2D
+game generates changes.
+
 Each belt's palette from `web/themes.js`, lifted **in sRGB** to a floor lightness (the 2D
 grounds are dark enough to read as black under 3D lighting): ground and an alternate
 shade per cell, walls with a lighter cap, rubble, water, fog and a sky dome. Canvas-drawn
@@ -204,8 +210,10 @@ drawing of it in the project, exact parity with 2D.
 
 `web/sound.js`'s ambience unchanged (the pulse rate is still the information), plus an
 HRTF-panned growl per alien so one can be heard behind a wall, footsteps that go quiet in
-water and silent in a black box, a zap and a dry click. **Never listened to** — checked for
-errors only.
+water and silent in a black box, a zap and a dry click. **The sound stops when the game
+does:** pausing, a hidden tab and the end card suspend the audio clock; the moment of
+capture keeps its sound. **Never listened to** — checked for errors and through the
+audio clock's state only.
 
 ## Persistence and the meta loop
 
@@ -236,7 +244,7 @@ minutes; if the banner's number is behind the update note, reload.
 ## Acceptance criteria
 
 `npm run test3d` (CI runs it with `--skip-2d`, the 2D suites having just run).
-**14 passed · 0 not demonstrated · 0 failed** at 3D build 10.
+**15 passed · 0 not demonstrated · 0 failed** at 3D build 12.
 
 | # | Criterion | Result |
 |---|---|---|
@@ -254,6 +262,7 @@ minutes; if the banner's number is behind the update note, reload.
 | 3D-11 | Frame budget, 1080p Medium (recorded: M3, mean 10.9–12.2 ms, p95 at 16.7 ms) | PASS, by hand |
 | 3D-12 | All ten belts legible (recorded screenshot review) | PASS, by hand |
 | 3D-13 | Movement never stutters: no frame under half its heading's speed, walking and sprinting, 0–45° | PASS |
+| 3D-14 | Bolt thinning matches its formula on all 100 districts, deterministic, reachable, applied by the runner | PASS |
 
 3D-11 and 3D-12 pass only on an entry in `bench3d/measured.json` naming the build, the
 date and who measured — in both cases Claude in the browser pane, not a human.
