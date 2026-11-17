@@ -35,7 +35,7 @@ Three markers throughout:
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    8 passed · 5 not demonstrated · 0 failed   (3D build 1, phase 1)
+npm run test3d    8 passed · 5 not demonstrated · 0 failed   (3D build 2, phase 2)
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -1588,10 +1588,44 @@ stopped body and the sim agree within one tick (the bound is two).
 
 **Not stamped.** Nothing on any page changed; the 3D build stays 1.
 
+## R31 · 3D phase 2: the graybox, and a provisional go
+
+**Built:** `3d/play.html` and `web3d/` -- `runner.js` (one district's game logic, no DOM:
+level, system, `Game3D`, `Session3D`), `scene.js`, `controls.js` (pointer lock, mouse
+look, WASD by physical key, Shift sprint), `world.js` and `entities.js` (graybox,
+instanced per tile type), `play3d.js` (frame loop, overlays, the tuning panel). The 3D
+launcher now picks a district and a tier. 3D build **2**.
+
+**Checked in the browser pane** (the first time anything in this project has been looked
+at rather than inferred):
+
+- The first render was nearly black: three.js lights are physically based since r155 and
+  the 2D-era intuition for intensities was off by about 2×. Hemisphere 2.6, sun 2.4, fog
+  pushed out to 30–95 m. Walls, floor seams, water and rubble now read clearly.
+- The banner sat in the middle of the screen: its class was `overlay`, which the 2D
+  stylesheet already uses for the centred run-end card. Renamed `b3-floating`. A reminder
+  that `web/style.css` is shared and its class names are taken.
+- A scripted run end to end: the body moves under the leash, the opening freeze holds
+  until the first move, an alien catches the player at tick 45 (11.3 s at 4 Hz), the end
+  card appears, zero leash snaps.
+
+**Not checkable here:** the pane throttles a background page to a few frames a second,
+so real-time feel cannot be judged from it, and a script cannot judge feel anyway.
+
+**[ASSUMED] Provisional go.** The plan makes the phase-2 go/no-go the player's call, and
+the request for this round was to build phase after phase. So the build continues on a
+*provisional* go resting on what can be measured -- 3D-3 parity, the 3D-5 leash fuzz,
+zero snaps in the browser run -- and the feel verdict stays open. If it comes back as
+rubber-banding, the fallback in the spec (a sub-cell sim) is still available; nothing in
+phases 3–6 is specific to the leash beyond `Session3D`.
+
+The tuning sliders ship live so the constants can be settled by feel rather than by me:
+cell 1.5 m and 4 Hz stay the defaults until then.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    8 passed · 5 not demonstrated · 0 failed   (3D build 1, phase 1)
+npm run test3d    8 passed · 5 not demonstrated · 0 failed   (3D build 2, phase 2)
 ```

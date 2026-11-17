@@ -5,7 +5,7 @@
 // steps the Game3D. The browser calls update(dt, controls) from requestAnimationFrame;
 // the tests call it from a loop with synthetic controls. Same code either way.
 
-import { createBody, moveBody, placeBody } from './body.js';
+import { createBody, moveBody, placeBody, RESPONSE } from './body.js';
 import { Leash } from './leash.js';
 import { InputRecord } from './record.js';
 import { TICK_HZ_3D } from './units.js';
@@ -30,6 +30,8 @@ export class Session3D {
     this.acc = 0;
     this.pendingStun = null;
     this.snapped = 0;
+    /** Body acceleration, per second. Tunable live in the phase-2 graybox. */
+    this.response = o.response ?? RESPONSE;
   }
 
   /** Fraction of the way to the next tick, for interpolating the aliens. */
@@ -53,7 +55,7 @@ export class Session3D {
     if (g.over) return 0;
     const sprintHeld = this.sprintHeld(controls);
     if (!this.leash.prepare(g, this.body, sprintHeld)) this.snapped++;
-    moveBody(this.body, controls.moveX || 0, controls.moveY || 0, this.speed(controls), dt, this.leash.blocked);
+    moveBody(this.body, controls.moveX || 0, controls.moveY || 0, this.speed(controls), dt, this.leash.blocked, this.response);
 
     this.acc += dt;
     const step = 1 / this.tickHz;

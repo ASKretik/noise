@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../web/style.css?v=1">
-<link rel="stylesheet" href="../web3d/style3d.css?v=1">
+<link rel="stylesheet" href="../web/style.css?v=2">
+<link rel="stylesheet" href="../web3d/style3d.css?v=2">
 <script type="importmap">
 { "imports": { "three": "../vendor/three/0.185.1/three.module.min.js" } }
 </script>
@@ -29,11 +29,39 @@
   </nav>
 </header>
 
-<main class="p3-stage">
-  <canvas id="stage" aria-label="Renderer check: a spinning cube cycling through the ten belt colours"></canvas>
-  <p class="p3-caption" id="caption">Starting the renderer…</p>
+<main class="l3-card">
+  <section class="l3-panel">
+    <h2>Graybox &middot; phase 2</h2>
+    <p>The real game in first person, on the unmodified sim, with placeholder shapes: grey
+      walls, brown rubble, red aliens, gold keys. This is the check on whether the movement
+      feels right. Press <kbd>`</kbd> in a district to tune it live and say which values
+      felt right.</p>
+    <div class="l3-row">
+      <label>District <select id="l3-district"></select></label>
+      <label>Tier <select id="l3-tier">
+        <option value="easy">Easy</option>
+        <option value="medium" selected>Medium</option>
+        <option value="hard">Hard</option>
+        <option value="ultra">Ultra</option>
+      </select></label>
+      <a class="btn primary" id="l3-go" href="play.html?d=1&amp;t=medium">enter district</a>
+    </div>
+    <div class="l3-keys">
+      <div><kbd>W A S D</kbd> move</div>
+      <div><kbd>mouse</kbd> look</div>
+      <div><kbd>Shift</kbd> sprint (with charge)</div>
+      <div><kbd>Esc</kbd> pause</div>
+      <div><kbd>R</kbd> restart district</div>
+      <div><kbd>`</kbd> tuning panel</div>
+    </div>
+  </section>
+  <section class="p3-stage" style="padding:0;margin-top:20px">
+    <canvas id="stage" aria-label="Renderer check: a spinning cube cycling through the ten belt colours"></canvas>
+    <p class="p3-caption" id="caption">Starting the renderer…</p>
+  </section>
 </main>
 
 <script type="module" src="../web3d/placeholder.js"></script>
+<script type="module" src="../web3d/launch3d.js"></script>
 </body>
 </html>

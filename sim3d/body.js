@@ -33,13 +33,14 @@ export const bodyCell = (body) => ({ x: Math.floor(body.x), y: Math.floor(body.y
  * @param {number} maxSpeed cells per second
  * @param {number} dt       seconds
  * @param {(cx:number, cy:number) => boolean} blocked
+ * @param {number} [response] how fast velocity approaches its target, per second
  */
-export function moveBody(body, ix, iy, maxSpeed, dt, blocked) {
+export function moveBody(body, ix, iy, maxSpeed, dt, blocked, response = RESPONSE) {
   const len = Math.hypot(ix, iy);
   if (len > 1) { ix /= len; iy /= len; }
   const tx = ix * maxSpeed;
   const ty = iy * maxSpeed;
-  const k = 1 - Math.exp(-RESPONSE * dt);
+  const k = 1 - Math.exp(-response * dt);
   body.vx += (tx - body.vx) * k;
   body.vy += (ty - body.vy) * k;
   // Settle to rest instead of creeping forever.
