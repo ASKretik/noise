@@ -1,7 +1,7 @@
 # NOISE 3D — build spec
 
 Written Nov 17, 2026 as a plan · **rewritten the same day to describe the system as built**
-(3D build 13: plan phases 0–9, the R39 movement fix, and next-round phases N0–N2)
+(3D build 14: plan phases 0–9, the R39 movement fix, and next-round phases N0–N2)
 
 > This is the description, not the plan. The plan-stage version is in git history
 > (`git log --follow spec-3d.md`); the phased build order and its progress table are in
@@ -179,18 +179,22 @@ cell. Inside a black box the view dims. Entity colours never change with the bel
 
 ### Entities
 
-Aliens are **Greys** (`web3d/alien.js`, parameters in `web3d/species.js`): a lathe
-cranium tipped back over a thin neck, enormous glossy almond eyes slanted 20° with red
-cat-slits, a hinged jaw (closed until N3), a lathe ribcage hunched forward, two-segment
-arms with three long fingers, and digitigrade legs, posed every frame by forward
-kinematics and drawn **by part across all aliens** (seven draw calls for any number).
-Grey-green skin carries the threat colour through glowing red markings and a red fresnel
-rim light, scaled per alien: dim when calm, bright when hunting, dark when stunned. When
-an alien can hear you its head turns to you and tilts 18° within a quarter second; idle
-aliens twitch on a seeded schedule; a stun is a 0.6 s convulsion, then a collapse with
-the eyes dark. They glide toward their sim cell at the speed their move period implies.
-Every belt uses the Greys for now; nine more species are specified in
-[spec-3d-next.md](spec-3d-next.md). A floor ring per alien shows the radius at which it hears you — red when it does, easing
+Aliens are a **different species in each belt** (`web3d/alien.js` posing,
+`web3d/species.js` parameters): Greys (RUST), Deep ones (TIDE: wide wet heads, gills,
+webbed hands), Sporelings (MOSS: fungal caps, a slow sway), Cinders (EMBER: cracked
+charcoal lit from inside, flickering), Watchers (VIOLET: a third eye, a long neck), Husks
+(ASH: pale, emaciated, moving in jerks), Choristers (CORAL: a frilled ruff that fans open
+when hunting), Wardens (JADE: a crown of horns, armour plates), Mirages (SOLAR:
+translucent, shimmering) and Architects (COBALT: metal bands, segmented limbs, circuit
+markings). One skeleton: a lathe cranium, almond eyes with red cat-slits, a hinged jaw,
+a lathe ribcage, three-fingered hands, digitigrade legs, posed by forward kinematics and
+drawn **by part across all aliens** (7–9 draw calls per species for any number). Every
+species carries the threat colour in its eye slits, glowing markings and a red fresnel
+rim light, scaled per alien: dim when calm, bright when hunting, dark when stunned
+(criterion 3D-26 checks the table). When an alien can hear you its head turns to you
+and tilts 18° within a quarter second; idle aliens twitch on a seeded schedule; a stun
+is a 0.6 s convulsion, then a collapse with the eyes dark. They glide toward their sim
+cell at the speed their move period implies. A floor ring per alien shows the radius at which it hears you — red when it does, easing
 smaller when you step into water. Keys glow; coins are coloured and sized by value and
 instanced by value; bolts are extruded glyphs; the open portal is a beam visible over
 every wall. Pickups fly to the camera. When you are caught the camera turns to the alien
@@ -252,7 +256,7 @@ minutes; if the banner's number is behind the update note, reload.
 ## Acceptance criteria
 
 `npm run test3d` (CI runs it with `--skip-2d`, the 2D suites having just run).
-**15 passed · 0 not demonstrated · 0 failed** at 3D build 13.
+**16 passed · 0 not demonstrated · 0 failed** at 3D build 14.
 
 | # | Criterion | Result |
 |---|---|---|
@@ -267,10 +271,11 @@ minutes; if the banner's number is behind the update note, reload.
 | 3D-8 | Save isolation, both sweeps run against each other, guest leaves MAIN byte-identical | PASS |
 | 3D-9 | Headless career: win, score, payout, dossier, unlock, purchase, kit carried on | PASS |
 | 3D-10 | Nothing optional or off-site loads; templated dispatch narrates live 3D state | PASS |
-| 3D-11 | Frame budget, 1080p Medium (recorded at build 13: M3, mean 4.2–4.5 ms, p95 5.2–7.5 ms) | PASS, by hand |
+| 3D-11 | Frame budget, 1080p Medium (recorded at build 14: M3, heaviest belt mean 11.9–13.3 ms, p95 at the 16.7 ms line) | PASS, by hand |
 | 3D-12 | All ten belts legible (recorded screenshot review) | PASS, by hand |
 | 3D-13 | Movement never stutters: no frame under half its heading's speed, walking and sprinting, 0–45° | PASS |
 | 3D-14 | Bolt thinning matches its formula on all 100 districts, deterministic, reachable, applied by the runner | PASS |
+| 3D-26 | Species table: ten distinct species, threat-red glow, known features and markings | PASS |
 
 3D-11 and 3D-12 pass only on an entry in `bench3d/measured.json` naming the build, the
 date and who measured — in both cases Claude in the browser pane, not a human.

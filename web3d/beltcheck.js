@@ -49,7 +49,7 @@ for (let b = 0; b < 10; b++) {
     patrols: [{ id: 1, ...ahead(6), mode: 'hunt' }],
   };
   fake.coins = [1, 2, 5, 10].map((value, i) => ({ ...at(3 + (i >> 1), i % 2 ? 1 : -1), value, taken: false }));
-  const ents = new Entities(scene, { cellM: CELL_M });
+  const ents = new Entities(scene, { cellM: CELL_M, district });
   ents.reset(fake);
   ents.sync(fake, 1, 0.5);
   ents.sync(fake, 1, 2.0);   // aliens grow in over their first third of a second

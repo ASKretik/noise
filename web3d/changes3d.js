@@ -8,6 +8,26 @@
 
 export const CHANGES = [
   {
+    build: 14,
+    date: '2026-11-18',
+    phase: 'N2',
+    changed: [
+      'Every belt has its own alien species now. RUST: Greys. TIDE: Deep ones, wet and wide-headed, with gills and webbed hands. MOSS: Sporelings, fungus sprouting from their heads, swaying.',
+      'EMBER: Cinders, charcoal skin cracked and glowing from inside. VIOLET: Watchers, a third eye and a long neck. ASH: Husks, pale and emaciated, moving in jerks.',
+      'CORAL: Choristers, with a frilled ruff that fans open round the head when they hunt. JADE: Wardens, horned and armour-plated. SOLAR: Mirages, translucent and shimmering. COBALT: Architects, with metal bands and segmented limbs.',
+      'Every species still glows red where it matters (eyes, markings, the rim of its silhouette), so red still means alien in every belt.',
+    ],
+    tryThis: [
+      'Visit one district in each belt (1, 11, 21 ... 91) and meet each species.',
+      'In CORAL (61+), get spotted and watch the ruff open. In SOLAR (81+), see whether the Mirages are too hard to spot.',
+      'Dev page: /noise/3d/species.html shows all ten side by side (?b=0..9 for one up close).',
+    ],
+    unverified: [
+      'Seen in screenshots, not in motion: the Sporelings\' sway, the Husks\' jerks and the Cinders\' flicker have only been checked as numbers.',
+      'The heaviest belt (COBALT, many coins) runs at about 75-84 fps on a laptop; its slowest frames sit right at 60.',
+    ],
+  },
+  {
     build: 13,
     date: '2026-11-18',
     phase: 'N2',

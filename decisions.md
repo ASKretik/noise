@@ -35,7 +35,7 @@ Three markers throughout:
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    15 passed · 0 not demonstrated · 0 failed  (3D build 13)
+npm run test3d    16 passed · 0 not demonstrated · 0 failed  (3D build 14)
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -1962,10 +1962,54 @@ within budget.
 **Not built:** the other nine species. Every belt has Greys; the table in
 `spec-3d-next.md` lists the rest.
 
+## R44 · N2 completed: a species for every belt
+
+**Asked:** "implement complete N2 before you move to N3, basically all the different
+aliens."
+
+**Built:** nine more species, each the Greys' parameter set with overrides
+(`species()` in `web3d/species.js` merges them), and the rig in `web3d/alien.js` grew
+three things to carry them: **marking styles** for the glow map (veins, cracks, spots,
+stripes, ribs, circuits, sigils, rings), **motion styles** (sway, jerk, flicker, shimmer)
+and **feature parts**, each one more instanced mesh only for the species that has it --
+gills, webbing, growths, a collar ruff, a crest of horns, armour plates, metal bands and
+panels; segmented limbs add mid-limb joints; the Watchers' third eye is a third entry in
+the eye mesh. 7 to 9 draw calls per species however many aliens. `3d/species.html` shows
+all ten (`?b=` one up close, `?d=` distance, `?pitch=`). Criterion **3D-26** checks the
+table: ten distinct species, one per belt, every glow within 25° of red at high
+saturation, only known features and marking styles. 3D build **14**.
+
+**What looking caught**, which is most of what this round was:
+
+1. *Red armour.* Feature parts used the skin's full red emission; the Wardens' plates
+   read as red slabs. Features now keep the red rim and drop the all-over glow.
+2. *A third eye inside the skull.* A hand-picked depth put it behind the brow of the
+   taller Watchers head. It is now placed by measuring the cranium's front surface at
+   that height; the Deep ones' gills, swallowed by their wider head, are placed the same
+   way on its side surface.
+3. *Fins seen edge-on.* The Choristers' collar radiated sideways and the Wardens' crest
+   ran front to back, so both were invisible from the front -- the angle the player sees
+   most. The collar is now a frilled-lizard ruff behind the head, facing forward, folded
+   flat when calm and fanned open when hunting; the crest is a staggered crown of horns.
+4. *Fungus that read as ears*, and a gallery panel looking through a black box: bigger,
+   paler, more numerous caps; the gallery now frames across open floor or water only.
+5. *A Mirage you could not see.* At 0.42 opacity, nine metres away, it was two eyes and a
+   faint outline. The 3D player must never see less than the 2D player, so it is 0.62 with
+   a stronger rim: ghostly, plain to see.
+
+**3D-11 re-measured on the heaviest case** -- district 91, Architects, the richest coin
+floor of any belt: mean 11.9–13.3 ms (75–84 fps), p95 16.1–17.7 ms, 89 draw calls, ~69k
+triangles. Most of the extra calls are halo sprites on high-value coins, not aliens. The
+mean clears 60 fps; the p95 sits on the line, as it did at build 8. **3D-12 re-recorded**
+for all ten species at in-game distance.
+
+**Not verified:** motion. The sway, the jerks, the flicker and the shimmer were checked as
+numbers and in still frames, never watched moving at full frame rate.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    15 passed · 0 not demonstrated · 0 failed  (3D build 13)
+npm run test3d    16 passed · 0 not demonstrated · 0 failed  (3D build 14)
 ```

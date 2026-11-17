@@ -1,16 +1,16 @@
 {
   "12": {
     "status": "pass",
-    "build": 13,
+    "build": 14,
     "date": "2026-11-18",
     "by": "Claude, screenshot review of 3d/belts.html and close-ups in play.html in the browser pane (not a human review)",
-    "note": "N2's Greys on all ten belts: the big-headed silhouette with its red rim light reads on every ground, including TIDE (dark blue) and JADE (green). At belt-check distance they read as pale figures with a red edge rather than solid red -- less loud than the old red bodies, not harder to find. Gold keys, coins by value and bolts unchanged. Close-ups front, side, three-quarter back, hearing (head turned and tilted) and stunned (collapsed, eyes dark) recorded in decisions.md R43."
+    "note": "All ten species (3d/species.html close-ups, then 3d/belts.html at in-game distance): every species reads on its own belt. The Mirages (SOLAR) were nearly invisible at 0.42 opacity -- two eyes and a faint outline at nine metres -- and were raised to 0.62 with a stronger rim, ghostly but plain to see. Gold keys, coins by value and bolts unchanged. Details in decisions.md R44."
   },
   "11": {
     "status": "pass",
-    "build": 13,
+    "build": 14,
     "date": "2026-11-18",
     "by": "Claude, play.html benchmark() in the Claude desktop browser pane on an Apple M3 laptop (integrated GPU), not a human-observed frame counter",
-    "note": "Re-measured for N2 (new alien bodies, ~41k triangles in view, up from ~21k). District 10 HARD, 4 aliens, camera turning a full circle, 1920x1080 at pixel ratio 1, GPU forced to finish every frame. Medium, three runs: mean 4.2-4.5 ms, p95 5.2-7.5 ms, 50 draw calls. Build 8 measured 10.9-12.2 ms mean on the same machine with the same recipe; fewer bolts since N1 explain some of the draw-call drop, and the rest is not attributed -- both runs are within budget, which is the claim. Phones: not measured."
+    "note": "Two cases on an Apple M3 in the browser pane, 1920x1080 at pixel ratio 1, Medium, GPU forced to finish every frame, camera turning a full circle, 4 aliens mid-hunt. District 10 (Greys, build 13): mean 4.2-4.5 ms, p95 5.2-7.5 ms, 50 draw calls, ~41k triangles. District 91 (Architects, the most expensive species, and the richest coin floor of any belt; build 14): mean 11.9-13.3 ms (75-84 fps), p95 16.1-17.7 ms, 89 draw calls, ~69k triangles -- most of the extra calls are halo sprites on high-value coins, not aliens. The mean clears 60 fps in both; the p95 of the heaviest case sits at the 16.7 ms line, as it did at build 8. Phones: not measured."
   }
 }

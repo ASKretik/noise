@@ -42,7 +42,7 @@ function boltShape() {
 }
 
 export class Entities {
-  constructor(scene, { cellM }) {
+  constructor(scene, { cellM, district = 1 }) {
     this.scene = scene;
     this.cellM = cellM;
     this.group = new THREE.Group();
@@ -50,7 +50,7 @@ export class Entities {
     this.halo = haloTexture();
 
     // ---- the aliens' bodies (web3d/alien.js), and the rings, instanced
-    this.species = speciesFor(1);
+    this.species = speciesFor(district);
     this.kit = new AlienKit(this.group, this.species);
     const mk = (geo, mat) => {
       const m = new THREE.InstancedMesh(geo, mat, MAX_ALIENS);
@@ -212,7 +212,7 @@ export class Entities {
       seen.add(p.id);
       let a = this.vis.get(p.id);
       if (!a) {
-        a = { x: p.x, y: p.y, heading: 0, gait: 0, stun: 0, born: t, look: 0, tilt: 0, stunT0: null, wasInert: false };
+        a = { x: p.x, y: p.y, heading: 0, gait: 0, stun: 0, born: t, look: 0, tilt: 0, flare: 0, stunT0: null, wasInert: false };
         this.vis.set(p.id, a);
       }
       const inert = (p.stunnedUntil || 0) > game.tick;
@@ -247,6 +247,7 @@ export class Entities {
       }
       const ease = 1 - Math.exp(-dt * 12);
       a.look += (wantLook - a.look) * ease;
+      a.flare += ((hunting && !inert ? 1 : 0) - a.flare) * (1 - Math.exp(-dt * 6));
       a.tilt += (wantTilt - a.tilt) * ease;
 
       // body transform: stand, face the heading, slump when stunned, grow in when new
@@ -264,6 +265,8 @@ export class Entities {
         tilt: inert ? 0.25 : a.tilt,
         pitch: inert ? 0.5 : -0.05,
         jaw: a.jaw || 0,
+        seed: p.id,
+        flare: a.flare,
       });
 
       // the ring: the radius at which this alien detects YOU, red when it does

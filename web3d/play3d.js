@@ -212,7 +212,7 @@ export class Play3D {
     lightScene(this.view.scene, this.world.palette, {
       cellM, mapW: this.runner.map.w, mapH: this.runner.map.h, shadows: this.quality.shadows,
     });
-    this.entities = new Entities(this.view.scene, { cellM });
+    this.entities = new Entities(this.view.scene, { cellM, district: this.runner.district });
     this.entities.reset(this.runner.game);
   }
 
