@@ -186,3 +186,18 @@
   opacity: 0; transition: opacity 260ms ease;
 }
 .g3-body.g3-in-box::after { opacity: 1; }
+
+/* run end: a red closing vignette when caught, a teal flash through the portal */
+.g3-body::before {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 6;
+  opacity: 0; transition: opacity 500ms ease;
+}
+.g3-body.g3-caught::before {
+  background: radial-gradient(ellipse at center, rgba(255, 30, 50, 0) 30%, rgba(160, 0, 20, 0.75) 100%);
+  opacity: 1;
+}
+.g3-body.g3-won::before {
+  background: radial-gradient(ellipse at center, rgba(25, 224, 200, 0.55), rgba(25, 224, 200, 0) 70%);
+  animation: g3-flash 650ms ease-out forwards;
+}
+@keyframes g3-flash { 0% { opacity: 1; } 100% { opacity: 0.15; } }

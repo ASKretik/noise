@@ -8,6 +8,28 @@
 
 export const CHANGES = [
   {
+    build: 4,
+    date: '2026-11-17',
+    phase: 4,
+    changed: [
+      'Aliens are creatures now: hunched red bodies, big white eyes, long arms. They glide between cells at their real speed instead of hopping.',
+      'A detection ring on the floor around every alien, red when it can hear you, shrinking when you step into water.',
+      'Proper keys, coins (colour is value, bigger glows more) and lightning bolts; collected things fly to you.',
+      'When you are caught the camera turns to face what caught you; the portal is a beam of light visible over every wall.',
+      'Sound: each alien has its own growl placed in 3D, so you can hear one behind a wall; footsteps go quiet in water and silent in a black box.',
+    ],
+    tryThis: [
+      'Headphones on. District 3 at Medium: listen for an alien before you see it.',
+      'Step into water near an alien and watch its ring shrink.',
+      'Get caught on purpose: is it always clear which alien did it?',
+    ],
+    unverified: [
+      'The sound has only been checked for errors, never actually listened to.',
+      'Rings are faint on the darkest belts (TIDE, SOLAR): say if you lose track of them.',
+      'Aliens walk through rubble, so a capture can come from inside a heap; the camera turns to it but it may be half hidden.',
+    ],
+  },
+  {
     build: 3,
     date: '2026-11-17',
     phase: 3,

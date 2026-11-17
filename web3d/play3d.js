@@ -12,6 +12,7 @@ import { buildWorld, lightScene } from './world.js';
 import { currentQuality } from './quality.js';
 import { TILE } from '../sim/grid.js';
 import { Entities } from './entities.js';
+import { Audio3D } from './audio3d.js';
 import { Controls } from './controls.js';
 import { DistrictRunner } from './runner.js';
 import { mountBanner } from './banner.js';
@@ -47,6 +48,7 @@ class Play3D {
     this.view.renderer.shadowMap.enabled = this.quality.shadows;
     this.view.setHFov(this.tune.fov);
 
+    this.audio = new Audio3D();
     this.controls = new Controls($('view'));
     this.controls.sensitivity = this.tune.sens;
     this.frame = this.frame.bind(this);
@@ -73,6 +75,7 @@ class Play3D {
   }
 
   start(n) {
+    clearTimeout(this.overlayTimer);
     this.district = n;
     this.attempt++;
     if (this.world) { this.view.scene.remove(this.world.group); this.world.dispose(); }
@@ -88,6 +91,10 @@ class Play3D {
     this.dossier = this.runner.dossier;
     this.chains.set(n, this.runner.chain);
     this.runner.onEnd = (summary) => this.finish(summary);
+    this.runner.onTick = () => this.afterTick();
+    this.lastCell = { x: this.runner.game.player.x, y: this.runner.game.player.y };
+    this.endAnim = null;
+    document.body.classList.remove('g3-caught', 'g3-won');
     this.buildScene();
     // Face the most open direction, so the first thing you see is a corridor, not a wall.
     const g = this.runner.game;
@@ -116,7 +123,17 @@ class Play3D {
     this.entities.reset(this.runner.game);
   }
 
+  afterTick() {
+    const g = this.runner.game;
+    if (g.player.x !== this.lastCell.x || g.player.y !== this.lastCell.y) {
+      const tile = this.runner.map.tiles[g.player.y * this.runner.map.w + g.player.x];
+      this.audio.footstep(tile === TILE.COVER ? 'water' : tile === TILE.SAFE ? 'safe' : 'floor', g.sprinting);
+      this.lastCell = { x: g.player.x, y: g.player.y };
+    }
+  }
+
   primary() {
+    this.audio.start();
     if (this.ended) {
       const won = this.runner.game.won;
       this.start(won ? Math.min(100, this.district + 1) : this.district);
@@ -126,7 +143,8 @@ class Play3D {
 
   onLock(locked) {
     this.paused = !locked;
-    $('overlay').hidden = locked;
+    if (locked) this.audio.start();
+    $('overlay').hidden = locked || this.ended;
     $('hud').hidden = false;
     if (!locked && !this.ended) {
       $('ov-title').textContent = 'PAUSED';
@@ -139,6 +157,31 @@ class Play3D {
   finish(summary) {
     this.ended = true;
     this.controls.unlock();
+    // The capture is never ambiguous about who did it: the camera turns to face it.
+    const g = this.runner.game;
+    if (!summary.won) {
+      let best = null, bestD = Infinity;
+      for (const p of g.patrols) {
+        const d = Math.hypot(p.x - g.player.x, p.y - g.player.y);
+        if (d < bestD) { bestD = d; best = p; }
+      }
+      const at = best && this.entities.alienPosition(best.id);
+      if (at) {
+        const cam = this.view.camera.position;
+        const toYaw = Math.atan2(-(at.x - cam.x), -(at.z - cam.z));
+        let diff = toYaw - this.controls.yaw;
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+        this.endAnim = { t0: this.t, fromYaw: this.controls.yaw, dYaw: diff, fromPitch: this.controls.pitch };
+      }
+      document.body.classList.add('g3-caught');
+    } else {
+      document.body.classList.add('g3-won');
+    }
+    clearTimeout(this.overlayTimer);
+    this.overlayTimer = setTimeout(() => this.showEnd(summary), summary.won ? 650 : 900);
+  }
+
+  showEnd(summary) {
     const secs = realSeconds(summary.ticks, this.runner.session.tickHz).toFixed(1);
     $('ov-title').textContent = summary.won ? 'THROUGH THE PORTAL' : summary.loseReason === 'timeout' ? 'TIMED OUT' : 'CAUGHT';
     $('ov-body').textContent = summary.won
@@ -169,7 +212,15 @@ class Play3D {
     const b = r.session.body;
     cam.position.set(b.x * cellM, EYE_M, b.y * cellM);
     cam.rotation.set(this.controls.pitch, this.controls.yaw, 0);
-    this.entities.sync(g, r.session.alpha, this.t);
+    if (this.endAnim) {
+      const k = Math.min(1, (this.t - this.endAnim.t0) / 0.45);
+      const e = 1 - (1 - k) * (1 - k);
+      this.controls.yaw = this.endAnim.fromYaw + this.endAnim.dYaw * e;
+      this.controls.pitch = this.endAnim.fromPitch * (1 - e) - 0.06 * e;
+      cam.rotation.set(this.controls.pitch, this.controls.yaw, 0);
+    }
+    this.entities.sync(g, r.session.alpha, this.t, { dt, tickHz: r.session.tickHz, camera: cam });
+    this.audio.update(g, { x: cam.position.x, y: EYE_M, z: cam.position.z, yaw: this.controls.yaw }, this.entities.alienVoices());
     this.world.animate(this.t);
     // Inside a black box the world goes dark and quiet: nothing can see in, and you know it.
     const inBox = this.runner.map.tiles[Math.floor(b.y) * this.runner.map.w + Math.floor(b.x)] === TILE.SAFE;

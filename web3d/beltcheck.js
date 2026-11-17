@@ -6,7 +6,7 @@
 
 import * as THREE from 'three';
 import { DIRS, isWalkable } from '../sim/grid.js';
-import { CELL_M, EYE_M } from '../sim3d/units.js';
+import { CELL_M } from '../sim3d/units.js';
 import { buildWorld, lightScene } from './world.js';
 import { Entities } from './entities.js';
 import { DistrictRunner } from './runner.js';
@@ -41,20 +41,24 @@ for (let b = 0; b < 10; b++) {
   const at = (k, s) => { const a = ahead(k); const c = { x: a.x + side.x * s, y: a.y + side.y * s }; return isWalkable(map, c.x, c.y) ? c : a; };
   const fake = {
     tick: 0, portalRevealed: false, portal: ahead(9),
+    player: { x: p.x, y: p.y }, effectiveRadius: 4.6,
+    params: { chaseMovePeriod: 2, patrolMovePeriod: 2.5 },
     caches: [{ ...at(2, 0), collected: false }],
     coins: [1, 2, 5, 10].map((value, i) => ({ ...at(3, i - 1.5 > 0 ? 1 : -1), value, taken: false })).map((c, i) => ({ ...c, x: c.x + (i % 2 ? 0 : 0) })),
     bolts: [{ ...at(4, 1), taken: false }],
-    patrols: [{ id: 1, ...ahead(6), prevX: ahead(6).x, prevY: ahead(6).y }],
+    patrols: [{ id: 1, ...ahead(6), mode: 'hunt' }],
   };
   fake.coins = [1, 2, 5, 10].map((value, i) => ({ ...at(3 + (i >> 1), i % 2 ? 1 : -1), value, taken: false }));
   const ents = new Entities(scene, { cellM: CELL_M });
   ents.reset(fake);
   ents.sync(fake, 1, 0.5);
+  ents.sync(fake, 1, 2.0);   // aliens grow in over their first third of a second
 
   const cam = new THREE.PerspectiveCamera(60, 1, 0.05, 220);
   cam.rotation.order = 'YXZ';
-  cam.position.set((p.x + 0.5) * CELL_M, EYE_M, (p.y + 0.5) * CELL_M);
-  cam.rotation.set(-0.08, [0, -Math.PI / 2, Math.PI, Math.PI / 2][best], 0);
+  // Raised to wall height and tilted down, so nothing in the corridor hides anything else.
+  cam.position.set((p.x + 0.5) * CELL_M, 3.4, (p.y + 0.5) * CELL_M);
+  cam.rotation.set(-0.42, [0, -Math.PI / 2, Math.PI, Math.PI / 2][best], 0);
   panels.push({ district, scene, cam, name: world.palette.name });
 }
 

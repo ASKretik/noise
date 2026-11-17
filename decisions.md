@@ -35,7 +35,7 @@ Three markers throughout:
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    8 passed · 5 not demonstrated · 0 failed   (3D build 3, phase 3)
+npm run test3d    9 passed · 4 not demonstrated · 0 failed   (3D build 4, phase 4)
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -1650,10 +1650,37 @@ clearly against ground, walls and sky. Coins are too small to judge at corridor 
 that is phase 4's job. **Rubble** reads as tumbled concrete blocks rather than a heap --
 acceptable, noted.
 
+## R33 · 3D phase 4: aliens, rings, pickups, sound
+
+**Built:** `web3d/entities.js` rewritten. Aliens are drawn **by part across all aliens**
+(one instanced mesh for every torso, head, eye, limb, ring and ring fill), so twelve
+aliens cost the same six draw calls as one. They glide toward their sim cell at the speed
+their move period implies -- at 4 Hz a 2.33-tick period would otherwise be a hop every
+580 ms. Floor-projected detection rings (additive, radius eased when you step into
+water), keys with a glow, coins sized and haloed by value, extruded bolts, a portal beam
+over every wall, pickups that fly to the camera, a capture sequence that turns the camera
+to the alien that did it. `web3d/audio3d.js`: `web/sound.js` reused unchanged, plus an
+HRTF-panned voice per alien and footsteps keyed to terrain. 3D build **4**.
+
+**What looking caught:**
+
+- *A red pill.* The first alien was a capsule with the arms hidden inside the torso. Now
+  hunched, head pushed forward, eyes enlarged, arms splayed and longer: from the front
+  it reads as the favicon's creature.
+- *Invisible aliens in the belt check:* they scale in over their first third of a second,
+  and the check rendered one frame. And with one-cell corridors the alien stood behind
+  the key; the check now views from wall height, tilted down.
+
+**3D-12 recorded as PASS** in `bench3d/measured.json`, with the reviewer named honestly:
+a screenshot review by Claude in the browser pane, not a human. Rings read but are faint
+on TIDE and SOLAR, flagged in the banner.
+
+**Not verified:** the audio has been checked for errors only; nobody has listened to it.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    8 passed · 5 not demonstrated · 0 failed   (3D build 3, phase 3)
+npm run test3d    9 passed · 4 not demonstrated · 0 failed   (3D build 4, phase 4)
 ```
