@@ -102,6 +102,35 @@ export class Audio3D {
     return v;
   }
 
+  /** The stun gun landing: a rising electric chirp over a crackle. */
+  zap() {
+    if (!this.ctx || !this.bus || !this.enabled) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const o = ctx.createOscillator();
+    o.type = 'square';
+    o.frequency.setValueAtTime(320, t);
+    o.frequency.exponentialRampToValueAtTime(2400, t + 0.12);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.12, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 400;
+    o.connect(hp).connect(g).connect(this.bus);
+    o.start(t); o.stop(t + 0.25);
+    const n = ctx.createBufferSource(); n.buffer = this.noise;
+    const ng = ctx.createGain(); ng.gain.setValueAtTime(0.1, t); ng.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    n.connect(ng).connect(this.bus); n.start(t);
+  }
+
+  /** Trigger pulled with no lock: a dry mechanical click, nothing spent. */
+  click() {
+    if (!this.ctx || !this.bus || !this.enabled) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const n = ctx.createBufferSource(); n.buffer = this.noise;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3200; bp.Q.value = 4;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.14, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
+    n.connect(bp).connect(g).connect(this.bus); n.start(t); n.stop(t + 0.04);
+  }
+
   /** One footstep. kind: 'floor' | 'water' | 'safe'. */
   footstep(kind, sprinting = false) {
     if (!this.ctx || !this.bus || !this.enabled || kind === 'safe') return;

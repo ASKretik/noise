@@ -304,6 +304,10 @@ export class Entities {
 
   /** Raycast the alien bodies; returns the alien id under the ray, or null. */
   pick(raycaster) {
+    // An InstancedMesh caches the bounding sphere of its instances the first time it is
+    // raycast, and these move every frame: without a recompute the ray is rejected
+    // against wherever the aliens were at the first pick (or against nothing at all).
+    for (const m of [this.parts.torso, this.parts.head]) { m.computeBoundingSphere(); }
     const hits = raycaster.intersectObjects([this.parts.torso, this.parts.head], false);
     if (!hits.length) return null;
     return this.slotIds[hits[0].instanceId] ?? null;

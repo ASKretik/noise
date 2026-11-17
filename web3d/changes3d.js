@@ -8,6 +8,26 @@
 
 export const CHANGES = [
   {
+    build: 6,
+    date: '2026-11-17',
+    phase: 6,
+    changed: [
+      'The stun gun, aimed: it stuns the one alien under your crosshair, if that alien is within its hearing range of you and nothing solid is in the way.',
+      'The crosshair locks (red brackets) only when a shot would land, and a locked shot always lands. No lock, no charge spent: just a dry click.',
+      'A gun in your hand, with its six charge cells lit along the top; recoil, a beam, and an electric zap.',
+      'Until the shop arrives (phase 7), add ?kit=1 to a district link to carry a full gun and 10 s of lightning.',
+    ],
+    tryThis: [
+      'Open /noise/3d/play.html?d=5&t=medium&kit=1, find an alien and lock it.',
+      'Try locking one behind rubble, and one far away: the brackets go dashed, and clicking costs nothing.',
+      'Stun one and walk straight through it: a stunned alien is harmless for 5 seconds (10 real seconds here).',
+    ],
+    unverified: [
+      'The stun lands on the next sim tick, up to a quarter of a second after the click. Say if that feels laggy.',
+      'Gun size and position were checked in one window size only.',
+    ],
+  },
+  {
     build: 5,
     date: '2026-11-17',
     phase: 5,

@@ -14,6 +14,7 @@ import { Entities } from './entities.js';
 import { Audio3D } from './audio3d.js';
 import { Controls } from './controls.js';
 import { Hud3D } from './hud3d.js';
+import { StunGun } from './gun.js';
 import { DistrictRunner } from './runner.js';
 import { mountBanner } from './banner.js';
 import { loadSettings, saveSettings } from './settings3d.js';
@@ -57,6 +58,9 @@ export class Play3D {
     this.audio = new Audio3D();
     this.controls = new Controls($('view'));
     this.hud = new Hud3D($('hud'));
+    this.gun = new StunGun();
+    this.lock = null;
+    this.kit = q.get('kit') === '1';
     this.applySettings();
     this.frame = this.frame.bind(this);
   }
@@ -70,6 +74,7 @@ export class Play3D {
     this.controls.on('tune', () => this.toggleTune());
     this.controls.on('map', (on) => this.hud.showMap(on));
     this.controls.on('toggle', (what) => this.hud.toggleLayer(what));
+    this.controls.on('fire', () => this.fire());
     $('ov-primary').addEventListener('click', () => this.primary());
     $('ov-secondary').addEventListener('click', () => { this.start(this.district); this.controls.lock(); });
     window.addEventListener('resize', () => this.view.resize());
@@ -126,8 +131,29 @@ export class Play3D {
     this.narrate();
   }
 
-  /** What the player carries in. Phase 7 reads this from the save file. */
-  loadout() { return { stunGun: false, bullets: 0, boltSeconds: 0 }; }
+  /**
+   * What the player carries in. Phase 7 reads this from the save file; until then
+   * ?kit=1 hands the graybox a full stun gun and ten seconds of lightning, for testing.
+   */
+  loadout() {
+    return this.kit ? { stunGun: true, bullets: 6, boltSeconds: 10 } : { stunGun: false, bullets: 0, boltSeconds: 0 };
+  }
+
+  /** Left click. A locked shot always lands; without a lock the gun only clicks. */
+  fire() {
+    const g = this.runner.game;
+    if (this.paused || g.over || !g.loadout.stunGun) return;
+    const lock = this.lock;
+    if (lock?.ok) {
+      this.runner.fire(lock.id);
+      this.view.camera.updateMatrixWorld();
+      this.gun.fired(this.view.scene, this.gun.muzzleWorld(this.view.camera), this.entities.alienPosition(lock.id));
+      this.audio.zap();
+    } else {
+      this.gun.dry();
+      this.audio.click();
+    }
+  }
 
   buildScene() {
     const cellM = this.tune.cellM;
@@ -282,6 +308,8 @@ export class Play3D {
     document.body.classList.toggle('g3-in-box', inBox);
 
     cam.updateMatrixWorld();
+    this.lock = !this.paused && !g.over ? this.gun.aim(cam, this.entities, g) : null;
+    this.gun.update(dt, cam, g, { yaw: this.controls.yaw, pitch: this.controls.pitch, bob: bobY, reduceMotion: calm });
     this.hud.update({
       game: g, level: r.level, body: b, camera: cam, yaw: this.controls.yaw,
       tickHz: r.session.tickHz, cellM, prediction: r.prediction, entities: this.entities,
@@ -289,6 +317,7 @@ export class Play3D {
     });
     if (this.tune.debug) this.debugReadout();
     this.view.render();
+    this.gun.render(this.view.renderer);
     requestAnimationFrame(this.frame);
   }
 

@@ -35,7 +35,7 @@ Three markers throughout:
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    9 passed · 4 not demonstrated · 0 failed   (3D build 5, phase 5)
+npm run test3d    9 passed · 4 not demonstrated · 0 failed   (3D build 6, phase 6)
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -1700,10 +1700,33 @@ with aliens and their rings; the compass carries the key bearing; the HUNTED lin
 arc and noise meter light together when an alien has you; the narration appears as
 intercepted radio; the tactical map with the heatmap on shows the predicted regions in red.
 
+## R35 · 3D phase 6: the aimed stun gun
+
+**Built:** `web3d/gun.js` -- a procedural viewmodel in its own render pass (depth cleared,
+so it never clips into a wall), six charge cells along the top that are the magazine,
+lock-on that raycasts the alien bodies and then asks `Game3D.canStun()`, recoil, a muzzle
+light, a fading beam. `audio3d.js` gains a zap and a dry click. `?kit=1` gives the
+graybox a full gun until the shop exists. 3D build **6**.
+
+**Checked in the browser pane:** a lock on an alien four cells away reads `ok`; firing
+queues the target, the next tick resolves it, the charge count goes 6 → 5, the alien is
+stunned for exactly `stunTicks` (40) ticks and slumps grey on the floor.
+
+**What looking caught:** the first lock attempt returned nothing with the crosshair
+squarely on the alien. An `InstancedMesh` caches the bounding sphere of its instances on
+the first raycast; the aliens move every frame, so every later ray was tested against
+where they had been (in this case, against an empty set). The pick now recomputes the
+bounds first -- a handful of instances, negligible cost.
+
+**[ASSUMED]** The stun resolves on the next sim tick (up to 250 ms at 4 Hz), not
+instantly, because a trigger pull is an input and inputs enter the sim on ticks -- that
+is what keeps a run replayable from its record. The beam and the zap are immediate, so
+the feedback is not delayed, only the effect.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    9 passed · 4 not demonstrated · 0 failed   (3D build 5, phase 5)
+npm run test3d    9 passed · 4 not demonstrated · 0 failed   (3D build 6, phase 6)
 ```
