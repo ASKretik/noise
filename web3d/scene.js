@@ -29,11 +29,22 @@ export function createScene(canvas, { pixelRatio = Math.min(window.devicePixelRa
     applyFov();
   }
 
-  return {
+  let post = null;
+  const view = {
     THREE, renderer, scene, camera, resize,
+    /** N4.3: bloom and grade (web3d/post.js), or null to draw straight to the screen. */
+    setPost(p) { post?.dispose(); post = p; },
+    get post() { return post; },
+    /** The scene pass's own draw calls and triangles, for the readouts and benchmark(). */
+    sceneInfo: { calls: 0, tris: 0 },
     /** Horizontal field of view, the way shooters specify it. */
     setHFov(deg) { hfov = deg; applyFov(); },
     get hfov() { return hfov; },
-    render() { renderer.render(scene, camera); },
+    render() {
+      if (post) { view.sceneInfo = post.render(scene, camera); return; }
+      renderer.render(scene, camera);
+      view.sceneInfo = { calls: renderer.info.render.calls, tris: renderer.info.render.triangles };
+    },
   };
+  return view;
 }

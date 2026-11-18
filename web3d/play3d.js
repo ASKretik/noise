@@ -8,6 +8,7 @@ import { DIRS, isWalkable, TILE } from '../sim/grid.js';
 import { CELL_M, TICK_HZ_3D, EYE_M, realSeconds } from '../sim3d/units.js';
 import { RESPONSE } from '../sim3d/body.js';
 import { createScene } from './scene.js';
+import { createPost } from './post.js';
 import { buildWorld, lightScene } from './world.js';
 import { currentQuality, setQuality } from './quality.js';
 import { Entities } from './entities.js';
@@ -70,6 +71,8 @@ export class Play3D {
       antialias: this.quality.antialias,
     });
     this.view.renderer.shadowMap.enabled = this.quality.shadows;
+    // N4.3: bloom and the belt's grade on High (half-resolution glow) and Medium (quarter); Low draws plain
+    if (this.quality.id !== 'low') this.view.setPost(createPost(this.view.renderer, { scale: this.quality.id === 'high' ? 0.5 : 0.25, samples: this.quality.id === 'high' ? 4 : 2 }));
 
     this.audio = new Audio3D();
     this.controls = new Controls($('view'));
@@ -235,6 +238,7 @@ export class Play3D {
   buildScene() {
     const cellM = this.tune.cellM;
     this.world = buildWorld(this.runner.level, { cellM, shadows: this.quality.shadows });
+    this.view.post?.setGrade(this.world.art.grade);
     this.view.scene.add(this.world.group);
     this.lights = lightScene(this.view.scene, this.world.palette, {
       cellM, mapW: this.runner.map.w, mapH: this.runner.map.h, shadows: this.quality.shadows, follow: true,
@@ -680,8 +684,7 @@ export class Play3D {
     this.lights.follow(this.view.camera);
     this.view.render();
     // Read the world pass's counters before the gun pass resets them.
-    const info = this.view.renderer.info.render;
-    this.worldInfo = { calls: info.calls, tris: info.triangles };
+    this.worldInfo = { ...this.view.sceneInfo };
     this.gun.render(this.view.renderer);
     this.fx.afterRender(this.view.renderer.domElement, this.t);
     if (!once) requestAnimationFrame(this.frame);

@@ -90,7 +90,10 @@ web3d/      browser leaves, plus two DOM-free modules
     sky.js        the sky dome shader: gradient, sun or moon, stars, clouds, canopy, beam
     places.js     each kind of place's wall and floor patterns (N4.2)
     layered.js    texture arrays and the material that reads a slice per instance
-    signs.js      name plates at the gates, and the wall art
+    signs.js      name plates at the gates and along the avenues, and the wall art
+    beltstyles.js belts 4-10's surfaces, registered into textures.js STYLES
+    landmarks.js  plaza centrepieces and each district's skyline landmark
+  post.js       bloom and the belt's colour grade (Medium and High)
 3d/         index.html (hub), play.html (district), belts.html (dev)
 vendor/three/0.185.1/   three.js, unmodified, hash-checked (VERSION.md)
 bench3d/    acceptance3d.js, criteria/*.js, hash2d.js, fakeidb.js, measured.json
@@ -546,6 +549,41 @@ outside places keep the belt's plain surfaces, so places stand out against them.
 - **Draw calls.** Landmarks are two merged meshes (solid and lights); fronts are one
   layer drawn whole.
 
+### Glow and grade (N4.3, 3D build 34)
+
+`post.js`, on at Medium and High (Low draws straight to the screen):
+
+1. **The scene** is drawn into a half-float target, multisampled 2× on Medium and 4× on
+   High, so anything brighter than white keeps its excess. Glowing props and landmark
+   lights are drawn at 2.4–3× white for that.
+2. **The bloom pass:**
+   - a soft threshold (0.92, knee 0.3) keeps what is bright;
+   - it is blurred at a half and a quarter of the screen on High, a quarter and an
+     eighth on Medium, with a 9-tap separable Gaussian twice per level;
+   - the result is added back.
+3. **The grade, per belt** (`belts.js grade`), then a soft vignette and the conversion
+   to sRGB. Tints stay within a few per cent of white so entity colours hold:
+
+   | Belt | Grade |
+   |---|---|
+   | RUST, SOLAR | Warm, saturation 1.05 |
+   | TIDE | Cool, saturation 0.88 |
+   | ASH | Saturation 0.8 |
+   | VIOLET | Saturation 1.1, bloom 1.2 |
+   | COBALT | Cool, bloom 1.1 |
+4. **The gun's viewmodel** is drawn afterwards, straight to the screen.
+5. **Draw-call counts** in readouts and `benchmark()` come from the scene pass alone
+   (`view.sceneInfo`).
+
+**Measured** (Medium, 1080p, M3):
+
+| | Mean | p95 |
+|---|---|---|
+| Districts 20–100, with glow | 9.2–13.9 ms | 14.2–19.3 ms |
+| District 40, Low (no glow) | 7.2–8.5 ms | 12.6–13.1 ms |
+
+Glow and grade cost about 3–4 ms.
+
 **Bolts thin out deeper into each belt** (`sim3d/bolts.js`): the generator's bolts are
 kept in full in a belt's first district and cut to `max(1, round(n × (1 − 2k/27)))` at
 depth `k` (0–9), about a third by its tenth; the next belt starts full again. The kept set
@@ -711,7 +749,7 @@ alongside: `npm test` 12/1/0, `npm run webcheck` green).
 | 3D-8 | Save isolation, both sweeps run against each other, guest leaves MAIN byte-identical | PASS |
 | 3D-9 | Headless career: win, score, payout, dossier, unlock, purchase, kit carried on | PASS |
 | 3D-10 | Nothing optional or off-site loads; templated dispatch narrates live 3D state | PASS |
-| 3D-11 | Frame budget, 1080p Medium (re-recorded at build 31 with the place art: M3, districts 20, 30 and 100, means 5.9–8.5 ms, p95 9.3–13.6 ms, at most 143 draw calls) | PASS, by hand |
+| 3D-11 | Frame budget, 1080p Medium (re-recorded at build 34 with all ten belts, landmarks, bloom and grade: M3, districts 20–100, means 9.2–13.9 ms, p95 14.2–19.3 ms, at most 139 draw calls) | PASS, by hand |
 | 3D-12 | All ten belts legible (recorded screenshot review; re-reviewed at build 29 at dusk and midnight) | PASS, by hand |
 | 3D-16 | Belt art palettes keep clear of the entity colours: no large-area colour (streets and every kind of place) and no sign or wall-art ink within 25° of hue and 0.25 of lightness, every district of every art-directed belt; horizons darken dusk to midnight | PASS |
 | 3D-13 | Movement never stutters: no frame under half its heading's speed, walking and sprinting, 0–45° | PASS |

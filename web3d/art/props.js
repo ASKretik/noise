@@ -145,7 +145,8 @@ export function buildProps(level, art, cellM, seed, track, { heightAt = () => WA
     // ---- N4.3: belts 4-10. Each kind is a few instanced shapes on street-facing walls.
     const second = props.second ? new THREE.Color(props.second) : accent;
     const unit = () => new THREE.BoxGeometry(1, 1, 1);
-    const lit = (c) => new THREE.MeshBasicMaterial({ color: c, toneMapped: false });   // glows (and blooms, N4.3)
+    // glows: brighter than white, which only bloom shows (post.js); without it, plain full colour
+    const lit = (c) => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(2.4), toneMapped: false });
     const face = (f, along, y, off) => onFace(f, along, y, off);
     const facing = (f) => q.clone().setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(f.dx, 0, f.dy));
     const A = [], B = [], C = [];   // up to three layers per kind

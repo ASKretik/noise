@@ -25,6 +25,7 @@ export const ENTITY_COLOURS = Object.freeze({
  */
 const ART = {
   RUST: {
+    grade: { tint: '#fff8f0', sat: 1.05, gain: 1.02, bloom: 0.9 },
     wall: { style: 'riveted', base: '#4b3326', detail: '#7d4a2b', roughness: 0.78, metalness: 0.35 },
     floor: { style: 'plates', base: '#3a3631', detail: '#26221e', roughness: 0.85 },
     rubble: '#4a3a30', water: '#34433c',
@@ -42,6 +43,7 @@ const ART = {
     },
   },
   TIDE: {
+    grade: { tint: '#f2f8fc', sat: 0.88, bloom: 0.8 },
     wall: { style: 'wetConcrete', base: '#46525a', detail: '#2a3238', roughness: 0.55, metalness: 0.05 },
     floor: { style: 'wetConcrete', base: '#353d42', detail: '#252b2f', roughness: 0.5 },
     rubble: '#3c454b', water: '#26404f',
@@ -61,6 +63,7 @@ const ART = {
     },
   },
   MOSS: {
+    grade: { tint: '#f6fbf2', sat: 0.95, bloom: 1.0 },
     wall: { style: 'mossyStone', base: '#4a4f45', detail: '#4f6b2e', roughness: 0.92, metalness: 0 },
     floor: { style: 'flagstones', base: '#383d34', detail: '#3f5a28', roughness: 0.9 },
     rubble: '#3e463a', water: '#27392c',
@@ -78,6 +81,7 @@ const ART = {
     },
   },
   EMBER: {
+    grade: { tint: '#fff4ec', sat: 1.08, gain: 1.04, bloom: 1.1 },
     wall: { style: 'scorchedBrick', base: '#3a2420', detail: '#6e2a12', roughness: 0.9, metalness: 0 },
     floor: { style: 'cinders', base: '#2a2422', detail: '#4a2a1c', roughness: 0.95 },
     rubble: '#33282a', water: '#2b2a2c',
@@ -95,6 +99,7 @@ const ART = {
     },
   },
   VIOLET: {
+    grade: { tint: '#f8f4ff', sat: 1.1, bloom: 1.2 },
     allNight: true,
     wall: { style: 'darkTile', base: '#2a2733', detail: '#4a4560', roughness: 0.4, metalness: 0.1 },
     floor: { style: 'darkTile', base: '#24222b', detail: '#38344a', roughness: 0.35 },
@@ -115,6 +120,7 @@ const ART = {
     },
   },
   ASH: {
+    grade: { tint: '#fbfbfa', sat: 0.8, lift: 0.006, bloom: 0.7 },
     wall: { style: 'brutalist', base: '#4a4a48', detail: '#2f2f2e', roughness: 0.92, metalness: 0 },
     floor: { style: 'concrete', base: '#3c3c3a', detail: '#2a2a29', roughness: 0.9 },
     rubble: '#3e3e3c', water: '#2c3236',
@@ -132,6 +138,7 @@ const ART = {
     },
   },
   CORAL: {
+    grade: { tint: '#fff6f8', sat: 1.0, bloom: 0.9 },
     wall: { style: 'deco', base: '#5c4752', detail: '#7a5f6e', roughness: 0.75, metalness: 0 },
     floor: { style: 'terrazzo', base: '#4a4248', detail: '#6a5a64', roughness: 0.6 },
     rubble: '#4a3f45', water: '#2f3a48',
@@ -149,6 +156,7 @@ const ART = {
     },
   },
   JADE: {
+    grade: { tint: '#f4fbf6', sat: 0.95, bloom: 1.0 },
     wall: { style: 'carved', base: '#3e4a44', detail: '#2e5a40', roughness: 0.88, metalness: 0 },
     floor: { style: 'flagstones', base: '#36403a', detail: '#2a4a38', roughness: 0.85 },
     rubble: '#38413c', water: '#24342e',
@@ -167,6 +175,7 @@ const ART = {
     },
   },
   SOLAR: {
+    grade: { tint: '#fffaf0', sat: 1.05, gain: 1.04, bloom: 0.9 },
     wall: { style: 'sandstone', base: '#5a5249', detail: '#7a6a54', roughness: 0.9, metalness: 0 },
     floor: { style: 'paving', base: '#4f4840', detail: '#6a5c48', roughness: 0.85 },
     rubble: '#504840', water: '#2a3a40',
@@ -184,6 +193,7 @@ const ART = {
     },
   },
   COBALT: {
+    grade: { tint: '#f2f6ff', sat: 0.95, bloom: 1.1 },
     allNight: true,
     wall: { style: 'alloy', base: '#3a4250', detail: '#5a6a80', roughness: 0.45, metalness: 0.6 },
     floor: { style: 'plates', base: '#30353e', detail: '#22262c', roughness: 0.6 },
@@ -259,6 +269,7 @@ export function artFor(district) {
   const ship = a.ship != null ? lerp(a.ship, b.ship, t) : 0;
   return {
     belt, name: BELT_NAMES[belt], k, t, styled: true, allNight: !!def.allNight,
+    grade: def.grade || null,
     wall: def.wall, floor: def.floor, rubble: def.rubble, water: def.water, props: def.props,
     weather: def.weather ? { ...def.weather, rate: lerp(def.weather.rate[0], def.weather.rate[1], t) } : null,
     sky: {

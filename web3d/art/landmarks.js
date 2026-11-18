@@ -172,7 +172,7 @@ export function buildLandmarks(level, { cellM, seed, art, looks, heightAt, track
     out.push(m);
   }
   if (!glow.empty) {
-    const m = new THREE.Mesh(track(glow.geometry()), track(new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false })));
+    const m = new THREE.Mesh(track(glow.geometry()), track(new THREE.MeshBasicMaterial({ vertexColors: true, color: new THREE.Color(3, 3, 3), toneMapped: false })));
     m.name = 'landmark-lights';
     out.push(m);
   }

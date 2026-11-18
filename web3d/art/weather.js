@@ -24,7 +24,7 @@ const KINDS = {
   embers: { count: 900, box: [32, 10, 32], floor: 0.2, kind: 2, alpha: 0.75, glow: true },
   drizzle: { count: 2600, box: [34, 14, 34], floor: 0.0, kind: 1, alpha: 0.35 },
   ash: { count: 2400, box: [34, 12, 34], floor: 0.0, kind: 3, alpha: 0.75 },
-  mist: { count: 420, box: [40, 3, 40], floor: 0.1, kind: 2, alpha: 0.07, glow: true },
+  mist: { count: 520, box: [40, 3, 40], floor: 0.1, kind: 2, alpha: 0.028, glow: true, soft: true },
   haze: { count: 900, box: [36, 8, 36], floor: 0.3, kind: 0, alpha: 0.35 },
 };
 
@@ -62,14 +62,15 @@ void main() {
 
 const FRAG = `
 uniform vec3 colour;
-uniform float kind, alpha;
+uniform float kind, alpha, soft;
 varying float vA;
 void main() {
   vec2 c = gl_PointCoord - 0.5;
   float a;
   if (kind > 0.5 && kind < 1.5) a = (1.0 - smoothstep(0.0, 0.035, abs(c.x))) * (1.0 - smoothstep(0.1, 0.5, abs(c.y)));
   else a = 1.0 - smoothstep(0.0, 0.5, length(c));
-  if (kind > 1.5) a = pow(a, 1.6) * 1.6;
+  if (soft > 0.5) a = pow(a, 2.5);          // mist: no edge at all
+  else if (kind > 1.5) a = pow(a, 1.6) * 1.6;
   gl_FragColor = vec4(colour, a * vA * alpha);
   #include <colorspace_fragment>
 }`;
@@ -102,7 +103,7 @@ export function makeWeather(weather, seed, track = (x) => x) {
       floorY: { value: K.floor }, size: { value: weather.size }, speed: { value: weather.speed },
       slant: { value: weather.slant }, kind: { value: K.kind }, scale: { value: 600 },
       colour: { value: new THREE.Color(weather.color) },
-      alpha: { value: K.alpha },
+      alpha: { value: K.alpha }, soft: { value: K.soft ? 1 : 0 },
     },
     vertexShader: VERT, fragmentShader: FRAG,
   }));

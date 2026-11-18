@@ -1,16 +1,16 @@
 {
   "11": {
     "status": "pass",
-    "build": 31,
+    "build": 34,
     "date": "2026-11-18",
     "by": "Claude, play.html benchmark() in the Claude desktop browser pane on an Apple M3 laptop (integrated GPU), pane hidden; not a human-observed frame counter",
-    "note": "N4.2 re-measure with the place art in (texture arrays for walls and floors, place heights, containers and kiosks, tree crowns, name signs, wall art), Medium, 1920x1080 at pixel ratio 1, GPU forced to finish every frame, camera turning a full circle, two runs each, in one session. District 20 (TIDE, midnight rain): mean 6.8 / 8.5 ms, p95 12.0 / 13.6 ms, 143 draw calls. District 30 (MOSS): mean 6.4 / 7.6 ms, p95 11.0 / 12.8 ms, 120 calls, 201k triangles. District 100 (unchanged fallback art, the control): mean 5.9 / 7.5 ms, p95 9.3 / 12.9 ms, 132 calls. The machine ran about 1.5 ms slower than at build 29 (district 100 then: 4.7-6.5 ms), so the place art itself costs about 1 ms. All under the 16.7 ms budget and the 150-call cap. Build 29 (N4.1): district 20 mean 3.7 ms, 141 calls. Weaker laptops and phones: not measured."
+    "note": "N4.3 re-measure with all ten belts art-directed, landmarks, signs and the new bloom and grade (post.js, on at Medium and High), Medium, 1920x1080 at pixel ratio 1, GPU forced to finish every frame, camera turning a full circle. Medium with bloom: district 20 (TIDE) mean 9.7-13.1 ms, p95 14.2-15.4; district 40 (EMBER) mean 10.8-13.1, p95 17.3-19.3; district 50 (VIOLET) mean 11.3-13.9, p95 15.2-17.2; district 100 (COBALT) mean 9.2-10.7, p95 14.3-17.0; at most 139 draw calls. The same district 40 on Low (no bloom, no multisampling): mean 7.2-8.5, p95 12.6-13.1, so glow and grade cost about 3-4 ms. Every mean is inside the 16.7 ms budget; the slowest 5 % of frames are not in EMBER and VIOLET. Build 32 (before bloom), Medium: 5-11 ms, 97-136 calls. Weaker laptops and phones: not measured."
   },
   "12": {
     "status": "pass",
-    "build": 31,
+    "build": 34,
     "date": "2026-11-18",
     "by": "Claude, screenshot review of 3d/belts.html and play.html in the browser pane (not a human review)",
-    "note": "N4.1: RUST, TIDE and MOSS art-directed, reviewed in play.html at dusk (k=0) and midnight (k=9) of each belt; 3d/belts.html at belt offsets 0 and 9 for all ten belts (seven still on 2D palettes, with the new sky and light). Aliens, gold keys, coins by value and the teal portal stay readable at dusk and at midnight; no large-area art colour shares their hue and lightness (3D-16). Fixed on the way: cyan water (now per-belt water colours), RUST too dark, dust invisible, puddles repeating on a grid. Build 14 species review (Mirages raised to 0.62 opacity) in decisions.md R44. Build 31 (N4.2): every kind of place reviewed in play.html at districts 1, 5, 12 and 20 (tenements, plaza, market, yards, park, canal, depot, ruins), with the signs and wall art; entities unchanged and the place, sign and ink colours pass 3D-16."
+    "note": "N4.1: RUST, TIDE and MOSS art-directed, reviewed in play.html at dusk (k=0) and midnight (k=9) of each belt; 3d/belts.html at belt offsets 0 and 9 for all ten belts (seven still on 2D palettes, with the new sky and light). Aliens, gold keys, coins by value and the teal portal stay readable at dusk and at midnight; no large-area art colour shares their hue and lightness (3D-16). Fixed on the way: cyan water (now per-belt water colours), RUST too dark, dust invisible, puddles repeating on a grid. Build 14 species review (Mirages raised to 0.62 opacity) in decisions.md R44. Build 31 (N4.2): every kind of place reviewed in play.html at districts 1, 5, 12 and 20 (tenements, plaza, market, yards, park, canal, depot, ruins), with the signs and wall art; entities unchanged and the place, sign and ink colours pass 3D-16. Build 32-34 (N4.3): all ten belts art-directed and reviewed in play.html (an avenue at dusk or midnight in each of EMBER to COBALT; the sky features on their own: aurora, two moons, giant sun, mothership) and 3d/belts.html at offset 0; keys, coins and aliens legible on every belt; 3D-16 passes all 100 districts."
   }
 }

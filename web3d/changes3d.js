@@ -8,6 +8,24 @@
 
 export const CHANGES = [
   {
+    build: 34,
+    date: '2026-11-18',
+    phase: 'N4.3 (3 of 3)',
+    changed: [
+      'Bright things glow now: neon, lanterns, street lamps that still burn, the mast\'s light, the crashed ship\'s vents, the sun, and anything else brighter than white bleeds a soft halo into the dark around it.',
+      'Each belt has its own colour grade, kept subtle so the aliens stay red and the keys gold: RUST and SOLAR a little warm, TIDE cool and grey, ASH drained, VIOLET richer, COBALT cool. A soft vignette darkens the corners.',
+      'JADE\'s mist was a crowd of grey puffs; it is a faint low haze now.',
+      'That completes N4.3: all ten belts are art-directed, with places, landmarks, signs, glow and grade.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R). Night districts show the glow best: VIOLET 48-50 for the neon, JADE 78-80 for the lanterns, COBALT 98-100 for the mast and the ship.',
+      'If a district stutters, Settings > Quality: Low draws without glow and grade, as before.',
+    ],
+    unverified: [
+      'Glow and grade cost about 3-4 ms a frame at 1080p Medium on this Mac: districts 40 and 50 run at 11-14 ms on average (inside 60 fps), but their slowest 5 % of frames reach 16-19 ms. On a weaker laptop this is the first thing to turn off. Tell me if you want it as its own setting rather than tied to Quality.',
+    ],
+  },
+  {
     build: 33,
     date: '2026-11-18',
     phase: 'N4.3 (2 of 3)',

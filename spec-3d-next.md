@@ -1,7 +1,7 @@
 # NOISE 3D — the next round
 
-Written Nov 18, 2026, revised the same day after N3 · **status: N0–N3, N8, N4.1 and N4.2
-built; N4.3 next** · follows 3D build 31 (build 30: the stun gun shoots what you can see)
+Written Nov 18, 2026, revised the same day after N3 · **status: N0–N3, N8 and N4 built;
+N6.1 next** · follows 3D build 34
 
 > A spec to pick up one phase at a time, whenever there is time. It describes what each
 > phase builds, the numbers it uses, the files it touches, how it is checked and what it
@@ -43,8 +43,8 @@ built; N4.3 next** · follows 3D build 31 (build 30: the stun gun shoots what yo
 | N8.5 | Behaviour-first Dispatch: new traits, tactics, bots, 3D constants | 5–7 days | High | **done** (3D build 28; build 27 before it: developer mode) |
 | N4.1 | Art: sky, lighting and weather, and the first three belts (RUST, TIDE, MOSS) | ~3 days | Medium | **done** (3D build 29) |
 | N4.2 | Art per place (R63): each of the eight kinds of place its own walls, floor, height and fittings, a shade per place, name signs at the gates, wall art without story; on RUST, TIDE and MOSS | 2–3 days | Medium | **done** (3D build 31) |
-| **N4.3** | Art: the other seven belts, places built in from the start; a centrepiece per landmark, bloom and colour grade | 5–6 days | Medium | **in progress**: the seven belts (3D build 32); landmarks, avenue plates and building fronts (build 33) |
-| N6.1 | Items: the 3D inventory, noise maker, dampers, EMP (the rules layer itself is built in N8.1) | 3–4 days | Medium | not started |
+| **N4.3** | Art: the other seven belts, places built in from the start; a centrepiece per landmark, bloom and colour grade | 5–6 days | Medium | **done** (3D builds 32-34: the seven belts; landmarks, avenue plates, building fronts; bloom and grade) |
+| **N6.1** | Items: the 3D inventory, noise maker, dampers, EMP (the rules layer itself is built in N8.1) | 3–4 days | Medium | **next** |
 | N6.2 | Items: portable black box, intel chip, noise generator; balance measured | 3–5 days | Medium | not started |
 | N9.1 | Floors prototype: enterable two-floor buildings in belt 4; stairs for you, vents for them; the N4 art and N6 items patched for floors here | ~1½ weeks (+1–2 days of patching) | High | not started |
 | N9.2 | Floors everywhere: three floors from belt 8, belts 4–10 | 2–3½ weeks | High | not started |
@@ -302,6 +302,24 @@ coins by value, teal portal. Belt art may not use large areas of those hues.
 **Estimate:** 8–9 days (a first pass on sky, lighting and three belts in about 3).
 **Difficulty:** medium (art direction more than engineering). **Risk:** laptop GPUs with
 weather and bloom together; measure.
+
+**N4.3 as built (3D builds 32–34).** `spec-3d.md` has the belt table, "Landmarks,
+avenue signs and building fronts" and "Glow and grade". Differences from the plan:
+
+- **No red skies.** EMBER's "smoke-red" is a dark maroon and CORAL's "pink sunset" a
+  rose-magenta, because a large red area would sit on the aliens' red (3D-16).
+- **Signs with the district number** are the avenue plates: each avenue's name over
+  "DISTRICT n".
+- **Ruined facades** are the biggest block of each rubble heap, drawn as a building's
+  ground storey. They are not taller walls, because a front taller than the heap would
+  block shots the sim allows.
+- **Bloom and grade are written here** (`post.js`, five small shaders), not vendored
+  from three's EffectComposer. So the addon vendoring and its 3D-0 hashes were not
+  needed.
+- **The cost is real:** about 3–4 ms a frame at 1080p Medium on an M3. It is on at
+  Medium and High; Low draws without it.
+- **Centrepieces** are on plazas (statues, obelisks, fountains), plus one skyline
+  landmark per district (a mast or a crashed ship) rather than one per landmark place.
 
 **N4.2 as built (3D build 31).** Asked after N4.1: places should look different, "else
 there is no point in naming the buildings" (R63). `spec-3d.md`, "Places", has the

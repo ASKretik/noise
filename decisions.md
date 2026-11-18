@@ -2946,11 +2946,80 @@ about 1 ms. Building the world takes about 250 ms warm.
 **Left for N4.3:** belts 4–10 (with places from the start), ruined facades on rubble,
 district-number signs, landmark centrepieces, bloom, the colour grade.
 
+## R64 · N4.3: the other seven belts, landmarks, glow (3D builds 32–34)
+
+**Asked:** "what is N4.3?", then "complete the entire of N4.3 now". It was pushed as
+three builds so each could be reviewed: the belts, then the landmarks, then the glow.
+
+**Build 32: the seven belts.**
+
+- **Built:**
+  - nine surfaces (`beltstyles.js`), registered into the style table;
+  - seven prop kinds;
+  - five weather kinds;
+  - sky features: an aurora, a second moon, a giant sun, the mothership.
+- **VIOLET and COBALT are always night:** one moon climbs all the way, and 3D-16's
+  sun/moon rule knows that.
+- **Colour rule:**
+  - EMBER's sky is a dark maroon and CORAL's sunset a rose-magenta; a red sky would sit
+    on the aliens' red.
+  - The lint caught CORAL's tenement brick (too close to the calm alien's red);
+    darkening the brick tint fixed it.
+  - All 100 districts now lint clean, 3341 colours.
+- **Seen and fixed:**
+  - the mothership was invisible against the night sky, so it now has a lit underside
+    and running lights;
+  - the aurora was too faint;
+  - JADE's moons were too small.
+  - My first sky shots were all at the horizon: the game's frame loop reset the
+    camera, so the shots now set its look through the controls.
+- **Draw calls:** the new prop layers, cut into chunks, put COBALT at 167. Drawing
+  every prop layer whole (one call each) brought it to 134.
+
+**Build 33: landmarks.**
+
+- **One skyline landmark per district:** a 30 m mast with a light, or a crashed ship
+  half buried in a tenement roof. It stands on wall cells, solid to the sim at any
+  height.
+- **Plaza centrepieces:** statue, obelisk or fountain.
+- **Avenue plates:** each avenue's name with the district number.
+- **Building fronts:** each heap's biggest block, at the heap's own height, so the
+  stun gun still hits exactly what you see.
+- **Draw calls:** 123–139.
+
+**Build 34: glow and grade.**
+
+- **Written here, not vendored:** `post.js`, five small shaders against the plan's
+  eight EffectComposer files, with no tone mapping to undo.
+- **Bloom:** glowing props were plain white, under the bloom threshold, so they are
+  now drawn at 2.4–3× white.
+- **Mist:** JADE's mist read as grey puffs; it is now faint and edgeless.
+- **Cost, honestly:** about 3–4 ms a frame at 1080p Medium on an M3.
+  - Means stay inside 60 fps (9.2–13.9 ms).
+  - EMBER and VIOLET's slowest 5 % of frames reach 16–19 ms.
+  - 2× multisampling instead of 4× on Medium made little difference.
+  - Low draws without it.
+  - Offered: a separate on/off setting if it stutters for the user.
+
+**Checked:**
+
+- every belt at eye level;
+- the sky features on their own;
+- the belts page;
+- a capture sequence through the new pipeline (no errors);
+- 3D-16 on all 100 districts.
+
+**Not verified:**
+
+- weaker GPUs;
+- whether each belt's look is right (the user's call);
+- the grade's subtlety on a calibrated display.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    26 passed · 0 not demonstrated · 0 failed  (3D build 31; 3D-1 via the
+npm run test3d    26 passed · 0 not demonstrated · 0 failed  (3D build 34; 3D-1 via the
                   2D suites above, run alongside)
 ```
