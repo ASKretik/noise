@@ -20,7 +20,7 @@
 // A final flood fill walls up any pocket the human could not reach anyway.
 
 import { TILE, createMap, blocksHuman, blocksAlien } from '../../sim/grid.js';
-import { FieldPool, bfsField, UNREACHABLE, HUMAN, ALIEN } from '../../sim/pathfind.js';
+import { FieldPool, bfsField, bfsFrom, UNREACHABLE, HUMAN, ALIEN } from '../../sim/pathfind.js';
 import { buildRegions } from '../../sim/regions.js';
 import { Rng, levelSeed } from '../../sim/prng.js';
 import { levelParams } from '../../sim/difficulty.js';
@@ -63,6 +63,9 @@ const TYPE_SUFFIX = Object.freeze({
   ruins: ['Ruins', 'Fall', 'Wreck'],
 });
 const AVENUE_SUFFIX = Object.freeze(['Avenue', 'Way', 'Road', 'Parade']);
+
+/** Keys are at least this many cells apart in a straight line (25 m). */
+export const KEY_SPACING = 17;
 
 /** Black boxes per district: they grow with the side of the map, not its area. */
 export const safeBoxTarget = (area) => Math.round(3 * Math.sqrt(area));
@@ -441,21 +444,31 @@ export function generateCity(profileId, district, opts = {}) {
   const spawn = spawnPlace ? { ...spawnPlace.centre } : { x: vx[0], y: hy[0] };
   protectedCells.add(spawn.y * W + spawn.x);
 
-  // ---- 7. keys: spread out, each in its own place, far from the spawn and each other
+  // ---- 7. keys: spread out, each in its own place, far from the spawn and each other.
+  // N8.3: at least KEY_SPACING apart in a straight line, and never all in one half of the
+  // map (split across its long side), so a run always crosses the city.
   const buf = pool.take();
+  const halfOf = (x) => (x < W / 2 ? 0 : 1);
   const fromSpawn = Int16Array.from(bfsField(map, spawn.x, spawn.y, buf, HUMAN));
   const cand = places.filter((p) => p.centre && p !== spawnPlace && fromSpawn[p.centre.y * W + p.centre.x] !== UNREACHABLE);
   const minD = new Map(cand.map((p) => [p, fromSpawn[p.centre.y * W + p.centre.x]]));
   const caches = [];
   const keyPlaces = [];
   for (let c = 0; c < params.caches && minD.size; c++) {
-    const ranked = [...minD.entries()].sort((a, b) => b[1] - a[1] || a[0].id - b[0].id);
+    let ranked = [...minD.entries()].sort((a, b) => b[1] - a[1] || a[0].id - b[0].id);
+    // the last key goes in the other half if every key so far landed in one
+    if (c === params.caches - 1 && caches.length && caches.every((k) => halfOf(k.x) === halfOf(caches[0].x))) {
+      const other = ranked.filter(([q]) => halfOf(q.centre.x) !== halfOf(caches[0].x));
+      if (other.length) ranked = other;
+    }
     const top = ranked.slice(0, Math.max(3, Math.ceil(ranked.length * 0.15)));
     const p = top[pickRng.int(top.length)][0];
     const cells = [];
     for (let yy = p.y; yy < p.y + p.h; yy++) for (let xx = p.x; xx < p.x + p.w; xx++) {
       const i = yy * W + xx;
-      if (map.tiles[i] === TILE.FLOOR && !protectedCells.has(i) && fromSpawn[i] !== UNREACHABLE) cells.push({ x: xx, y: yy });
+      if (map.tiles[i] !== TILE.FLOOR || protectedCells.has(i) || fromSpawn[i] === UNREACHABLE) continue;
+      if (caches.some((k) => Math.hypot(k.x - xx, k.y - yy) < KEY_SPACING)) continue;
+      cells.push({ x: xx, y: yy });
     }
     minD.delete(p);
     if (!cells.length) { c--; continue; }
@@ -518,14 +531,18 @@ export function generateCity(profileId, district, opts = {}) {
   const bolts = scatterBolts(map, root.fork('bolts'), regions, params.boltsPerDistrict, taken);
   const { coins, value: coinValue } = scatterCoins(map, root.fork('coins'), regions, params.coinValuePerLevel, taken);
 
-  // ---- 11. portal sites: every place's centre, furthest from the spawn first
+  // ---- 11. portal sites: every place's centre, furthest from the KEYS first (N8.3), so
+  // the last stretch after the last key is a real crossing. `dist` is the walk to the
+  // nearest key; `fromSpawn` the walk from the start. Game3DNext draws the portal from the
+  // top quarter of this list, weighted by `dist`, at the start of every run.
   const buf2 = pool.take();
   const after = Int16Array.from(bfsField(map, spawn.x, spawn.y, buf2, HUMAN));
+  const fromKeys = Int16Array.from(bfsFrom(map, caches.map((k) => k.y * W + k.x), buf2, HUMAN));
   pool.give(buf2);
   const portalCandidates = places
-    .filter((p) => p.centre && p !== spawnPlace)
-    .map((p) => ({ x: p.centre.x, y: p.centre.y, room: p.id, dist: after[p.centre.y * W + p.centre.x] }))
-    .filter((p) => p.dist !== UNREACHABLE)
+    .filter((p) => p.centre && p !== spawnPlace && !keyPlaces.includes(p.id))
+    .map((p) => ({ x: p.centre.x, y: p.centre.y, room: p.id, dist: fromKeys[p.centre.y * W + p.centre.x], fromSpawn: after[p.centre.y * W + p.centre.x] }))
+    .filter((p) => p.dist !== UNREACHABLE && p.fromSpawn !== UNREACHABLE)
     .sort((a, b) => b.dist - a.dist || a.room - b.room);
 
   let walkable = 0, coverCount = 0;

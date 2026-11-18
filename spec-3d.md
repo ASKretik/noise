@@ -209,12 +209,18 @@ the 2D board's 640 cells, along straight lines through ×5 (district 1), ×10 (1
    for the story, the art and the objectives. Nothing displays them yet.
 5. **Spawn and keys.** The spawn is the centre of a random open place. Each key goes in
    its own place, chosen among the 15 % of places furthest by walking from the spawn and
-   from the keys already placed. The key count is still the 2D curve's 3–5, until N8.3.
+   from the keys already placed. Since N8.3:
+   - there are `round(4 + 6·(d−1)/99)` keys: 4 at district 1, 10 at 100;
+   - keys are at least 17 cells (25 m) apart in a straight line;
+   - if every key so far is in one half of the map, the last one goes in the other.
 6. **Black boxes and water.** There are `round(3·√A)` black boxes, in open places. Water
    is topped up to the 2D density with puddles by the walls.
 7. **Regions, bolts and coins.** There are `min(48, max(12, round(12·√(A/5))))` predictor
    regions. Bolts and coins are placed by the 2D game's own `scatterBolts` and
-   `scatterCoins`. Portal sites are every place's centre, furthest first.
+   `scatterCoins`. Portal sites are every place's centre without a key, listed furthest
+   from the nearest key first (N8.3). `Game3DNext` draws the run's portal from the
+   furthest quarter, weighted by that distance; 2D uses the half furthest from the spawn.
+   It ends up about 50 m from the nearest key at district 1 and 100 m at district 100.
 
 **Connectivity is safe by construction.** Every lot touches a street. Every obstacle
 dropped into open ground must have a ring of open ground all round it, which a later
@@ -224,8 +230,13 @@ district 1 and about 90 ms at district 100.
 
 **What else changed with the size:**
 
-- **Time limit.** The run's limit is `180 s × 8 ticks × √A`, about 13 minutes at
-  district 1 and 46 at district 100. The 2D limit would have been six real minutes.
+- **Time limit (N8.3).** The limit is set per run: `max(6 min, 6 × par)`, about 7 min
+  at district 1 and 36 at district 100. Par is the greedy key route plus the portal,
+  times 1.35. It is shown only in its last minute, when the clock turns red and counts
+  down.
+  - Measured with no aliens, walking the route takes 0.9 min at district 1 and 4.4 at
+    district 100.
+  - N8.1 had used `180 s × 8 ticks × √A`, set before anything was measured.
 - **HUD board.** The board the 2D renderer redraws each frame uses
   `max(6, min(16, floor(2400 / w)))` px per cell, 9 px at district 100.
 - **Sky.** The sky dome follows the camera.
@@ -287,6 +298,14 @@ rules are the 2D game's: detection, alerts, the squad's roles and the black box.
 | Sim tick | p99 2.5 ms, worst 3.9 ms (11.7 ms before the fixes above) |
 | Whole frame | 10.8 ms mean at 1080p High |
 | During play | geometry, texture and shader-program counts constant: nothing is created |
+
+**The Tab map zooms and pans (N8.3, 3D build 24).** The wheel zooms from the whole
+district up to 2.5 screen px per board px; zooming closes in on you. Dragging pans the
+map, with the mouse button held, since the pointer is locked. It opens centred on you, at
+the zoom it was left at. While it is open, a click does not fire and a drag does not turn
+you. Place names are drawn wherever they fit, and avenue names from ×1.5. A key off the
+edge of a zoomed map is pinned to the edge with its distance, and pinned labels stack
+rather than overprint.
 
 **The Tab map's beacons (3D build 22).** Every uncollected key gets a gold beacon at a
 fixed screen size. It has rings pulsing out about once a second (under the 3-flash
@@ -420,7 +439,7 @@ minutes; if the banner's number is behind the update note, reload.
 ## Acceptance criteria
 
 `npm run test3d` (CI runs it with `--skip-2d`, the 2D suites having just run).
-**22 passed · 0 not demonstrated · 0 failed** at 3D build 23 (3D-1 by the 2D suites run
+**23 passed · 0 not demonstrated · 0 failed** at 3D build 24 (3D-1 by the 2D suites run
 alongside: `npm test` 12/1/0, `npm run webcheck` green).
 
 | # | Criterion | Result |
@@ -447,6 +466,7 @@ alongside: `npm test` 12/1/0, `npm run webcheck` green).
 | 3D-27 | Contact: the body never enters an awake alien; walking at one (along its route, since build 23) ends in a capture; stunned ones are passable | PASS |
 | 3D-28 | Smooth on big maps: at district 100 with the city filling, new routes per tick within twice the budget; tick p99 under 32 and worst under 64 full-map searches (machine-relative) | PASS |
 | 3D-29 | Fair speed: tiers 0.5 : 0.75 : 1 : 1.3 at every district, hunting under its ceiling; no two-step move near you or in sight; no arrival in sight | PASS |
+| 3D-30 | Keys and portal: 4–10 keys by district, own places, ≥ 17 cells apart, both halves; portal from the quarter furthest from the keys; time limit max(6 min, 6 × par) | PASS |
 
 3D-11 and 3D-12 pass only on an entry in `bench3d/measured.json` naming the build, the
 date and who measured — in both cases Claude in the browser pane, not a human.

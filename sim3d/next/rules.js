@@ -10,10 +10,10 @@
 // Only the level differs so far. The Game3D that plays it is the same class.
 
 import { generateLevel } from '../../sim/gen.js';
-import { TICKS_PER_SECOND, levelParams, difficultyOf } from '../../sim/difficulty.js';
+import { levelParams, difficultyOf } from '../../sim/difficulty.js';
 import { generateCity } from './city.js';
 import { areaMultiple } from './size.js';
-import { CELL_M } from '../units.js';
+import { CELL_M, TICK_HZ_3D } from '../units.js';
 
 export const RULESETS = Object.freeze(['classic', 'next']);
 export const DEFAULT_RULESET = 'next';
@@ -61,6 +61,9 @@ export const ARRIVE_MAX_M = 60;
 /** Arrival cap on a city map: grows with the side of the map, not its area. */
 export const arrivalCap = (area) => Math.round(4 * Math.sqrt(area));
 
+/** Keys per district on a city map (N8.3): 4 at district 1, 5 at 10, 7 at 50, 8 at 75, 10 at 100. */
+export const keysFor = (district) => Math.round(4 + (6 * (Math.min(100, Math.max(1, district)) - 1)) / 99);
+
 export const districtSpeed = (district) => 1 + ((DISTRICT_SPEED_MAX - 1) * (Math.min(100, Math.max(1, district)) - 1)) / 99;
 
 /**
@@ -94,6 +97,7 @@ export function paramsFor(ruleset, district, tier) {
     patrolMovePeriod: 1 / patrol,
     travelRate: TRAVEL_SPEED * k,
     travelMinCells: Math.round(TRAVEL_MIN_M / CELL_M),
+    caches: keysFor(district),
     maxPatrols: cap,
     splitCeiling: 2 * cap,
     initialPatrols: Math.max(1, Math.round(cap / 8)),
@@ -104,16 +108,16 @@ export function paramsFor(ruleset, district, tier) {
 }
 
 /**
- * The run's time limit, in sim ticks. The 2D game allows 180 "seconds" of 8 ticks, which
- * on the 3D page (4 ticks a second) is six real minutes. A route across a city map grows
- * with its side, not its area, so `next` scales the limit by the square root of the area
- * multiple: about 13 minutes at district 1 and 46 at district 100. Generous on purpose --
- * N8.3 measures real run lengths and may tighten it. `undefined` keeps the 2D default.
+ * The run's time limit (N8.3), set per run from its par -- the greedy key route plus the
+ * portal, with the 2D game's 1.35 slack -- so it scales with the route actually drawn.
+ * Measured: walking the route with no aliens takes 0.9 min at district 1 and 4.4 at 100
+ * (par 1.2 and 6.0), so six times par is about eight times the walk: a backstop no careful
+ * run meets, never under six minutes. The HUD counts down the last minute.
+ * (N8.1 used 180 s x 8 ticks x sqrt(A), 13-46 min, before anyone had measured.)
  */
-export function maxTicksFor(ruleset, district) {
-  if (rulesetOf(ruleset) === 'classic') return undefined;
-  return Math.round(180 * TICKS_PER_SECOND * Math.sqrt(areaMultiple(district)));
-}
+export const LIMIT_PAR = 6;
+export const LIMIT_MIN_TICKS = 6 * 60 * TICK_HZ_3D;
+export const timeLimitTicks = (par) => Math.max(LIMIT_MIN_TICKS, Math.round(LIMIT_PAR * par));
 
 /** Generate a district's level under a ruleset. Same seed, same profile, same district. */
 export function generateDistrict(ruleset, profileId, district, opts = {}) {

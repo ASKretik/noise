@@ -22,6 +22,7 @@ import { DIRS, euclid } from '../../sim/grid.js';
 import { stepDownhill, UNREACHABLE, HUMAN, ALIEN } from '../../sim/pathfind.js';
 import { lineOfSight } from '../raycast.js';
 import { FastFields } from './field.js';
+import { timeLimitTicks } from './rules.js';
 
 /** Target fields kept: enough for every alien's route plus the shared search targets. */
 export const FIELD_CACHE = 80;
@@ -34,6 +35,12 @@ export const FIELD_CACHE = 80;
 export const COMMIT_TICKS = 24;
 
 export class Game3DNext extends Game3D {
+  constructor(o) {
+    super(o);
+    // The time limit follows this run's own route (N8.3); see timeLimitTicks.
+    if (o.maxTicks == null) this.maxTicks = timeLimitTicks(this.par);
+  }
+
   // Built lazily: the 2D constructor already asks for fields before this one returns.
   get ff() { return this._ff || (this._ff = new FastFields(this.map)); }
 
@@ -168,6 +175,20 @@ export class Game3DNext extends Game3D {
       .filter((e) => e.d !== UNREACHABLE)
       .sort((a, b) => a.d - b.d);
     this._leg = { field, moves: 0, candidates, from: { x: this.player.x, y: this.player.y } };
+  }
+
+  /**
+   * This run's portal (N8.3). The city builder lists every place's centre by how far it
+   * is to walk from the nearest key; the portal is drawn from the furthest quarter,
+   * weighted by that distance, fresh every run as in 2D. (2D draws from the half furthest
+   * from the spawn.) So the last stretch is a real crossing wherever the keys were.
+   */
+  _choosePortal(level) {
+    const sites = level.portalCandidates;
+    if (!sites || sites.length === 0) return { x: level.spawn.x, y: level.spawn.y };
+    const far = sites.slice(0, Math.max(1, Math.ceil(sites.length / 4)));
+    const pick = far[this.rng.fork('portal').categorical(far.map((p) => Math.max(1, p.dist)))];
+    return { x: pick.x, y: pick.y };
   }
 
   // ---------------------------------------------------------------- population

@@ -14,7 +14,7 @@ import { Game3D } from '../sim3d/game3d.js';
 import { Session3D } from '../sim3d/session.js';
 import { TICK_HZ_3D } from '../sim3d/units.js';
 import { thinBolts } from '../sim3d/bolts.js';
-import { generateDistrict, rulesetOf, maxTicksFor, paramsFor } from '../sim3d/next/rules.js';
+import { generateDistrict, rulesetOf, paramsFor } from '../sim3d/next/rules.js';
 import { sizeFor } from '../sim3d/next/size.js';
 import { Game3DNext } from '../sim3d/next/game.js';
 import { nextSpawnPolicy } from '../sim3d/next/spawn.js';
@@ -74,7 +74,6 @@ export class DistrictRunner {
       spawnPolicy: this.spawnPolicy, observer: this.system.observer,
       tau: this.difficulty.tau, lambdaScale: this.difficulty.lambdaScale,
       logLevel: 'player', freezeUntilFirstMove: true,
-      maxTicks: maxTicksFor(this.ruleset, o.district),
       loadout: o.loadout,
     });
     this.prediction = this.system.predictNow(this.game.view);

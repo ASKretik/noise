@@ -1,7 +1,7 @@
 # NOISE 3D — the next round
 
-Written Nov 18, 2026, revised the same day after N3 · **status: N0–N3, N8.1 and N8.2 built;
-N8.3 next** · follows 3D build 23
+Written Nov 18, 2026, revised the same day after N3 · **status: N0–N3 and N8.1–N8.3
+built; N8.4 next** · follows 3D build 24
 
 > A spec to pick up one phase at a time, whenever there is time. It describes what each
 > phase builds, the numbers it uses, the files it touches, how it is checked and what it
@@ -34,8 +34,8 @@ N8.3 next** · follows 3D build 23
 | N3 | Jumpscare and portal ascension | 3–3½ days | Low–medium | **done** (3D builds 15–20; capture reworked after review into a 7 s attack; build 20 found that a saved "mild" setting had been hiding it) |
 | N8.1 | Big maps: the size curve, the city builder with named places, the `next` ruleset | 4–5 days | High | **done** (3D build 21) |
 | N8.2 | Aliens: arrival cap, hunting / patrol / travel speeds, arrivals near you; route-planning spread out so it never hitches | 3–4 days | Medium | **done** (3D build 23; build 22 before it: Tab map key beacons and the user's tier speeds) |
-| **N8.3** | Keys (4 → 10) and portal placement; Tab map zoom, pan and place names; run length measured | 2–3 days | Medium | **next** |
-| N8.4 | Chunks, a shadow box that follows you, the frame-rate setting; frame budget re-measured | 2–3 days | Medium | not started |
+| N8.3 | Keys (4 → 10) and portal placement; Tab map zoom, pan and place names; run length measured | 2–3 days | Medium | **done** (3D build 24) |
+| **N8.4** | Chunks, a shadow box that follows you, the frame-rate setting; frame budget re-measured | 2–3 days | Medium | **next** |
 | N8.5 | Behaviour-first Dispatch: new traits, tactics, bots, 3D constants | 5–7 days | High | not started |
 | N4.1 | Art: sky, lighting and weather, and the first three belts (RUST, TIDE, MOSS) | ~3 days | Medium | not started |
 | N4.2 | Art: the other seven belts, a centrepiece per landmark, ruined facades, bloom and colour grade | 5–6 days | Medium | not started |
@@ -642,6 +642,28 @@ details. The differences from the plan above:
   play), not in Node.
 - **3D-27 walks the route** to the alien. On a city, a straight line finds a wall.
 
+**N8.3 as built (3D build 24).** The plan held: keys `round(4 + 6·(d−1)/99)`, 25 m
+apart, both halves, one per place. The details:
+
+- **Portal sites** are listed by walking distance from the nearest key.
+  `Game3DNext._choosePortal` draws from the furthest quarter.
+- **Run length, measured with bots:**
+
+  | District | Walk with no aliens | Par |
+  |---|---|---|
+  | 1 | 0.9 min | 1.2 min |
+  | 10 | 1.3 min | 1.7 min |
+  | 50 | 2.6 min | 3.5 min |
+  | 100 | 4.4 min | 6.0 min |
+
+  With aliens on MEDIUM, the bots win 1–4 of 12 runs, close to those times. They rush
+  rather than hide.
+- **The time limit was tightened** from N8.1's `√A` formula (13–46 min) to
+  `max(6 min, 6 × par)` per run, with a last-minute countdown.
+- **The Tab map** zooms (wheel, closing in on you), pans (drag) and names places and
+  avenues. Off-screen keys are pinned to the edge.
+- **New criterion 3D-30** checks the keys, the portal and the time limit.
+
 ### Criteria
 
 - **3D-20 (new), 2D unchanged.** 10,000 2D levels generated with the defaults hash
@@ -764,7 +786,8 @@ generalised to three floors and belts 8–10.
 | 3D-26 | N2 | Species table: one distinct species per belt, threat-red glow, known features (built, passing) |
 | 3D-27 | N3 | Contact: awake aliens are solid to the body, walking at one ends in a capture (built, passing) |
 | 3D-28 | N8 | Smooth on big maps: no tick's sim work over 4 ms; nothing created after loading |
-| 3D-29 | N8 | Fair speed: no alien faster than hunting speed within 40 m and in sight; hunting at most 70 % of walking |
+| 3D-29 | N8 | Fair speed: no alien faster than hunting speed within 40 m and in sight; hunting at most 70 % of walking (× tier as built) |
+| 3D-30 | N8 | Keys and portal: count by district, spacing, both halves, portal far from the keys, time limit from par |
 
 Re-checked as phases change rendering: 3D-11 (frame budget) and 3D-12 (legibility),
 recorded in `bench3d/measured.json`. Unchanged throughout: 3D-1 (the 2D suites) and 3D-3

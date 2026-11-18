@@ -78,9 +78,12 @@ export class Hud3D {
     this.begin = el('div', 'h3-begin', root, 'MOVE TO BEGIN');
     this.ammo = el('div', 'h3-ammo', root);
 
-    this.map = el('div', 'h3-map', root, '<canvas></canvas><p>TACTICAL MAP · release Tab / M to close · H heatmap · V visited · I alien targets</p>');
+    this.map = el('div', 'h3-map', root, '<canvas></canvas><p>TACTICAL MAP · release Tab / M to close · wheel to zoom · drag to pan · H heatmap · V visited · I alien targets <b class="h3-map-zoom"></b></p>');
     this.mapCanvas = this.map.querySelector('canvas');
+    this.mapZoomEl = this.map.querySelector('.h3-map-zoom');
     this.map.hidden = true;
+    /** Zoom (1 = the whole district fits), the view's centre in cells, and its scale. */
+    this.mapView = { zoom: 1, max: 1, cx: null, cy: null, dx: null, dy: null, recentre: true, cellPx: 1 };
 
     this.dispatchTimer = null;
     this.layers = { heatmap: false, visited: false, intercepts: false };
@@ -107,7 +110,25 @@ export class Hud3D {
     return this.layers[what];
   }
 
-  showMap(on) { this.map.hidden = !on; }
+  /** Show or hide the Tab map. It opens centred on you, at the zoom it was left at. */
+  showMap(on) {
+    if (on && this.map.hidden) this.mapView.recentre = true;
+    this.map.hidden = !on;
+  }
+
+  /** Wheel over the open map: in or out by about 15 % a notch. */
+  zoomMap(deltaY) {
+    const v = this.mapView;
+    v.zoom = Math.min(v.max, Math.max(1, v.zoom * Math.exp(-deltaY * 0.0015)));
+  }
+
+  /** Drag over the open map: the map follows the mouse. */
+  panMap(dx, dy) {
+    const v = this.mapView;
+    if (v.dx == null || v.zoom <= 1) return;       // the whole district is already in view
+    v.cx = v.dx - dx / v.cellPx;
+    v.cy = v.dy - dy / v.cellPx;
+  }
 
   /** A line of intercepted chatter, subtitle style. */
   dispatch(text, src = 'template') {
@@ -169,7 +190,7 @@ export class Hud3D {
     m.strokeStyle = 'rgba(255,255,255,0.18)'; m.lineWidth = 3;
     m.beginPath(); m.arc(S / 2, S / 2, S / 2 - 4, 0, Math.PI * 2); m.stroke();
 
-    // ---- tactical map
+    // ---- tactical map: zoom with the wheel, pan by dragging, opens centred on you (N8.3)
     if (!this.map.hidden) {
       const mc = this.mapCanvas;
       const maxW = Math.min(W * 0.9, 1100), maxH = H * 0.78;
@@ -177,21 +198,74 @@ export class Hud3D {
       const cw = Math.round(this.boardCanvas.width * k), ch = Math.round(this.boardCanvas.height * k);
       if (mc.width !== cw * dpr) { mc.width = cw * dpr; mc.height = ch * dpr; mc.style.width = `${cw}px`; mc.style.height = `${ch}px`; }
       const c = mc.getContext('2d');
-      c.setTransform(dpr * k, 0, 0, dpr * k, 0, 0);
+      const v = this.mapView;
+      v.max = Math.max(1, 2.5 / k);                       // no closer than 2.5 css px per board px
+      v.zoom = Math.min(v.max, Math.max(1, v.zoom));
+      const s = k * v.zoom, cellPx = T * s;                 // css px per board px, per cell
+      // (cx, cy) is where you asked the view to be -- you, on opening, then wherever you
+      // dragged it; (dx, dy) is that, kept inside the map. Zooming in from the full view
+      // therefore closes in on you, not on the middle of the district.
+      if (v.recentre || v.cx == null) { v.cx = body.x; v.cy = body.y; v.recentre = false; }
+      const halfW = cw / 2 / cellPx, halfH = ch / 2 / cellPx;
+      v.dx = halfW * 2 >= game.map.w ? game.map.w / 2 : Math.min(game.map.w - halfW, Math.max(halfW, v.cx));
+      v.dy = halfH * 2 >= game.map.h ? game.map.h / 2 : Math.min(game.map.h - halfH, Math.max(halfH, v.cy));
+      v.cellPx = cellPx;
+      const ox = cw / 2 - v.dx * cellPx, oy = ch / 2 - v.dy * cellPx;
+      const at = (x, y) => [ox + x * cellPx, oy + y * cellPx];   // cell coords -> css px
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      c.fillStyle = '#07080c'; c.fillRect(0, 0, cw, ch);
+      c.setTransform(dpr * s, 0, 0, dpr * s, dpr * ox, dpr * oy);
       c.drawImage(this.boardCanvas, 0, 0);
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      // Place and avenue names, where they fit: city maps only.
+      const label = (text, x, y, alpha, size = 10, angle = 0) => {
+        c.save(); c.translate(x, y); if (angle) c.rotate(angle);
+        c.font = `600 ${size}px ui-monospace, Menlo, monospace`; c.textAlign = 'center';
+        c.lineWidth = 3; c.strokeStyle = `rgba(5,7,10,${0.8 * alpha})`; c.fillStyle = `rgba(226,232,244,${alpha})`;
+        c.strokeText(text, 0, 3.5); c.fillText(text, 0, 3.5); c.restore();
+      };
+      if (level.places) {
+        c.font = '600 10px ui-monospace, Menlo, monospace';
+        for (const pl of level.places) {
+          if (!pl.centre) continue;
+          const wPx = pl.w * cellPx, text = pl.name.toUpperCase();
+          if (wPx < c.measureText(text).width + 6 || pl.h * cellPx < 14) continue;
+          const [x, y] = at(pl.x + pl.w / 2, pl.y + pl.h / 2);
+          if (x < -40 || y < -10 || x > cw + 40 || y > ch + 10) continue;
+          label(text, x, y, 0.62);
+        }
+        if (v.zoom >= 1.5 && level.avenues) {
+          for (const av of level.avenues) {
+            const text = av.name.toUpperCase();
+            if (av.axis === 'x') {
+              const [x] = at(av.at + 0.5, 0);
+              if (x > 0 && x < cw) label(text, x, ch * 0.5, 0.5, 9, -Math.PI / 2);
+            } else {
+              const [, y] = at(0, av.at + 0.5);
+              if (y > 0 && y < ch) label(text, cw * 0.5, y, 0.5, 9);
+            }
+          }
+        }
+      }
 
       // Beacons over the keys and the portal, at a fixed screen size: on a city map the
       // board's own key icons shrink to a few pixels and are easy to miss. Rings pulse out
       // about once a second (well under the 3-a-second flash limit) and the marker breathes.
-      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // Zoomed in, one that is off the map's edge is pinned to the edge so it is never lost.
       const now = performance.now() / 1000;
-      const beacon = (cx, cy, color, label, phase0) => {
-        const px = (cx + 0.5) * T * k, py = (cy + 0.5) * T * k;
-        for (const off of [0, 0.5]) {
-          const ph = (now / 1.2 + phase0 + off) % 1;
-          c.globalAlpha = (1 - ph) * 0.9;
-          c.strokeStyle = color; c.lineWidth = 2.5;
-          c.beginPath(); c.arc(px, py, 6 + 22 * ph, 0, Math.PI * 2); c.stroke();
+      const labels = [];                                   // drawn labels, so pinned ones do not overprint
+      const beacon = (cx, cy, color, text, phase0) => {
+        let [px, py] = at(cx + 0.5, cy + 0.5);
+        const off = px < 12 || py < 12 || px > cw - 12 || py > ch - 12;
+        px = Math.min(cw - 12, Math.max(12, px)); py = Math.min(ch - 12, Math.max(12, py));
+        if (!off) {
+          for (const o of [0, 0.5]) {
+            const ph = (now / 1.2 + phase0 + o) % 1;
+            c.globalAlpha = (1 - ph) * 0.9;
+            c.strokeStyle = color; c.lineWidth = 2.5;
+            c.beginPath(); c.arc(px, py, 6 + 22 * ph, 0, Math.PI * 2); c.stroke();
+          }
         }
         c.globalAlpha = 0.6 + 0.4 * (0.5 + 0.5 * Math.sin((now + phase0) * Math.PI * 2.4));
         c.fillStyle = color; c.strokeStyle = '#05070a'; c.lineWidth = 2;
@@ -200,10 +274,17 @@ export class Hud3D {
         c.globalAlpha = 1;
         c.font = '600 11px ui-monospace, Menlo, monospace';
         c.lineWidth = 3; c.strokeStyle = 'rgba(5,7,10,0.85)'; c.fillStyle = color;
-        const right = px + 11 + c.measureText(label).width < cw;   // flip the label at the right edge
+        const tw = c.measureText(text).width;
+        const right = px + 11 + tw < cw;                   // flip the label at the right edge
         c.textAlign = right ? 'left' : 'right';
         const lx = right ? px + 11 : px - 11;
-        c.strokeText(label, lx, py + 4); c.fillText(label, lx, py + 4);
+        let ly = py + 4;
+        const x0 = right ? lx : lx - tw;
+        for (let guard = 0; guard < 6 && labels.some((q) => Math.abs(q.y - ly) < 13 && x0 < q.x1 && x0 + tw > q.x0); guard++) {
+          ly += py > ch / 2 ? -13 : 13;
+        }
+        labels.push({ x0, x1: x0 + tw, y: ly });
+        c.strokeText(text, lx, ly); c.fillText(text, lx, ly);
         c.textAlign = 'left';
       };
       const metres = (x, y) => `${Math.round(Math.hypot(x + 0.5 - body.x, y + 0.5 - body.y) * cellM)} m`;
@@ -211,11 +292,13 @@ export class Hud3D {
       if (game.portalRevealed) beacon(game.portal.x, game.portal.y, COLORS.portal, `PORTAL ${metres(game.portal.x, game.portal.y)}`, 0);
 
       // you: the same arrow at a fixed screen size, so it does not shrink with the map
+      const [yx, yy] = at(body.x, body.y);
       c.setTransform(dpr, 0, 0, dpr, 0, 0);
-      c.translate(body.x * T * k, body.y * T * k);
+      c.translate(yx, yy);
       c.rotate(-yaw);
       c.fillStyle = COLORS.beacon; c.strokeStyle = '#041014'; c.lineWidth = 2;
       c.beginPath(); c.moveTo(0, -11); c.lineTo(7, 8); c.lineTo(0, 4); c.lineTo(-7, 8); c.closePath(); c.stroke(); c.fill();
+      this.mapZoomEl.textContent = v.max > 1.01 ? `ZOOM ×${v.zoom.toFixed(1)}` : '';
     }
 
     // ---- compass strip: north is grid-up
@@ -295,7 +378,16 @@ export class Hud3D {
     this.objective.textContent = game.portalRevealed ? 'REACH THE PORTAL' : `KEYS ${game.collected} / ${game.caches.length}`;
     this.alertLine.textContent = game.alertTicks > 0 ? `HUNTED · ${hearers} can hear you` : game.patrols.length ? `${game.patrols.length} alien${game.patrols.length > 1 ? 's' : ''} in the district` : '';
     this.alertLine.classList.toggle('hot', game.alertTicks > 0);
-    this.timeEl.textContent = `${realSeconds(game.tick, tickHz).toFixed(1)} s`;
+    // The run's time limit is a backstop (six times par, never under six minutes), so it
+    // stays out of sight until its last minute, then counts down in red.
+    const left = realSeconds(Math.max(0, game.maxTicks - game.tick), tickHz);
+    if (game.maxTicks && left <= 60) {
+      this.timeEl.textContent = `TIME ${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')} LEFT`;
+      this.timeEl.classList.add('h3-time-low');
+    } else {
+      this.timeEl.textContent = `${realSeconds(game.tick, tickHz).toFixed(1)} s`;
+      this.timeEl.classList.remove('h3-time-low');
+    }
     this.begin.hidden = game.started;
 
     const sprintLeft = realSeconds(game.sprintTicks, tickHz);

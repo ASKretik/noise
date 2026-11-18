@@ -19,6 +19,8 @@ export class Controls {
     this.held = new Set();
     this.sprint = false;
     this.locked = false;
+    /** The Tab map is open: dragging pans it, the wheel zooms it, a click does not fire. */
+    this.mapOpen = false;
     this.handlers = {};
     this._onMouse = this._onMouse.bind(this);
   }
@@ -35,9 +37,14 @@ export class Controls {
     document.addEventListener('pointerlockerror', () => this.emit('lockerror'));
     document.addEventListener('mousemove', this._onMouse);
     this.target.addEventListener('mousedown', (e) => {
-      if (!this.locked) return;
+      if (!this.locked || this.mapOpen) return;
       if (e.button === 0) this.emit('fire');
     });
+    window.addEventListener('wheel', (e) => {
+      if (!this.locked || !this.mapOpen) return;
+      e.preventDefault();
+      this.emit('zoom', e.deltaY * (e.deltaMode === 1 ? 33 : 1));
+    }, { passive: false });
     window.addEventListener('keydown', (e) => {
       if (e.target?.closest?.('input, select, textarea')) return;
       if (MOVE[e.code]) { this.held.add(MOVE[e.code]); e.preventDefault(); this.emit('move'); }
@@ -48,16 +55,19 @@ export class Controls {
       if (e.code === 'KeyH') this.emit('toggle', 'heatmap');
       if (e.code === 'KeyV') this.emit('toggle', 'visited');
       if (e.code === 'KeyI') this.emit('toggle', 'intercepts');
-      if (e.code === 'Tab' || e.code === 'KeyM') { e.preventDefault(); this.emit('map', true); }
+      if (e.code === 'Tab' || e.code === 'KeyM') { e.preventDefault(); this.mapOpen = true; this.emit('map', true); }
       if (e.code === 'Backquote') this.emit('tune');
       this.emit('any');
     });
     window.addEventListener('keyup', (e) => {
       if (MOVE[e.code]) this.held.delete(MOVE[e.code]);
       if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.sprint = false;
-      if (e.code === 'Tab' || e.code === 'KeyM') this.emit('map', false);
+      if (e.code === 'Tab' || e.code === 'KeyM') { this.mapOpen = false; this.emit('map', false); }
     });
-    window.addEventListener('blur', () => { this.held.clear(); this.sprint = false; });
+    window.addEventListener('blur', () => {
+      this.held.clear(); this.sprint = false;
+      if (this.mapOpen) { this.mapOpen = false; this.emit('map', false); }   // Tab's keyup is lost on alt-tab
+    });
   }
 
   lock() {
@@ -71,6 +81,8 @@ export class Controls {
 
   _onMouse(e) {
     if (!this.locked) return;
+    // dragging over the open map pans it instead of turning you
+    if (this.mapOpen && (e.buttons & 1)) { this.emit('pan', e.movementX, e.movementY); return; }
     const k = 0.0022 * this.sensitivity;
     this.yaw -= e.movementX * k;
     this.pitch -= e.movementY * k * (this.invertY ? -1 : 1);

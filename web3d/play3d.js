@@ -101,6 +101,8 @@ export class Play3D {
     this.controls.on('restart', () => { if (this.controls.locked) this.start(this.district); });
     this.controls.on('tune', () => this.toggleTune());
     this.controls.on('map', (on) => this.hud.showMap(on));
+    this.controls.on('zoom', (dy) => this.hud.zoomMap(dy));
+    this.controls.on('pan', (dx, dy) => this.hud.panMap(dx, dy));
     this.controls.on('toggle', (what) => this.hud.toggleLayer(what));
     this.controls.on('fire', () => this.fire());
     $('ov-primary').addEventListener('click', () => this.primary());
@@ -407,7 +409,7 @@ export class Play3D {
     // middle of the capture. The HUD stays off until the end card (showEnd) brings it back:
     // build 16 put the minimap, keys and debug panel back over the alien's face.
     if (!this.ended) $('hud').hidden = false;
-    if (!locked) this.hud.showMap(false);
+    if (!locked) { this.hud.showMap(false); this.controls.mapOpen = false; }
     if (!locked && !this.ended) {
       $('ov-title').textContent = 'PAUSED';
       $('ov-body').textContent = 'Nothing moves while the mouse is released. Click to resume.';

@@ -8,6 +8,26 @@
 
 export const CHANGES = [
   {
+    build: 24,
+    date: '2026-11-18',
+    phase: 'N8.3',
+    changed: [
+      'More keys deeper in: 4 at district 1, 5 at 10, 7 at 50, 8 at 75 and 10 at district 100. They are spread across the city: each in its own block, at least 25 m apart, never all on one side.',
+      'The portal now opens far from the keys (about 50 m from the nearest at district 1 and 100 m at district 100), so the last stretch after your last key is a real crossing.',
+      'The Tab map zooms and pans. Scroll to zoom in (it closes in on you), and hold the mouse button and drag to move around. It opens centred on you, at the zoom you left it. Clicking while it is open no longer fires the stun gun.',
+      'The Tab map names the blocks (Cable Sidings, Glass Bazaar...) wherever there is room, and the avenues once you zoom in. Keys off the edge of a zoomed map stay pinned to the edge with their distance.',
+      'The time limit is now six times the run\'s par route (never under 6 minutes): about 7 minutes at district 1 and 36 at district 100. In its last minute the clock turns red and counts down, so it never takes you by surprise.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R). In district 100, hold Tab, scroll in, drag around and find the keys by name.',
+      'Collect all the keys in district 1 and see how far the portal makes you go.',
+    ],
+    unverified: [
+      'Measured with bots only: walking the key route takes about 1 minute at district 1 and 4.5 at district 100; with aliens a real run will be longer. Tell me if it drags.',
+      'Zoom and drag were tested with synthetic mouse events, not a real mouse or trackpad.',
+    ],
+  },
+  {
     build: 23,
     date: '2026-11-18',
     phase: 'N8.2',

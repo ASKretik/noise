@@ -2433,11 +2433,70 @@ enters an alien, held throughout: 0 overlaps.
 - Whether a full city at district 100 is tense, empty or overwhelming is the user's call.
   The arrival cap, travel speed and ceiling are single constants in `rules.js`.
 
+---
+
+## R55 · N8.3: keys, the portal, a map you can read, and how long a run takes (3D build 24)
+
+**Asked:** "yeah proceed with N8.3 now".
+
+**Built:**
+
+- **Keys.** There are now `round(4 + 6·(d−1)/99)`: 4 at district 1 up to 10 at 100. Each
+  goes in its own place, at least 25 m from the others, and never all in one half of the
+  map. 0 of 80 test cities broke a rule.
+- **The portal** is drawn from the quarter of place centres furthest, by walking, from
+  the nearest key. It lands about 50 m from the nearest key at district 1 and 100 m at
+  district 100.
+- **The Tab map:**
+  - the wheel zooms, and zooming closes in on you;
+  - dragging with the button held pans it;
+  - it reopens centred on you, at the zoom it was left at;
+  - while it is open, a click does not fire the stun gun and a drag does not turn you;
+  - place names appear wherever they fit, and avenue names from ×1.5;
+  - off-screen keys are pinned to the edge, and pinned labels stack.
+
+**Measured run length** (bots; "walk" is a bot taking the greedy route with no aliens):
+
+| District | Walk | Par | Bot wins with aliens (MEDIUM) |
+|---|---|---|---|
+| 1 | 0.9 min | 1.2 min | 3/12, in 0.9 min |
+| 10 | 1.3 | 1.7 | 3/12 |
+| 25 | 1.7 | 2.3 | 4/12 |
+| 50 | 2.6 | 3.5 | 2/12 |
+| 75 | 3.3 | 4.4 | 1/12 |
+| 100 | 4.4 | 6.0 | 1/12, in 4.3 min |
+
+The walk matches the geometric estimate in R51 (3.7 min with 10 keys at district 100).
+Bots do not hide, so how long a human run lasts is still the user's to report.
+
+**The time limit, tightened.** N8.1's `√A` formula gave 13–46 min. That was 10–15 times
+the walk, and nobody could see it until the end card said TIMED OUT. It is now
+`max(6 min, 6 × par)` per run, about 7 min at district 1 and 36 at district 100. The HUD
+turns the clock red and counts down through the last minute.
+
+**Found on the way:** with the map fully zoomed out, the view's centre was clamped to the
+district's middle and kept there. Zooming in from the full view therefore went to the
+middle of the map, not to the player. The requested centre is now stored separately from
+the clamped one.
+
+**New criterion 3D-30:**
+
+- the key count at five districts;
+- one key per place, the spacing and both halves, over 68 cities;
+- the portal drawn from the far quarter, over 16 runs;
+- the time limit equal to `max(6 min, 6 × par)`.
+
+**Not verified:**
+
+- Zoom and drag were tested with synthetic wheel and mouse events, not a real mouse or
+  trackpad.
+- Run length is from bots only.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    22 passed · 0 not demonstrated · 0 failed  (3D build 23; 3D-1 via the
+npm run test3d    23 passed · 0 not demonstrated · 0 failed  (3D build 24; 3D-1 via the
                   2D suites above, run alongside)
 ```

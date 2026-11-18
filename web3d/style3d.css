@@ -245,6 +245,8 @@
 .h3-district { font-weight: 800; letter-spacing: 0.12em; font-size: 14px; }
 .h3-tier { margin-top: 3px; font-size: 11px; letter-spacing: 0.1em; color: var(--fg-dim); }
 .h3-time { margin-top: 3px; font: 12px var(--mono); color: var(--fg-dim); }
+.h3-time.h3-time-low { color: #ff5a4e; font-weight: 700; }
+.h3-map-zoom { margin-left: 10px; color: var(--fg); font-weight: 600; }
 
 .h3-bl { position: absolute; left: 18px; bottom: 18px; width: min(420px, 44vw); }
 .h3-dispatch {
