@@ -17,6 +17,11 @@ import { TILE } from '../sim/grid.js';
 import { Rng, hashString } from '../sim/prng.js';
 import { themeFor } from '../web/themes.js';
 import { WALL_M } from '../sim3d/units.js';
+import { artFor, depthOf, beltOf } from './art/belts.js';
+import { surfaceTextures } from './art/textures.js';
+import { buildProps } from './art/props.js';
+import { makeSky, skyDir } from './art/sky.js';
+import { makeWeather } from './art/weather.js';
 
 /**
  * Fog: clear to FOG_NEAR, solid colour from FOG_FAR on. The camera's far plane sits just
@@ -99,6 +104,37 @@ export function palette3d(district) {
     waterDeep: lift(t.waterDeep, 0.24, 1.3),
     horizon,
     zenith: horizon.clone().multiplyScalar(0.35),
+  };
+}
+
+/**
+ * The art of a belt N4 has not yet directed: its 2D palette, with the same sky, light and
+ * dusk-to-midnight progression as the art-directed belts (art/belts.js), and no weather.
+ */
+export function fallbackArt(district, pal) {
+  const k = depthOf(district), t = k / 9;
+  const hex = (c) => `#${c.getHexString()}`;
+  const horizon = pal.horizon.clone().lerp(pal.horizon.clone().multiplyScalar(0.38), t);
+  const zenith = pal.zenith.clone().lerp(pal.zenith.clone().multiplyScalar(0.25), t);
+  const body = t < 0.5
+    ? { kind: 'sun', az: 250, elev: 10 - 12 * t * 2, color: '#ffe4c4', size: 0.05, glow: 0.4 * (1 - t) }
+    : { kind: 'moon', az: 115, elev: 22 + 14 * (t - 0.5) * 2, color: '#d0d8ea', size: 0.022, glow: 0.12 };
+  const white = new THREE.Color(0xffffff), moonSky = new THREE.Color('#5f6a86'), cool = new THREE.Color('#a9b8d8');
+  return {
+    belt: beltOf(district), name: pal.name, k, t, styled: false,
+    wall: null, floor: null, rubble: null, props: null, weather: null,
+    sky: {
+      zenith: hex(zenith), horizon: hex(horizon), clouds: 0.3, cloud: hex(horizon.clone().lerp(zenith, 0.35)),
+      stars: t > 0.5 ? (t - 0.5) * 1.2 : 0, canopy: 0, body, beam: null,
+    },
+    light: {
+      hemiSky: hex(pal.horizon.clone().lerp(white, 0.6).lerp(moonSky, t)),
+      hemiGround: hex(pal.ground.clone().multiplyScalar(0.6 - 0.4 * t)),
+      hemi: 1.9 + (1.1 - 1.9) * t,
+      key: hex(new THREE.Color('#fff4e6').lerp(cool, t)), keyI: 2.2 + (0.7 - 2.2) * t,
+      keyAz: body.az, keyElev: Math.max(6, body.elev),
+    },
+    fog: { color: hex(horizon) },
   };
 }
 
@@ -208,6 +244,10 @@ export function buildWorld(level, { cellM, shadows = false }) {
   const { map } = level;
   const pal = palette3d(level.level);
   const seed = hashString(`world:${level.seed ?? level.level}`);
+  // N4: the belt's art direction (art/belts.js), or one derived from its 2D palette
+  const art = artFor(level.level) || fallbackArt(level.level, pal);
+  pal.art = art;
+  const styled = art.styled;
   const group = new THREE.Group();
   const W = map.w * cellM, H = map.h * cellM;
   const m4 = new THREE.Matrix4();
@@ -226,17 +266,26 @@ export function buildWorld(level, { cellM, shadows = false }) {
   const cellRng = (x, y, label) => new Rng(hashString(`${seed}:${label}:${x},${y}`), label);
 
   // ---- floor: one tile per non-wall cell, ground / groundAlt, seams in the texture
-  const floorTex = track(floorTexture(seed));
+  const floorArt = styled ? surfaceTextures(art.floor, seed, false) : null;
+  if (floorArt) track(floorArt.map, floorArt.normalMap, ...(floorArt.roughnessMap ? [floorArt.roughnessMap] : []));
+  const floorTex = floorArt ? floorArt.map : track(floorTexture(seed));
   const floorCells = [];
   for (let y = 0; y < map.h; y++) for (let x = 0; x < map.w; x++) if (map.tiles[y * map.w + x] !== TILE.WALL) floorCells.push([x, y]);
   const floorGeo = track(new THREE.PlaneGeometry(cellM, cellM).rotateX(-Math.PI / 2));
-  const floorMat = track(new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.92, metalness: 0 }));
+  const floorMat = track(new THREE.MeshStandardMaterial(floorArt
+    ? { map: floorTex, normalMap: floorArt.normalMap, roughnessMap: floorArt.roughnessMap, roughness: floorArt.roughnessMap ? 1 : art.floor.roughness, metalness: 0 }
+    : { map: floorTex, roughness: 0.92, metalness: 0 }));
   const floor = new THREE.InstancedMesh(floorGeo, floorMat, floorCells.length);
+  const yAxis = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
   floorCells.forEach(([x, y], i) => {
-    m4.makeTranslation((x + 0.5) * cellM, 0, (y + 0.5) * cellM);
-    floor.setMatrixAt(i, m4);
     const r = cellRng(x, y, 'floor');
-    floor.setColorAt(i, col.copy(r.bool(0.5) ? pal.ground : pal.groundAlt).multiplyScalar(0.92 + r.float() * 0.16));
+    // an art-directed floor texture turns a random quarter per cell, so no two neighbours
+    // repeat the same stains (N4.1: the first TIDE floor showed its puddles as a grid)
+    if (styled) m4.compose(v.set((x + 0.5) * cellM, 0, (y + 0.5) * cellM), q.setFromAxisAngle(yAxis, r.int(4) * Math.PI / 2), one);
+    else m4.makeTranslation((x + 0.5) * cellM, 0, (y + 0.5) * cellM);
+    floor.setMatrixAt(i, m4);
+    if (styled) floor.setColorAt(i, col.setRGB(1, 1, 1).multiplyScalar(0.86 + r.float() * 0.22));
+    else floor.setColorAt(i, col.copy(r.bool(0.5) ? pal.ground : pal.groundAlt).multiplyScalar(0.92 + r.float() * 0.16));
   });
   floor.receiveShadow = shadows;
   group.add(floor);
@@ -247,19 +296,26 @@ export function buildWorld(level, { cellM, shadows = false }) {
   const isWall = (x, y) => x < 0 || y < 0 || x >= map.w || y >= map.h || map.tiles[y * map.w + x] === TILE.WALL;
   const walls = cellsOf(TILE.WALL);
   const faced = walls.filter(([x, y]) => !isWall(x - 1, y) || !isWall(x + 1, y) || !isWall(x, y - 1) || !isWall(x, y + 1));
-  const wallTex = track(wallTexture(seed));
+  const wallArt = styled ? surfaceTextures(art.wall, seed, true) : null;
+  if (wallArt) track(wallArt.map, wallArt.normalMap, ...(wallArt.roughnessMap ? [wallArt.roughnessMap] : []));
+  const wallTex = wallArt ? wallArt.map : track(wallTexture(seed));
   const wallGeo = track(new THREE.BoxGeometry(cellM, WALL_M, cellM));
-  const wallMat = track(new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.88 }));
+  const wallMat = track(new THREE.MeshStandardMaterial(wallArt
+    ? { map: wallTex, normalMap: wallArt.normalMap, roughnessMap: wallArt.roughnessMap, roughness: wallArt.roughnessMap ? 1 : art.wall.roughness, metalness: art.wall.metalness }
+    : { map: wallTex, roughness: 0.88 }));
   const wallMesh = new THREE.InstancedMesh(wallGeo, wallMat, Math.max(1, faced.length));
   wallMesh.count = faced.length;
   const capGeo = track(new THREE.BoxGeometry(cellM * 1.02, 0.12, cellM * 1.02));
-  const capMat = track(new THREE.MeshStandardMaterial({ color: pal.wallCap, roughness: 0.7 }));
+  const capMat = track(new THREE.MeshStandardMaterial({
+    color: styled ? new THREE.Color(art.wall.base).lerp(new THREE.Color(0xffffff), 0.12) : pal.wallCap, roughness: 0.7,
+  }));
   const capMesh = new THREE.InstancedMesh(capGeo, capMat, walls.length);
   faced.forEach(([x, y], i) => {
     const r = cellRng(x, y, 'wall');
     m4.makeTranslation((x + 0.5) * cellM, WALL_M / 2, (y + 0.5) * cellM);
     wallMesh.setMatrixAt(i, m4);
-    wallMesh.setColorAt(i, col.copy(pal.wall).multiplyScalar(0.88 + r.float() * 0.24));
+    if (styled) wallMesh.setColorAt(i, col.setRGB(1, 1, 1).multiplyScalar(0.84 + r.float() * 0.24));
+    else wallMesh.setColorAt(i, col.copy(pal.wall).multiplyScalar(0.88 + r.float() * 0.24));
   });
   walls.forEach(([x, y], i) => {
     m4.makeTranslation((x + 0.5) * cellM, WALL_M + 0.06, (y + 0.5) * cellM);
@@ -299,7 +355,8 @@ export function buildWorld(level, { cellM, shadows = false }) {
     q.setFromEuler(new THREE.Euler(b.tilt, b.ry, b.tilt * 0.5));
     m4.compose(v.set(b.x, b.sy / 2 - 0.05, b.z), q, sc.set(b.sx, b.sy, b.sz));
     rubble.setMatrixAt(i, m4);
-    rubble.setColorAt(i, col.copy(b.top ? pal.rubbleTop : pal.rubble).multiplyScalar(b.shade));
+    if (styled) rubble.setColorAt(i, col.set(art.rubble).multiplyScalar(b.top ? b.shade * 1.3 : b.shade));
+    else rubble.setColorAt(i, col.copy(b.top ? pal.rubbleTop : pal.rubble).multiplyScalar(b.shade));
   });
   rubble.castShadow = rubble.receiveShadow = shadows;
   group.add(rubble);
@@ -309,13 +366,16 @@ export function buildWorld(level, { cellM, shadows = false }) {
   const waterNorm = track(waterNormal(seed));
   const waterGeo = track(new THREE.PlaneGeometry(cellM, cellM).rotateX(-Math.PI / 2));
   const waterMat = track(new THREE.MeshStandardMaterial({
-    color: pal.water, roughness: 0.08, metalness: 0.15, normalMap: waterNorm,
-    normalScale: new THREE.Vector2(0.6, 0.6), transparent: true, opacity: 0.86,
+    color: styled ? new THREE.Color(art.water) : pal.water, roughness: styled ? 0.34 : 0.08, metalness: 0.15, normalMap: waterNorm,
+    normalScale: styled ? new THREE.Vector2(0.28, 0.28) : new THREE.Vector2(0.6, 0.6), transparent: true, opacity: 0.86,
   }));
   const water = new THREE.InstancedMesh(waterGeo, waterMat, Math.max(1, waterCells.length));
   water.count = waterCells.length;
   waterCells.forEach(([x, y], i) => {
-    m4.makeTranslation((x + 0.5) * cellM, 0.05, (y + 0.5) * cellM);
+    // like the floor, a quarter turn per cell on an art-directed belt, so the ripples do
+    // not tile into a quilt under a low sun
+    if (styled) m4.compose(v.set((x + 0.5) * cellM, 0.05, (y + 0.5) * cellM), q.setFromAxisAngle(yAxis, cellRng(x, y, 'water').int(4) * Math.PI / 2), one);
+    else m4.makeTranslation((x + 0.5) * cellM, 0.05, (y + 0.5) * cellM);
     water.setMatrixAt(i, m4);
   });
   group.add(water);
@@ -348,6 +408,9 @@ export function buildWorld(level, { cellM, shadows = false }) {
     group.add(new THREE.LineSegments(eg, track(new THREE.LineBasicMaterial({ color: 0xb4c4d6, transparent: true, opacity: 0.35 }))));
   }
 
+  // ---- the belt's props on the walls (N4.1), chunked with the rest
+  for (const prop of buildProps(level, art, cellM, seed, track)) group.add(prop);
+
   // ---- cut every instanced layer into chunks (N8.4)
   const layers = group.children.filter((ch) => ch.isInstancedMesh);
   let chunkCount = 0;
@@ -367,31 +430,31 @@ export function buildWorld(level, { cellM, shadows = false }) {
   apron.position.set(W / 2, -0.02, H / 2);
   group.add(apron);
 
-  const sky = new THREE.Mesh(
-    track(new THREE.SphereGeometry(FOG_FAR, 24, 12)),       // inside the far plane
-    track(new THREE.ShaderMaterial({
-      side: THREE.BackSide, depthWrite: false, fog: false,
-      uniforms: { top: { value: pal.zenith }, bottom: { value: pal.horizon } },
-      vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-      fragmentShader: 'uniform vec3 top; uniform vec3 bottom; varying vec3 vP; void main(){ float h = clamp(vP.y * 1.6, 0.0, 1.0); gl_FragColor = vec4(mix(bottom, top, h), 1.0);\n#include <colorspace_fragment>\n}',
-    })),
-  );
+  // N4.1: the belt's sky (art/sky.js), inside the far plane; named 'sky' for the capture
+  const skyDome = makeSky(art.sky, FOG_FAR * 0.98, track);
+  const sky = skyDome.mesh;
   sky.position.set(W / 2, 0, H / 2);
-  sky.renderOrder = -1;
-  sky.name = 'sky';                      // the capture hides it: fog does not reach it
   group.add(sky);
+  // and its weather, round the camera
+  const weather = makeWeather(art.weather, seed, track);
+  if (weather) group.add(weather.object);
 
   return {
     group,
     palette: pal,
     chunkCount,
+    art,
     /**
-     * Per-frame animation: the water drifts, and the sky dome stays centred on you. On a
-     * city map you can walk 200 m from the middle, outside a dome fixed there.
+     * Per-frame animation: the water drifts, clouds and the lighthouse move, the weather
+     * falls round you, and the sky dome stays centred on you (on a city map you can walk
+     * 200 m from the middle, outside a dome fixed there). `px` is the canvas height in
+     * device pixels, which keeps weather particles their size in metres.
      */
-    animate(t, eye = null) {
+    animate(t, eye = null, px = 1000) {
       waterNorm.offset.set(t * 0.03, t * 0.017);
+      skyDome.update(t);
       if (eye) sky.position.set(eye.x, 0, eye.z);
+      weather?.update(t, eye, px);
     },
     dispose() {
       for (const ch of group.children) if (ch.isInstancedMesh) ch.dispose();
@@ -411,10 +474,15 @@ export function lightScene(scene, pal, { cellM, mapW, mapH, shadows = false, fol
   if (old) scene.remove(old);
   const g = new THREE.Group();
   g.name = 'district-lights';
-  g.add(new THREE.HemisphereLight(pal.horizon.clone().lerp(new THREE.Color(0xffffff), 0.6), pal.ground.clone().multiplyScalar(0.6), 1.9));
-  const sun = new THREE.DirectionalLight(0xfff4e6, 2.2);
+  // N4.1: the light comes from the belt's art at this depth -- a low warm sun at dusk, a
+  // high cool moon by midnight -- from the same direction as the sun or moon in the sky
+  const art = pal.art || fallbackArt(1, pal);
+  const L = art.light;
+  g.add(new THREE.HemisphereLight(new THREE.Color(L.hemiSky), new THREE.Color(L.hemiGround), L.hemi));
+  const sun = new THREE.DirectionalLight(new THREE.Color(L.key), L.keyI);
+  const toLight = skyDir(L.keyAz, L.keyElev).multiplyScalar(54);
   const cx = (mapW * cellM) / 2, cz = (mapH * cellM) / 2;
-  sun.position.set(cx - 25, 45, cz + 18);
+  sun.position.set(cx + toLight.x, toLight.y, cz + toLight.z);
   sun.target.position.set(cx, 0, cz);
   const r = follow ? SHADOW_HALF_M : Math.max(mapW, mapH) * cellM * 0.62;
   if (shadows) {
@@ -425,8 +493,9 @@ export function lightScene(scene, pal, { cellM, mapW, mapH, shadows = false, fol
   }
   g.add(sun, sun.target);
   scene.add(g);
-  scene.fog = new THREE.Fog(pal.horizon, FOG_NEAR, FOG_FAR);
-  scene.background = pal.horizon;
+  const fogColour = new THREE.Color(art.fog.color);
+  scene.fog = new THREE.Fog(fogColour, FOG_NEAR, FOG_FAR);
+  scene.background = fogColour;
   const texel = (2 * r) / 2048;
   const fwd = new THREE.Vector3();
   return {
@@ -440,7 +509,7 @@ export function lightScene(scene, pal, { cellM, mapW, mapH, shadows = false, fol
       const x = Math.round((camera.position.x + fwd.x * r * 0.45) / texel) * texel;
       const z = Math.round((camera.position.z + fwd.z * r * 0.45) / texel) * texel;
       sun.target.position.set(x, 0, z);
-      sun.position.set(x - 25, 45, z + 18);
+      sun.position.set(x + toLight.x, toLight.y, z + toLight.z);
       sun.target.updateMatrixWorld();
     },
   };

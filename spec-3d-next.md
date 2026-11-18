@@ -1,7 +1,7 @@
 # NOISE 3D — the next round
 
-Written Nov 18, 2026, revised the same day after N3 · **status: N0–N3 and N8 built;
-N4.1 next** · follows 3D build 28
+Written Nov 18, 2026, revised the same day after N3 · **status: N0–N3, N8 and N4.1
+built; N4.2 next** · follows 3D build 29
 
 > A spec to pick up one phase at a time, whenever there is time. It describes what each
 > phase builds, the numbers it uses, the files it touches, how it is checked and what it
@@ -41,8 +41,8 @@ N4.1 next** · follows 3D build 28
 | N8.3 | Keys (4 → 10) and portal placement; Tab map zoom, pan and place names; run length measured | 2–3 days | Medium | **done** (3D build 24) |
 | N8.4 | Chunks, a shadow box that follows you, the frame-rate setting; frame budget re-measured | 2–3 days | Medium | **done** (3D build 26; build 25 before it: a held Tab keeps the map up) |
 | N8.5 | Behaviour-first Dispatch: new traits, tactics, bots, 3D constants | 5–7 days | High | **done** (3D build 28; build 27 before it: developer mode) |
-| **N4.1** | Art: sky, lighting and weather, and the first three belts (RUST, TIDE, MOSS) | ~3 days | Medium | **next** |
-| N4.2 | Art: the other seven belts, a centrepiece per landmark, ruined facades, bloom and colour grade | 5–6 days | Medium | not started |
+| N4.1 | Art: sky, lighting and weather, and the first three belts (RUST, TIDE, MOSS) | ~3 days | Medium | **done** (3D build 29) |
+| **N4.2** | Art: the other seven belts, a centrepiece per landmark, ruined facades, bloom and colour grade | 5–6 days | Medium | **next** |
 | N6.1 | Items: the 3D inventory, noise maker, dampers, EMP (the rules layer itself is built in N8.1) | 3–4 days | Medium | not started |
 | N6.2 | Items: portable black box, intel chip, noise generator; balance measured | 3–5 days | Medium | not started |
 | N9.1 | Floors prototype: enterable two-floor buildings in belt 4; stairs for you, vents for them; the N4 art and N6 items patched for floors here | ~1½ weeks (+1–2 days of patching) | High | not started |
@@ -295,6 +295,23 @@ coins by value, teal portal. Belt art may not use large areas of those hues.
 **Estimate:** 8–9 days (a first pass on sky, lighting and three belts in about 3).
 **Difficulty:** medium (art direction more than engineering). **Risk:** laptop GPUs with
 weather and bloom together; measure.
+
+**N4.1 as built (3D build 29).** `spec-3d.md`, "Belt art", has the details.
+Differences from the plan:
+
+- **Dusk to midnight is two ends per belt.** Each belt has a dusk sky and light and a
+  midnight one; `artFor` mixes them by depth. The sun sets by mid-belt and the moon
+  rises, and the key light follows whichever is up.
+- **The other seven belts already change with depth.** `fallbackArt` in `world.js` gives
+  them the same sky, light and fog progression from their 2D palettes until N4.2 directs
+  them.
+- **The lint ignores the weather and small accents.** Dust (RUST) is close in hue to the
+  copper coin, but is made of tiny faint motes, not an area. Valve wheels and buoys are
+  small. The rule covers walls, floors, rubble, water, props, sky, clouds and fog.
+- **Left for N4.2:** growth decals rising with depth, centrepieces, signs, facades,
+  bloom and the colour grade (so `post.js` and the vendored addons are not in yet).
+- **Measured cost** is small: districts 20, 30 and 100 at 1080p Medium all average under
+  7 ms, at most 141 draw calls.
 
 ---
 

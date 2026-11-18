@@ -1,16 +1,16 @@
 {
-  "12": {
-    "status": "pass",
-    "build": 14,
-    "date": "2026-11-18",
-    "by": "Claude, screenshot review of 3d/belts.html and close-ups in play.html in the browser pane (not a human review)",
-    "note": "All ten species (3d/species.html close-ups, then 3d/belts.html at in-game distance): every species reads on its own belt. The Mirages (SOLAR) were nearly invisible at 0.42 opacity -- two eyes and a faint outline at nine metres -- and were raised to 0.62 with a stronger rim, ghostly but plain to see. Gold keys, coins by value and bolts unchanged. Details in decisions.md R44."
-  },
   "11": {
     "status": "pass",
-    "build": 26,
+    "build": 29,
     "date": "2026-11-18",
     "by": "Claude, play.html benchmark() in the Claude desktop browser pane on an Apple M3 laptop (integrated GPU), pane hidden; not a human-observed frame counter",
-    "note": "N8.4 re-measure on the heaviest map there now is: district 100 (372 x 232 m city, COBALT, Architects), Medium, 1920x1080 at pixel ratio 1, GPU forced to finish every frame, camera turning a full circle. Three runs: mean 5.3 / 7.3 / 8.4 ms (119-189 fps), p95 10.7-12.2 ms, worst 16.1 ms, 132 draw calls, 272k triangles at most (218 render chunks). Before N8.4 (build 23) the same case was mean 12.4 ms, p95 17.0 ms, 609k triangles. High (shadows, following box): mean 5.3 ms, p95 7.8 ms, 157 calls. Timings in a hidden pane vary by about a third between runs. Weaker laptops and phones: not measured. Build 14's measurement (districts 10 and 91 on 32 x 20 maps, mean 4.2-13.3 ms) is in decisions.md R44."
+    "note": "N4.1 re-measure with the belt art in (sky dome, canvas albedo + normal + roughness maps, instanced props, weather particles), Medium, 1920x1080 at pixel ratio 1, GPU forced to finish every frame, camera turning a full circle, two runs each. District 20 (TIDE at midnight, heaviest rain, 5200-particle budget): mean 3.7 / 3.7 ms, p95 9.6 / 7.1 ms, 141 draw calls. District 30 (MOSS at midnight, vines and spores): mean 2.9 / 6.3 ms, p95 3.5 / 11.5 ms, 122 calls, 215k triangles. District 100 (COBALT, the biggest city, on the fallback art with the new sky): mean 4.7 / 6.5 ms, p95 7.9 / 10.4 ms, 132 calls, 273k triangles. All under the 16.7 ms budget and the 150-call cap. Timings in a hidden pane vary by about a third between runs. Build 26 (N8.4, district 100 before the art): mean 5.3-8.4 ms, p95 10.7-12.2 ms. Weaker laptops and phones: not measured."
+  },
+  "12": {
+    "status": "pass",
+    "build": 29,
+    "date": "2026-11-18",
+    "by": "Claude, screenshot review of 3d/belts.html and play.html in the browser pane (not a human review)",
+    "note": "N4.1: RUST, TIDE and MOSS art-directed, reviewed in play.html at dusk (k=0) and midnight (k=9) of each belt; 3d/belts.html at belt offsets 0 and 9 for all ten belts (seven still on 2D palettes, with the new sky and light). Aliens, gold keys, coins by value and the teal portal stay readable at dusk and at midnight; no large-area art colour shares their hue and lightness (3D-16). Fixed on the way: cyan water (now per-belt water colours), RUST too dark, dust invisible, puddles repeating on a grid. Build 14 species review (Mirages raised to 0.62 opacity) in decisions.md R44."
   }
 }

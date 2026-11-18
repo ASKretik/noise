@@ -558,7 +558,7 @@ export class Play3D {
 
     if (this.killcam) {
       this.killcamFrame(dt);
-      this.world.animate(this.t, this.view.camera.position);
+      this.world.animate(this.t, this.view.camera.position, this.view.renderer.domElement.height);
       this.lights.follow(this.view.camera);
       this.view.render();
       if (!once) requestAnimationFrame(this.frame);
@@ -658,7 +658,7 @@ export class Play3D {
     }
     this.entities.sync(g, r.session.alpha, this.t, { dt, tickHz: r.session.tickHz, camera: cam });
     this.audio.update(g, { x: cam.position.x, y: EYE_M, z: cam.position.z, yaw: this.controls.yaw }, this.entities.alienVoices());
-    this.world.animate(this.t, this.view.camera.position);
+    this.world.animate(this.t, this.view.camera.position, this.view.renderer.domElement.height);
     // Inside a black box the world goes dark and quiet: nothing can see in, and you know it.
     const inBox = r.map.tiles[Math.floor(b.y) * r.map.w + Math.floor(b.x)] === TILE.SAFE;
     document.body.classList.toggle('g3-in-box', inBox);

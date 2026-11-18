@@ -2723,11 +2723,83 @@ the slowest is still printed.
 **Not verified:** no person has played against the tactics. Each tactic's reach (aliens
 per tactic, the strength curve, the map stillness time) is one constant.
 
+## R61 · N4.1: sky, light, weather, and the first three belts (3D build 29)
+
+**Asked:** "Start N4.1". From R59's order: art first, then items, floors, objectives,
+story last. N4.1 is the sky, lighting and weather, and the art of RUST, TIDE and MOSS.
+
+**Built** (browser-only, `web3d/art/`; nothing in `sim/` or `sim3d/` changed):
+
+- **`belts.js`, pure data.** Each art-directed belt has its surfaces, props, weather, and
+  a sky and light at dusk and at midnight. `artFor(district)` mixes them by depth in the
+  belt, so the ten districts run from dusk to midnight. The sun sets over the first half
+  of a belt; the moon is up for the second. Being pure, the palette check runs in Node.
+- **`textures.js`:** five canvas styles (riveted, plates, wetConcrete, mossyStone,
+  flagstones), each a colour and a height canvas, the normal map from the height's
+  Sobel gradient. Wet concrete also gets a roughness map.
+- **`props.js`:** pipes and valves (RUST), bollards and buoys (TIDE), vines (MOSS), all
+  instanced, on street-facing wall faces or in open water only.
+- **`weather.js`:** dust, rain and spores, one `Points` cloud moved and wrapped round the
+  camera entirely in the vertex shader.
+- **`sky.js`:** the sky dome shader: gradient, sun or moon with glow, stars, fbm clouds,
+  MOSS's canopy and TIDE's lighthouse beam. Its horizon is the fog colour.
+- **Light** comes from the sun or moon you can see (`skyDir`), so High's shadows agree
+  with the sky.
+- **Belts 4–10** get the same sky and dusk-to-midnight light from their 2D palettes
+  (`fallbackArt` in `world.js`) until N4.2.
+
+**New criterion 3D-16**, the palette lint: 270 large-area colours over districts 1–30,
+none within 25° of hue and 0.25 of lightness of an alien, key, coin or portal colour;
+horizons never brighten going deeper.
+
+**The lint caught one before it shipped:** RUST's first cloud colour sat on the alien
+reds and the copper coin. It was darkened.
+
+**Seen in the browser** (dusk and midnight of each belt, and `3d/belts.html` at offsets
+0 and 9), and fixed:
+
+- Water read as cyan in every belt; it now has a colour per belt.
+- RUST at dusk was too dark to play (hemisphere light raised from 1.55 to 2.0).
+- The dust was invisible: too small and too faint.
+- Puddles and water ripples repeated on an obvious grid. Each floor and water cell now
+  gets a seeded quarter turn, and the puddles are fewer and fainter.
+- The stone's relief was too strong (normal strength 1.5).
+
+**Two shader bugs** that only a browser shows:
+
+- **`half` is a reserved word in GLSL ES.** The weather's vertex shader declared
+  `vec3 half`; the program never compiled, so there was no weather at all, and the
+  page showed nothing wrong. Found in the console. Renamed.
+- **Reversed `smoothstep`.** `smoothstep(far, near, x)` is undefined in GLSL when the
+  first edge is the larger one. It happens to work on some GPUs. Every use is now
+  `1.0 - smoothstep(near, far, x)`.
+
+**Lesson:** after any shader change, read the console's errors. A shader that fails to
+compile draws nothing and throws nothing.
+
+**Measured** (3D-11, re-recorded; Medium, 1080p, M3, hidden pane):
+
+| District | Mean | p95 | Draw calls |
+|---|---|---|---|
+| 20, TIDE at midnight (heaviest rain) | 3.7 ms | 7.1–9.6 ms | 141 |
+| 30, MOSS at midnight | 2.9–6.3 ms | 3.5–11.5 ms | 122 |
+| 100, fallback art | 4.7–6.5 ms | 7.9–10.4 ms | 132 |
+
+**Not built from the N4 plan, left for N4.2:** alien growth decals rising with depth,
+landmark centrepieces, district-number signs, ruined facades, bloom and the per-belt
+colour grade.
+
+**Not verified:**
+
+- no person has looked at it;
+- not measured on a weaker laptop (rain is the heaviest weather);
+- how the colours, the weather amounts and the prop densities feel is the user's call.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    25 passed · 0 not demonstrated · 0 failed  (3D build 28; 3D-1 via the
+npm run test3d    26 passed · 0 not demonstrated · 0 failed  (3D build 29; 3D-1 via the
                   2D suites above, run alongside)
 ```

@@ -80,6 +80,13 @@ web3d/      browser leaves, plus two DOM-free modules
   scene.js world.js entities.js gun.js hud3d.js controls.js touch3d.js audio3d.js
   hub3d.js persist3d.js settings3d.js quality.js banner.js build3d.js changes3d.js
   beltcheck.js  dev page: all ten belts side by side
+  art/          belt art direction (N4)
+    belts.js      PURE data: each belt's surfaces, props, weather, dusk and midnight sky
+                  and light; artFor(district); the palette lint 3D-16 runs on it
+    textures.js   canvas albedo + Sobel normal map (+ roughness) per surface style
+    props.js      instanced wall props: pipes, harbour posts and buoys, vines
+    weather.js    one Points cloud, moved and wrapped round the camera in its shader
+    sky.js        the sky dome shader: gradient, sun or moon, stars, clouds, canopy, beam
 3d/         index.html (hub), play.html (district), belts.html (dev)
 vendor/three/0.185.1/   three.js, unmodified, hash-checked (VERSION.md)
 bench3d/    acceptance3d.js, criteria/*.js, hash2d.js, fakeidb.js, measured.json
@@ -402,13 +409,54 @@ Bots with no habit: 24 of 24 paired runs identical, tick for tick.
 | After (build 26) | 5.3–8.4 ms | 10.7–12.2 ms | 272k at most |
 | High, after | 5.3 ms | 7.8 ms | — |
 
+### Belt art (N4.1, 3D build 29)
+
+Each belt is described in `web3d/art/belts.js` as plain data, with two ends: **dusk**
+(depth k = 0, its first district) and **midnight** (k = 9, its tenth). `artFor(district)`
+mixes the two by `t = k / 9`: sky and fog colours, cloud cover, stars, light colours and
+strengths, and weather density. The sun sinks from its dusk elevation to just under the
+horizon over the first half of a belt; from k = 5 the moon is up and climbing. The key
+light comes from whichever is in the sky (never lower than 6°), so shadows on High
+point away from it.
+
+| Belt | Walls | Floors | Props | Weather | Sky |
+|---|---|---|---|---|---|
+| RUST (1–10) | Riveted steel panels, rust running from the rivets | Tread plates, oil stains | Pipe runs along whole wall lines, drops, valve wheels | Dust drifting on the wind | Low orange sun, thin cloud; moon and stars by midnight |
+| TIDE (11–20) | Wet concrete, form-work seams, a wet foot | The same, with puddles (a roughness map: wet shines) | Mooring bollards at wall feet, buoys in open water | Slanted rain | Overcast; a lighthouse beam sweeping the horizon, stronger by night |
+| MOSS (21–30) | Coursed stone, moss in the joints | Uneven flagstones | Vines hanging from wall tops | Pale spores floating up (additive) | A canopy of leaves overhead; green-grey light |
+
+- **Surfaces** (`textures.js`) are canvas-drawn from the seed, as before: a colour canvas
+  and a height canvas, the normal map being the height's Sobel gradient. Floor and water
+  cells get a seeded quarter turn, so one texture never reads as a repeating grid.
+- **Props** (`props.js`) sit only on the street-facing faces of walls or float in open
+  water, so walkability is untouched. Each kind is one `InstancedMesh`, chunked with the
+  rest of the world. Choices are keyed on the cell or wall line, so a district always
+  looks the same.
+- **Weather** (`weather.js`) is one `Points` cloud whose vertex shader moves each
+  particle and wraps it into a box round the camera: no CPU work per frame. Sizes are in
+  metres (scaled by the canvas height). Counts: dust up to 1,800 × rate, rain 5,200 ×
+  rate, spores 1,100 × rate.
+- **Sky** (`sky.js`): one shader on a dome inside the far plane, following the camera.
+  Its horizon colour is the fog colour, so the city fades into the sky.
+- **Belts 4–10** have no art yet (N4.2): `fallbackArt` in `world.js` derives the sky,
+  light, fog and dusk-to-midnight progression from the 2D palette, with no props or
+  weather.
+- **Legibility** (3D-16): no large-area colour (walls, floors, rubble, water, props, sky,
+  clouds, fog) may sit within 25° of hue and 0.25 of lightness of an entity colour. A
+  colour with saturation under 0.15 has no hue to clash.
+
+**Measured** (Medium, 1080p, M3, hidden pane, two runs each): district 20 (TIDE,
+midnight rain) mean 3.7 ms, p95 7.1–9.6 ms, 141 calls; district 30 (MOSS) mean 2.9–6.3
+ms, p95 3.5–11.5 ms, 122 calls; district 100 (fallback art) mean 4.7–6.5 ms, p95
+7.9–10.4 ms, 132 calls.
+
 **Bolts thin out deeper into each belt** (`sim3d/bolts.js`): the generator's bolts are
 kept in full in a belt's first district and cut to `max(1, round(n × (1 − 2k/27)))` at
 depth `k` (0–9), about a third by its tenth; the next belt starts full again. The kept set
 is a seeded choice, applied by the runner to its own copy of the level, so nothing the 2D
 game generates changes.
 
-Each belt's palette from `web/themes.js`, lifted **in sRGB** to a floor lightness (the 2D
+Belts without art yet (4–10 until N4.2) take their palette from `web/themes.js`, lifted **in sRGB** to a floor lightness (the 2D
 grounds are dark enough to read as black under 3D lighting): ground and an alternate
 shade per cell, walls with a lighter cap, rubble, water, fog and a sky dome. Canvas-drawn
 textures: paving with a seam on every cell edge, weathered wall panels, a scrolling ripple
@@ -567,8 +615,9 @@ alongside: `npm test` 12/1/0, `npm run webcheck` green).
 | 3D-8 | Save isolation, both sweeps run against each other, guest leaves MAIN byte-identical | PASS |
 | 3D-9 | Headless career: win, score, payout, dossier, unlock, purchase, kit carried on | PASS |
 | 3D-10 | Nothing optional or off-site loads; templated dispatch narrates live 3D state | PASS |
-| 3D-11 | Frame budget, 1080p Medium (re-recorded at build 26 on district 100, the heaviest city: M3, mean 5.3–8.4 ms, p95 10.7–12.2 ms) | PASS, by hand |
-| 3D-12 | All ten belts legible (recorded screenshot review) | PASS, by hand |
+| 3D-11 | Frame budget, 1080p Medium (re-recorded at build 29 with the belt art: M3, districts 20, 30 and 100, means 2.9–6.5 ms, p95 3.5–11.5 ms, at most 141 draw calls) | PASS, by hand |
+| 3D-12 | All ten belts legible (recorded screenshot review; re-reviewed at build 29 at dusk and midnight) | PASS, by hand |
+| 3D-16 | Belt art palettes keep clear of the entity colours: no large-area colour within 25° of hue and 0.25 of lightness, every district of every art-directed belt; horizons darken dusk to midnight | PASS |
 | 3D-13 | Movement never stutters: no frame under half its heading's speed, walking and sprinting, 0–45° | PASS |
 | 3D-14 | Bolt thinning matches its formula on all 100 districts, deterministic, reachable, applied by the runner | PASS |
 | 3D-15 | Jumpscare and ascension: at most 3 flashes a second, skippable but not before 0.5 s, within length, full/mild/off, the variant is the Jumpscares setting alone | PASS |

@@ -8,6 +8,26 @@
 
 export const CHANGES = [
   {
+    build: 29,
+    date: '2026-11-18',
+    phase: 'N4.1',
+    changed: [
+      'The first three belts have their own look. RUST (districts 1-10) is rusted riveted steel and iron deck plates, with pipe runs along the walls, valve wheels, and dust drifting on the wind. TIDE (11-20) is wet concrete with puddles, mooring bollards along the walls, buoys in the water, steady rain and a lighthouse beam sweeping the horizon. MOSS (21-30) is mossy stone and flagstones, with vines hanging from the walls, a canopy of leaves overhead, and pale spores floating up.',
+      'Every district now has a sky: a gradient, clouds, the sun or the moon with a glow, and stars once it is dark. The sky\'s horizon is also the fog colour, so the city fades into it.',
+      'Inside each belt, the ten districts run from dusk to midnight: the sun sets over the first five, the moon is up for the last five, the light cools and dims, and the weather gets heavier. The light now comes from the sun or the moon you can see, so shadows on High point the right way.',
+      'Belts 4-10 keep their old colours for now (N4.2), but already get the sky, the dusk-to-midnight light and the fog.',
+      'Red aliens, gold keys, coins and the teal portal stay the only things in those colours. A new test (3D-16) checks every art colour in every district against them.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R). In dev mode, walk through districts 1, 10, 11, 20, 21 and 30 with ] to see each belt at dusk and at midnight.',
+      'Look up in TIDE at night for the lighthouse beam, and up in MOSS for the canopy.',
+    ],
+    unverified: [
+      'Checked on this Mac at 1080p Medium: district 20 runs at about 3.7 ms a frame, district 30 at 3-6 ms, district 100 at 5-6.5 ms, all under the 60 fps budget. Not tried on a weaker laptop: rain is the heaviest weather. If it stutters, tell me which district.',
+      'How it looks is your call. The colours, the amount of rain and dust, and the pipe and vine density are each one number in web3d/art/belts.js.',
+    ],
+  },
+  {
     build: 28,
     date: '2026-11-18',
     phase: 'N8.5',
