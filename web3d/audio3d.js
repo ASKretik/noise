@@ -274,6 +274,57 @@ export class Audio3D {
     return n;
   }
 
+  /** One heartbeat, loud and close: lub-dub. */
+  beat(level = 1) {
+    if (!this.ctx || !this.bus || !this.enabled || level <= 0) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    this.amb._nodes?.master?.gain.setTargetAtTime(0.0001, t, 0.05);
+    for (const [at, a] of [[0, 1], [0.17, 0.7]]) {
+      const o = ctx.createOscillator(); o.type = 'sine';
+      o.frequency.setValueAtTime(62, t + at); o.frequency.exponentialRampToValueAtTime(38, t + at + 0.12);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t + at); g.gain.exponentialRampToValueAtTime(0.9 * a * level, t + at + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + at + 0.16);
+      o.connect(g).connect(this.bus); o.start(t + at); o.stop(t + at + 0.2);
+    }
+  }
+
+  /** The lights dying: a mains buzz that sputters out, with a crackle. */
+  buzz(level = 1) {
+    if (!this.ctx || !this.bus || !this.enabled || level <= 0) return;
+    this.setTension(0);
+    const ctx = this.ctx, t = ctx.currentTime;
+    this.amb._nodes?.master?.gain.setTargetAtTime(0.0001, t, 0.03);
+    const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 100;
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 400;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    for (const [at, v] of [[0, 0.28], [0.05, 0.02], [0.08, 0.3], [0.14, 0.01], [0.19, 0.22], [0.3, 0.0001]]) g.gain.setValueAtTime(v * level, t + at);
+    o.connect(hp).connect(g).connect(this.bus); o.start(t); o.stop(t + 0.32);
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3200; bp.Q.value = 2;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.5 * level, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+    this._noise(t, 0.1).connect(bp).connect(ng).connect(this.bus);
+  }
+
+  /** Its breath, close: a slow wet rasp drawn in. */
+  breath(level = 1) {
+    if (!this.ctx || !this.bus || !this.enabled || level <= 0) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.2;
+    bp.frequency.setValueAtTime(500, t); bp.frequency.linearRampToValueAtTime(1300, t + 0.45);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.45 * level, t + 0.35);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    this._noise(t, 0.52).connect(bp).connect(g).connect(this.bus);
+    const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 48;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 220;
+    const og = ctx.createGain();
+    og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.35 * level, t + 0.3);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    o.connect(lp).connect(og).connect(this.bus); o.start(t); o.stop(t + 0.55);
+  }
+
   /** The attack's first beat: a wet hiss over a low, tremoring growl. */
   hiss(level = 1) {
     if (!this.ctx || !this.bus || !this.enabled || level <= 0) return;

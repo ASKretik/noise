@@ -251,7 +251,7 @@ export class Play3D {
    * fog closes in to a red-black a few metres out, and the alien's face is lit from below
    * by a flickering red light between it and you. horror(0) puts the district back.
    */
-  horror(k, sc = null, cam = null) {
+  horror(k, sc = null, cam = null, fogFar = null) {
     const T = this.view.THREE, scene = this.view.scene;
     const lights = scene.getObjectByName('district-lights');
     if (lights) lights.traverse((o) => { if (o.isLight) { o.userData.i0 ??= o.intensity; o.intensity = o.userData.i0 * (1 - (sc?.target ? 0.985 : 0.94) * k); } });
@@ -262,7 +262,7 @@ export class Play3D {
       const b = f.userData.base, dark = new T.Color(0x070102);
       f.color.copy(b.color).lerp(dark, k);
       f.near = b.near + (0.6 - b.near) * k;
-      f.far = b.far + ((sc?.target ? 3.4 : 5.5) - b.far) * k;
+      f.far = b.far + ((fogFar ?? (sc?.target ? 3.4 : 5.5)) - b.far) * k;
       if (b.bg) scene.background = b.bg.clone().lerp(dark, k);
     }
     if (!this.scareLight) {
@@ -274,6 +274,9 @@ export class Play3D {
     }
     const sky = this.world?.group.getObjectByName('sky');
     if (sky) sky.visible = !(sc?.target && k > 0.5);
+    // once the lights are fully out the attack happens in a void: no wall can stand between
+    // you and it, wherever you were facing when it caught you
+    if (this.world) this.world.group.visible = !(sc?.target && k > 0.98);
     // wet skin: the cold light should slide off it, not sink in
     const skin = this.entities?.kit?.skin;
     if (skin) { skin.userData.r0 ??= skin.roughness; skin.roughness = skin.userData.r0 + (0.5 - skin.userData.r0) * (sc?.target ? k : 0); }
@@ -416,7 +419,9 @@ export class Play3D {
     this.audio.setTension(0);
     $('hud').hidden = true;                 // the sequence plays clean; showEnd() brings it back
     const g = this.runner.game;
-    const variant = variantFor(this.settings.jumpscares, this.settings.reduceMotion);
+    const variant = variantFor(this.settings.jumpscares);
+    this.lastVariant = variant;
+    $('hud-debug').hidden = true;           // the leash readout too: nothing over the scene
     const cam = this.view.camera.position;
     let done;
     const sequenceDone = new Promise((res) => { done = res; });
@@ -494,13 +499,16 @@ export class Play3D {
 
   showEnd(summary, result = null) {
     $('hud').hidden = false;
+    $('hud-debug').hidden = !this.tune.debug;
     const secs = realSeconds(summary.ticks, this.runner.session.tickHz).toFixed(1);
     $('ov-title').textContent = summary.won ? 'THROUGH THE PORTAL' : summary.loseReason === 'timeout' ? 'TIMED OUT' : 'CAUGHT';
     $('ov-body').textContent = summary.won
       ? (this.district >= CURVE_CAP
         ? `District ${this.district} cleared in ${secs}s. The curve caps at ${CURVE_CAP}; from here the districts keep coming and the file keeps thickening.`
         : `District ${this.district} cleared in ${secs}s. The file on you follows you to district ${this.district + 1}.`)
-      : `They reached you after ${secs}s, with ${summary.collected} of ${summary.caches} keys. The run still went into your file.`;
+      : `They reached you after ${secs}s, with ${summary.collected} of ${summary.caches} keys. The run still went into your file.`
+        // never again a silent downgrade: say when the capture was not the full one (R50)
+        + (this.lastVariant && this.lastVariant !== 'full' ? ` (Jumpscares are set to ${this.lastVariant}; Settings below.)` : '');
     $('ov-stats').innerHTML = this.endStats(summary, result).map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
     $('ov-primary').textContent = summary.won ? `enter district ${this.district + 1}` : 'run it again';
     $('ov-secondary').hidden = !summary.won;
@@ -566,7 +574,7 @@ export class Play3D {
           const tr = (n) => fx.track(n, this.t);
           const T = this.view.THREE;
           const yaw = sc.yaw0 + tr('yawK');
-          const pitch = sc.pitch0 + (tr('pitch') - sc.pitch0) * Math.min(1, st / 0.06);
+          const pitch = sc.pitch0 + (tr('pitch') - sc.pitch0) * Math.min(1, st / (def.blend || 0.06));
           this.controls.yaw = yaw; this.controls.pitch = pitch;
           cam.position.y = EYE_M + tr('camY');
           cam.position.addScaledVector(sc.fwd, -tr('back'));
@@ -594,7 +602,7 @@ export class Play3D {
           cam.rotation.z += amp * 1.5 * Math.sin(this.t * 61);
         }
         this.view.setHFov(this.settings.fov + fx.track('fov', this.t));
-        this.horror(def.tracks.dark ? fx.track('dark', this.t) : 0, sc, cam);
+        this.horror(def.tracks.dark ? fx.track('dark', this.t) : 0, sc, cam, def.tracks.fogFar ? fx.track('fogFar', this.t) : null);
         if (def.grab && fx.once('grab', def.grab.at, this.t)) this.audio.grab(def.grab.level);
         if (def.shriek && fx.once('shriek', def.shriek.at, this.t)) this.audio.shriek(def.shriek.level, def.shriek.dur);
         if (def.cut && fx.once('cut', def.cut.at, this.t)) this.audio.cut();
@@ -613,7 +621,7 @@ export class Play3D {
         this.entities.portalBoost = fx.track('beam', this.t);
         if (def.rise && fx.once('rise', 0, this.t)) this.audio.rise(def.rise.level);
       }
-    } else if (!g.over && !this.paused && variantFor(this.settings.jumpscares, this.settings.reduceMotion) !== 'off') {
+    } else if (!g.over && !this.paused && variantFor(this.settings.jumpscares) !== 'off') {
       // tension: a hunting alien within two cells -- the heartbeat swells, the drone ducks
       let near = Infinity;
       for (const p of g.patrols) {

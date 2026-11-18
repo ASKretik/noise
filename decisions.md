@@ -35,7 +35,7 @@ Three markers throughout:
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    18 passed · 0 not demonstrated · 0 failed  (3D build 19)
+npm run test3d    18 passed · 0 not demonstrated · 0 failed  (3D build 20)
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -463,6 +463,57 @@ a full-strength glitch making every frame unreadable (now spikes only on impact 
 bites). The point key became a tight spot so the body falls into black.
 
 **Not verified:** never watched at full speed; the new sounds never heard.
+
+## R50 · Why the attack never reached the screen
+
+**Asked** (with a third recording and one of my own screenshots): the cutscene is far too
+short, make it at least six seconds; "the image i have attached (the one you said would
+be the one I would see), was not rendered. why is it? explain what happened ... and most
+importantly, fix it correctly."
+
+**What the recording shows** (build 19, frames every 0.1 s round the capture at 2.85 s):
+the alien walks into you over 0.4 s in its ordinary pose and ordinary light; its jaw opens
+a little between 0.5 and 0.9 s; the light dims by about half; a gradual fade to black
+starts at 1.6 s. No darkness, no claws, no knock-down, no gashes. That is, exactly, the
+**mild** variant's timeline -- approach 0-0.4, jaw to 0.6 at 0.5-0.9, dark 0.5, fade
+1.6-2.0.
+
+**Why mild.** The variant was `variantFor(settings.jumpscares, settings.reduceMotion)`.
+The user's Mac does not ask for reduced motion (checked: ReduceMotionEnabled 0), so it
+was the saved choice: build 15's review note said "Then try Jumpscares: mild", the
+setting lives in localStorage under a key no build stamp ever resets, and from then on
+every capture the user saw was the gentle one. Every frame I checked was the full variant,
+because my test page had no saved settings. This is also why builds 17-19 kept being
+called not scary: the user never saw them. A second, latent way to the same place:
+reduce motion silently turned full into mild, and its default comes from the operating
+system, so a player could get mild without ever choosing it -- and the checkbox's label
+("no head bob, no sprint FOV kick") never said it did that.
+
+**Ruled out first, wrongly suspected for a while:** a crash in the frame loop (the leash
+readout froze, but only because the body stops updating at game over; the loop was
+alive -- the timed fade arrived on schedule); and stale cached modules (GitHub Pages
+caches each file for 10 minutes and the 3D modules carry no ?v= stamp -- a real risk
+right after a deploy, but not what happened here: the frames match mild, not any older
+full sequence).
+
+**Fixed:** (1) the variant is the Jumpscares setting and nothing else (`variantFor`
+takes one argument; 3D-15 checks it); (2) settings move to a v2 key, carrying everything
+over from v1 except the Jumpscares choice, which starts at full again, once; (3) the end
+card says when the capture was not the full one -- the downgrade can never be silent
+again; (4) the leash readout is hidden during the sequence too. Verified in the browser
+the way the user plays, not the way my earlier checks did: a v1 setting of "mild" stored
+before load (migrated to full, sensitivity and FOV kept), sound on, the capture
+triggered by the sim through the real frame loop -- no errors, the full attack.
+
+**Six seconds.** The attack is now 7.0 s (6.0 s of picture, then black and the crunch):
+the lights die in two flickers; it stands in the dark 2.6 m off and comes at you in jerks
+while your heart beats and you back away; rears; lunges; knocks you flat; bites three
+times, screaming between bites; draws back in silence with the jaw stretched wide; lunges
+into the lens. The world is hidden once the lights are out, so the attack happens in a
+void and no wall can stand between you and it. New sounds: beat, buzz, breath. skipAfter
+2.5 s; 3D-15's length bound is 7 s.
+
+**Not verified:** never watched at full speed or heard.
 
 ## Current state
 
@@ -2180,5 +2231,5 @@ now reach up toward your face.
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    18 passed · 0 not demonstrated · 0 failed  (3D build 19)
+npm run test3d    18 passed · 0 not demonstrated · 0 failed  (3D build 20)
 ```

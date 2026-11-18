@@ -2,11 +2,11 @@
 
 import { SEQUENCES, FLASH_MAX_PER_SECOND, maxFlashesPerSecond, variantFor, sample } from '../../web3d/sequences.js';
 
-const BOUND = { jumpscare: 3.0, ascension: 2.5 };
+const BOUND = { jumpscare: 7.0, ascension: 2.5 };
 
 export const criteria = [{
   n: 15,
-  text: 'Sequences: no more than 3 flashes in any second (WCAG 2.3.1), all skippable but none before 0.5 s, within their length, full/mild/off variants, reduce motion never plays the full one',
+  text: 'Sequences: no more than 3 flashes in any second (WCAG 2.3.1), all skippable but none before 0.5 s, within their length, full/mild/off variants, the variant is the Jumpscares setting alone',
   async fn() {
     const problems = [];
     const seen = [];
@@ -29,8 +29,9 @@ export const criteria = [{
       }
       if (sample(variants.off.tracks.fade ?? variants.off.tracks.whiteout, 99) !== 0 && name === 'jumpscare') problems.push('jumpscare/off fades to black');
     }
-    if (variantFor('full', true) !== 'mild') problems.push('reduce motion still plays the full sequence');
-    if (variantFor('off', true) !== 'off' || variantFor('mild', false) !== 'mild') problems.push('variantFor ignores the setting');
+    // the variant is the Jumpscares setting and nothing else: no silent downgrade (R50)
+    if (variantFor('full') !== 'full' || variantFor('mild') !== 'mild' || variantFor('off') !== 'off') problems.push('variantFor ignores the setting');
+    if (variantFor(undefined) !== 'full') problems.push('no setting does not mean full');
     return problems.length ? ['FAIL', problems.join('; ')] : ['PASS', seen.join(' · ')];
   },
 }];

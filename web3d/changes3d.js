@@ -8,6 +8,23 @@
 
 export const CHANGES = [
   {
+    build: 20,
+    date: '2026-11-19',
+    phase: 'N3',
+    changed: [
+      'Why you never saw the attack: your game had Jumpscares set to "mild" (the build 15 note asked you to try it), and that setting is kept in your browser across builds. Every capture since played the gentle 2.4 s version. My screenshots were the full one.',
+      'Fixed: settings are reset once so Jumpscares is back to full (sensitivity, FOV and the rest are kept). Reduce motion no longer quietly swaps the scare for the mild one; only the Jumpscares setting decides. If a capture is ever not the full version, the end card now says so.',
+      'The attack is now 7 s: about 6 s of scene, then black. The lights die in two flickers. It stands in the dark and comes at you in jerks while your heart pounds. It rears up, lunges and knocks you flat.',
+      'Then it bites at your face three times, screaming between bites. It draws back in silence with its jaw stretched wide, and lunges into the lens. Black, then a crunch.',
+    ],
+    tryThis: [
+      'Hard-reload the page once (Cmd+Shift+R) so your browser does not run yesterday\'s files, then get caught with headphones on.',
+    ],
+    unverified: [
+      'Tested here with sound on, through the real capture, starting from your old "mild" setting. Still never watched at full speed or heard.',
+    ],
+  },
+  {
     build: 19,
     date: '2026-11-19',
     phase: 'N3',

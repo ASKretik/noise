@@ -28,7 +28,7 @@ Written Nov 18, 2026 · **status: proposed, nothing built** · follows 3D build 
 | N0 | Audio stops when paused | ½ day | Low | **done** (3D build 11) |
 | N1 | Fewer bolts deeper into each belt | ½ day | Low | **done** (3D build 12) |
 | N2 | Comic-accurate aliens, all ten species | 3 days (+1½ per species) | Medium | **done** (3D builds 13–14): ten species, one per belt |
-| N3 | Jumpscare and portal ascension | 3–3½ days | Low–medium | **done** (3D builds 15–19; capture reworked three times after review: a cutscene, an instant in-your-face scare, then a full attack) |
+| N3 | Jumpscare and portal ascension | 3–3½ days | Low–medium | **done** (3D builds 15–20; capture reworked after review into a 7 s attack; build 20 found that a saved "mild" setting had been hiding it) |
 | N4 | Belt art direction | 8–9 days | Medium | not started |
 | N5 | Story frame | 6–10 days | Medium | not started |
 | N6 | The rules layer and the new shop items | 8–12 days | Medium | not started |

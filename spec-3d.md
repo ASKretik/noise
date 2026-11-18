@@ -199,28 +199,33 @@ smaller when you step into water. Keys glow; coins are coloured and sized by val
 instanced by value; bolts are extruded glyphs; the open portal is a beam visible over
 every wall. Pickups fly to the camera. **Awake aliens are solid to your body** (stunned ones are not), so the body can no
 longer lead the sim through an alien before the next tick registers the capture. **Capture
-is an attack** (`web3d/sequences.js` data, `web3d/fx3d.js` playback, 2.8 s): when a
-hunting alien comes within two cells a heartbeat swells and the drone ducks. On the frame
-you are caught, the alien that got you is there in front of wherever you were looking,
-rearing over you at 0.95 m, arms flung wide with splayed, taloned claws, jaw dropping, a
-hiss over a growl. The world goes black: district lights to 1.5%, the sky dome hidden, fog
-to a red-black wall 3.4 m out, and a single cold spot from above and in front lights its
-face (skin darkened to 30%, wetter), with a dim red under the jaw. At 0.26 s it lunges
-(claws raking in, a smeared motion trail); at 0.40 s, impact: a flash, a bass hit, the
-scream, three ragged claw gashes torn across the screen (they bleed down it), and you are
-knocked flat: the view falls 1.08 m, back 0.45 m, rolls -0.34 and looks up at it leaning
-0.62 rad over you. It bites at you twice (0.95, 1.32 s), its head thrashing, each bite a
-snap, a shake and a smear; two rows of eleven wet teeth with fangs at the corners and four
-strands of saliva fill its mouth. A last lunge into the lens, then at 1.80 s a hard cut to
-black and silence, and a crunch in the black. Its face is pinned to a point in your view
-(`Entities` hangs the body off the face's position in the body frame, so it frames the
-same on every species). The HUD is off for the whole sequence and returns with the end
-card. Nothing skips it before 1.2 s (the ascension: 0.8 s), and a key held down
-auto-repeating never skips it -- only a fresh press of Space, Enter or Escape, or a
-click. The mild variant keeps the earlier gentle approach. **The portal is an ascension:** you rise from eye height to 40 m on an ease-in,
+is an attack** (`web3d/sequences.js` data, `web3d/fx3d.js` playback, 7.0 s: about 6 s of
+scene, then black). The variant is the Settings -> Jumpscares choice alone (full, mild,
+off); reduce motion does not change it, and the end card says when the capture was not
+the full one. When a hunting alien comes within two cells a heartbeat swells and the
+drone ducks. On capture: the lights die in two flickers with a buzz (district lights to
+1.5%, sky dome hidden, then the whole world hidden once dark -- the attack happens in a
+void, so no wall can stand between you and it). It stands 2.6 m off in front of wherever
+you were looking, lit only by a cold spot from above (skin darkened, wetter) and a dim
+red under the jaw, eyes burning, and comes at you in jerks (lurch, stop) while you back
+away 0.25 m and your heart beats; it rears at arm's length with claws spread, hissing
+(2.2 s); lunges with a smeared motion trail (2.6 s); and at 2.75 s, impact: flash, bass
+hit, scream, three ragged claw gashes torn across the screen that then bleed, and you are
+knocked flat -- the view falls 1.08 m, back 0.45 m, rolls -0.34 and looks up at it
+leaning 0.62 rad over you. It bites at your face three times (3.35, 3.8, 4.4 s), head
+thrashing, screaming between bites; two rows of eleven wet teeth with fangs at the
+corners and four strands of saliva fill its mouth. At 5.3 s it draws back -- stillness,
+silence, its breath -- the jaw stretched wide; at 5.8 s a last lunge into the lens; at
+6.0 s a hard cut to black and silence, and a crunch in the black. Its face is pinned to a
+point in your view (`Entities` hangs the body off the face's position in the body
+frame), so it frames the same on every species. The HUD and the leash readout are off
+for the whole sequence and return with the end card. Nothing skips it before 2.5 s (the
+ascension: 0.8 s), and a key held down auto-repeating never skips it -- only a fresh
+press of Space, Enter or Escape, or a click. The mild variant keeps the earlier gentle
+approach. **The portal is an ascension:** you rise from eye height to 40 m on an ease-in,
 turning 90°, the view widening 15° and tilting down over the district, motes streaming
 upward and the beam brightening, into a teal-white whiteout (2.4 s). Both are skippable after that floor;
-Settings → Jumpscares picks full, mild or off, and reduce motion turns full into mild.
+Settings → Jumpscares picks full, mild or off.
 Criterion 3D-15 holds both to WCAG 2.3.1 (at most three flashes a second). A **killcam**
 can replay the last three seconds of a capture from above and behind.
 
@@ -299,7 +304,7 @@ minutes; if the banner's number is behind the update note, reload.
 | 3D-12 | All ten belts legible (recorded screenshot review) | PASS, by hand |
 | 3D-13 | Movement never stutters: no frame under half its heading's speed, walking and sprinting, 0–45° | PASS |
 | 3D-14 | Bolt thinning matches its formula on all 100 districts, deterministic, reachable, applied by the runner | PASS |
-| 3D-15 | Jumpscare and ascension: at most 3 flashes a second, skippable but not before 0.5 s, within length, full/mild/off, reduce motion never full | PASS |
+| 3D-15 | Jumpscare and ascension: at most 3 flashes a second, skippable but not before 0.5 s, within length, full/mild/off, the variant is the Jumpscares setting alone | PASS |
 | 3D-26 | Species table: ten distinct species, threat-red glow, known features and markings | PASS |
 | 3D-27 | Contact: the body never enters an awake alien; walking at one ends in a capture; stunned ones are passable | PASS |
 
