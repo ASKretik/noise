@@ -16,6 +16,8 @@ import { TICK_HZ_3D } from '../sim3d/units.js';
 import { thinBolts } from '../sim3d/bolts.js';
 import { generateDistrict, rulesetOf, maxTicksFor, paramsFor } from '../sim3d/next/rules.js';
 import { sizeFor } from '../sim3d/next/size.js';
+import { Game3DNext } from '../sim3d/next/game.js';
+import { nextSpawnPolicy } from '../sim3d/next/spawn.js';
 
 /** One field pool per map size, shared by every runner: a district reuses its buffers. */
 const pools = new Map();
@@ -62,9 +64,14 @@ export class DistrictRunner {
       tau: this.difficulty.tau, chain: o.chain,
     });
     this.seed = hashString(o.seedKey || `${o.profileId}#${o.district}`);
-    this.game = new Game3D({
+    // `next` plays Game3DNext with its own arrival policy (N8.2); `classic` stays the
+    // plain Game3D on the Dispatch's own spawner, the parity reference.
+    const next = this.ruleset === 'next';
+    this.spawnPolicy = next ? nextSpawnPolicy(this.system) : this.system.spawnPolicy;
+    const GameClass = next ? Game3DNext : Game3D;
+    this.game = new GameClass({
       level: this.level, params: this.params, pool, seed: this.seed,
-      spawnPolicy: this.system.spawnPolicy, observer: this.system.observer,
+      spawnPolicy: this.spawnPolicy, observer: this.system.observer,
       tau: this.difficulty.tau, lambdaScale: this.difficulty.lambdaScale,
       logLevel: 'player', freezeUntilFirstMove: true,
       maxTicks: maxTicksFor(this.ruleset, o.district),
@@ -83,6 +90,8 @@ export class DistrictRunner {
   }
 
   get map() { return this.level.map; }
+  /** The latest arrival and why it landed there, for the Dispatch's narration. */
+  get lastSpawn() { return this.spawnPolicy.lastSpawn ?? this.system.lastSpawn; }
   get chain() { return this.system.chain; }
 
   update(dt, controls, solids = null) { return this.session.update(dt, controls, solids); }

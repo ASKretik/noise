@@ -8,6 +8,27 @@
 
 export const CHANGES = [
   {
+    build: 23,
+    date: '2026-11-18',
+    phase: 'N8.2',
+    changed: [
+      'Aliens are built for the big cities now: few, and fast where you cannot see them. Up to about 9 arrive in district 1 and 31 in district 100 (they still divide, up to twice that). The city fills over the first two minutes or so.',
+      'Far from you and out of your line of sight they travel at up to twice your walking speed on HARD (scaled by tier), so a few of them can cross the whole city to where the Dispatch thinks you are going. They slow down before you can see them: nothing ever moves unfairly fast in front of you.',
+      'New aliens arrive 25 to 60 m away and always out of sight, mostly where the Dispatch predicts you will be. The ones already on the map when you start are 60 to 120 m out.',
+      'They get faster deeper in (up to x1.4 by district 100), but a hunting alien is never faster than 70% of your walking speed on HARD, so you can always break away by running. On ULTRA that ceiling is 91%: hide instead.',
+      'A patrolling alien now commits to where it is going for at least 6 s instead of changing its mind every second and a half.',
+      'Under the hood: path-finding on city maps is 12-15 times faster, so a district full of aliens costs about 2.5 ms of a frame at worst instead of stuttering.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R). Play district 1, then play.html?d=50 and ?d=100 and stay alive for a few minutes: watch the alien count climb and listen for where they come from.',
+      'Get spotted on HARD and run: you should be able to break away. Then try the same on ULTRA.',
+    ],
+    unverified: [
+      'Only bots have played it. Whether the city feels tense rather than empty, or swarmed, is your call. The numbers are easy to turn: arrival cap, travel speed, the 70% ceiling.',
+      'The Dispatch still uses the 2D game\'s prediction constants; it learns behaviour in N8.5.',
+    ],
+  },
+  {
     build: 22,
     date: '2026-11-18',
     phase: 'N8.1',

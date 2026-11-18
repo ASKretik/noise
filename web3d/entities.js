@@ -218,7 +218,8 @@ export class Entities {
       const inert = (p.stunnedUntil || 0) > game.tick;
       const hunting = p.mode === 'hunt' || p.mode === 'cutoff';
       const period = hunting ? game.params.chaseMovePeriod : game.params.patrolMovePeriod;
-      const speed = (tickHz / period) * 1.12;             // cells per second, a touch quick
+      // On `next` each alien carries its own rate (cells per tick), travel included.
+      const speed = (p.rate ? tickHz * p.rate : tickHz / period) * 1.12;   // cells per second, a touch quick
       const dx = p.x - a.x, dy = p.y - a.y;
       const d = Math.hypot(dx, dy);
       if (d > 1.6) { a.x = p.x; a.y = p.y; }

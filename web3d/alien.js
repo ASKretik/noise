@@ -28,7 +28,7 @@
 import * as THREE from 'three';
 import { Rng, hashString } from '../sim/prng.js';
 
-export const MAX_ALIENS = 48;
+export const MAX_ALIENS = 64;     // N8.2: divisions stop at twice the arrival cap, 62 at district 100
 const BONES = 17;
 const TEETH = 22;        // two rows of eleven, upper and lower
 const DROOL = 8;         // four strands of saliva, two segments each

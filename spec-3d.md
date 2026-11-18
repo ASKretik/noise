@@ -63,7 +63,11 @@ sim3d/      pure, Node-runnable, imports only sim/ and sim3d/
   next/         the `next` ruleset (N8 onward): what districts play from 3D build 21
     size.js       the size curve, x5 (district 1) to x60 (district 100) the 2D area
     city.js       the city builder: avenues, streets, lots, neighbourhoods, places
-    rules.js      ruleset ids, generateDistrict(), the run time limit
+    rules.js      ruleset ids, generateDistrict(), paramsFor() (tier speeds, alien numbers
+                  and rates), the run time limit
+    game.js       Game3DNext extends Game3D: populations, travel, route budget (N8.2)
+    spawn.js      arrivals: in a band round you, out of sight, weighted by the prediction
+    field.js      FastFields: the same BFS numbers as sim/pathfind.js, 12-15x faster
 web3d/      browser leaves, plus two DOM-free modules
   runner.js     DOM-free: level, predictor system, Game3D, Session3D for one district
   career3d.js   DOM-free: difficulty, attempts, scoring, payout, unlocks from /sim
@@ -238,6 +242,57 @@ district 1 and about 90 ms at district 100.
 The worst sim tick at district 100 was 6 ms, with one alien. Culling and staggered
 re-planning come in N8.2 and N8.4.
 
+### Aliens on city maps (N8.2, 3D build 23)
+
+Districts on `next` run `Game3DNext` (`sim3d/next/game.js`), which overrides parts of
+`Game3D`. Its parameters come from `paramsFor()` in `sim3d/next/rules.js`.
+`classic` is untouched.
+
+**Tier speeds (3D build 22).** Aliens move at 0.5× (EASY), 0.75× (MEDIUM), 1× (HARD)
+and 1.3× (ULTRA) the sim's base speed, as the user asked. The 2D game holds the first
+three to three-quarters of that. The hub's tier picker shows these values.
+
+| | Rule |
+|---|---|
+| Hunting speed | base rate × tier × a district factor rising from 1.0 at district 1 to 1.4 at district 100, capped at 0.70 × tier of your walking speed. That is 70 % on HARD, so a 5 s alert can still be outrun past the detection radius, and 91 % on ULTRA, where you hide rather than run. |
+| Patrol speed | base × tier × district factor; never faster than hunting |
+| Travel speed | 2 × tier walking speeds (2× on HARD), only when more than 40 m from you **and** out of your line of sight. A rate above 1 lets an alien take two or three steps in a tick. |
+| Arrival cap | `round(4·√A)`: 9 at district 1, 13 at 10, 22 at 50, 31 at 100 |
+| Divisions | as in 2D, every 10–15 s, but stopping at twice the cap (`MAX_ALIENS` is 64) |
+| Arrival rate | the 2D λ × cap / 2D cap, so the city fills over about two minutes |
+| Already there | `max(1, round(cap/8))`, placed 60–120 m away |
+| Arrivals | 25–60 m away as the alien walks, out of your line of sight, weighted by the prediction (`sim3d/next/spawn.js`) |
+
+The aliens live on the same pure sim as 2D, so these are all overrides. The rest of the
+rules are the 2D game's: detection, alerts, the squad's roles and the black box.
+
+**Keeping the tick small:**
+
+- **FastFields.** `sim3d/next/field.js` computes the same distances as `bfsFrom`
+  (checked cell for cell), 12–15× faster: 0.125 ms for a full district-100 field.
+- **Route cache.** Route fields are cached by target cell, keeping 80, so every searcher
+  heading for your last known position shares one.
+- **Route budget.** At most `round(400000 / cells)` new routes are built per tick (10 at
+  district 100). An alien with no route at all may overdraw this to twice.
+- **Commitment.** A patrolling alien keeps its destination for 6 s unless it gets there.
+  The squad re-deals regions every 1.5 s, and without this, aliens re-routed several
+  times a second.
+- **Par and objective legs.** Par was recomputed at every division in 2D. Both now use
+  FastFields.
+
+**Measured** (M3, district 100, bots, the city filling to 35 aliens):
+
+| Measure | Result |
+|---|---|
+| Sim tick | p99 2.5 ms, worst 3.9 ms (11.7 ms before the fixes above) |
+| Whole frame | 10.8 ms mean at 1080p High |
+| During play | geometry, texture and shader-program counts constant: nothing is created |
+
+**The Tab map's beacons (3D build 22).** Every uncollected key gets a gold beacon at a
+fixed screen size. It has rings pulsing out about once a second (under the 3-flash
+limit), a breathing marker and its distance. The portal gets a teal one. The player's
+arrow no longer shrinks with the map.
+
 **Bolts thin out deeper into each belt** (`sim3d/bolts.js`): the generator's bolts are
 kept in full in a belt's first district and cut to `max(1, round(n × (1 − 2k/27)))` at
 depth `k` (0–9), about a third by its tenth; the next belt starts full again. The kept set
@@ -365,7 +420,7 @@ minutes; if the banner's number is behind the update note, reload.
 ## Acceptance criteria
 
 `npm run test3d` (CI runs it with `--skip-2d`, the 2D suites having just run).
-**20 passed · 0 not demonstrated · 0 failed** at 3D build 21 (3D-1 by the 2D suites run
+**22 passed · 0 not demonstrated · 0 failed** at 3D build 23 (3D-1 by the 2D suites run
 alongside: `npm test` 12/1/0, `npm run webcheck` green).
 
 | # | Criterion | Result |
@@ -389,7 +444,9 @@ alongside: `npm test` 12/1/0, `npm run webcheck` green).
 | 3D-20 | 2D unchanged: 10,000 2D levels hash byte-identical to before N8.1 touched `sim/gen.js` | PASS |
 | 3D-21 | Big maps: the agreed size curve, growing every district; 500 cities reachable for the human and aliens, places distinct; no arrival or division within the minimum distance over 60 episodes | PASS |
 | 3D-26 | Species table: ten distinct species, threat-red glow, known features and markings | PASS |
-| 3D-27 | Contact: the body never enters an awake alien; walking at one ends in a capture; stunned ones are passable | PASS |
+| 3D-27 | Contact: the body never enters an awake alien; walking at one (along its route, since build 23) ends in a capture; stunned ones are passable | PASS |
+| 3D-28 | Smooth on big maps: at district 100 with the city filling, new routes per tick within twice the budget; tick p99 under 32 and worst under 64 full-map searches (machine-relative) | PASS |
+| 3D-29 | Fair speed: tiers 0.5 : 0.75 : 1 : 1.3 at every district, hunting under its ceiling; no two-step move near you or in sight; no arrival in sight | PASS |
 
 3D-11 and 3D-12 pass only on an entry in `bench3d/measured.json` naming the build, the
 date and who measured — in both cases Claude in the browser pane, not a human.

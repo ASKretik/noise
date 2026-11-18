@@ -371,7 +371,7 @@ export class Play3D {
     const r = this.runner;
     this.hud.narrate({
       game: r.game, prediction: r.prediction, dossier: r.dossier, chain: r.chain,
-      lastSpawn: r.system.lastSpawn, level: r.district,
+      lastSpawn: r.lastSpawn, level: r.district,
       profile: this.profileName(), mode: r.mode,
     });
   }

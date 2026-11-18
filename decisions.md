@@ -2342,11 +2342,102 @@ change: identical. The 2D suites still give 12 / 1 / 0, and webcheck is green.
   may feel empty until N8.2.
 - Performance was measured on one M3 only.
 
+---
+
+## R53 · Keys you can find, and the tier speeds the tiers' names promise (3D build 22)
+
+**Asked:** "in the minimap that we see when pressing tab, the keys are very small and hard
+to find ... blinking ... or having a beacon on their own each", and "make the aliens
+speed as 0.5x, 0.75x, 1x and 1.3x for the easy, medium, hard and the ultra hard levels
+respectively".
+
+**Built:**
+
+- **Beacons.** Every uncollected key on the Tab map gets a gold beacon drawn at a fixed
+  screen size: two rings pulsing out about once a second (well under the 3-flash limit),
+  a breathing marker and its distance in metres. The open portal gets a teal one. Labels
+  flip inward at the right edge.
+- **The player's arrow.** It shrank with the map too, and is now drawn at a fixed size.
+- **Tier speeds.** They are now 0.5 / 0.75 / 1 / 1.3 on the 3D page (`paramsFor()` in
+  `sim3d/next/rules.js`), and the hub's tier picker shows them.
+
+**What I assumed:** "speed" means the sim's own speed factor. The 2D tier blurbs already
+say "half speed", "three-quarter speed" and "full speed", but `ALIEN_SPEED_CAP` holds
+them to 0.375 / 0.5625 / 0.75, and ULTRA is 1.0. So every tier gets about a third faster.
+In walking-speed terms, a hunting alien now moves at 29–33 % on EASY, 43–50 % on MEDIUM,
+57–67 % on HARD and 74–87 % on ULTRA.
+
+**The 2D game** keeps its own speeds, and so does `classic`, so parity (3D-3) holds.
+
+## R54 · N8.2: few aliens, fast where you cannot see them (3D build 23)
+
+**Asked:** "after you have done this, implement N8.2".
+
+**Built.** `Game3DNext` (`sim3d/next/game.js`) overrides `Game3D` for `next`:
+
+- **Population.** The arrival cap is `round(4·√A)`, 9 at district 1 to 31 at 100.
+  Divisions stop at twice the cap.
+- **Speed.** Aliens move at rates in cells per tick, with travel at 2 × tier walking
+  speeds when more than 40 m away and out of line of sight.
+- **Arrivals** (`sim3d/next/spawn.js`) are drawn 25–60 m away, out of sight, weighted by
+  the prediction. The aliens there at the start are 60–120 m out.
+
+**How the user's tier speeds met the plan.** The plan capped hunting at 70 % of walking
+speed so an alert can always be outrun. With the new tier speeds, HARD is already at
+67 % by district 10. A flat cap would have made HARD and ULTRA identical, which undoes
+what the user asked for. So the ceiling scales with the tier: 70 % on HARD and 91 % on
+ULTRA, where you hide rather than outrun. The 0.5 : 0.75 : 1 : 1.3 ratio holds at every
+depth (3D-29 checks it).
+
+**What the measurements said** (Node, M3, district 100, bots):
+
+1. **The first version stuttered.** The worst tick was 11.7 ms. Profiling found three
+   causes:
+   - Every division recomputed par with the slow search. That's 2D behaviour: about
+     9 ms, and up to 10 ms at the worst.
+   - The squad re-dealt regions every re-plan, so patrolling aliens re-routed about three
+     times a tick.
+   - A chase drops every chaser's route, so when the alert ended they all needed new
+     ones on the same tick.
+2. **The fixes:**
+   - **FastFields** (`sim3d/next/field.js`): the same BFS without bounds tests, modulo or
+     predicate calls. It is identical cell for cell and 12–15× faster (0.125 ms against
+     1.5 ms for a full district-100 field).
+   - A patrolling alien keeps its destination for 6 s.
+   - Chasers keep their old route.
+   - Route fields are cached by target, with at most 10 new ones a tick at district 100.
+3. **Result:** the tick is 2.5 ms at the 99th percentile and 3.9 ms at worst, with 35
+   aliens. The whole frame is 10.8 ms mean at 1080p High, unchanged from build 21.
+4. **Early captures.** Bots were sometimes caught within 5 s at districts 50 and 100.
+   The trace showed one alien travelling fast while out of sight, slowing at about 40 m,
+   and the bot walking straight into it, as designed. The aliens already on the map are
+   still moved out to 60–120 m, so a run does not open with one round the first corner.
+
+**A criterion needed changing.** 3D-27, the contact test, walked in a straight line at
+the alien. On a city, with aliens starting 60–120 m away, that meets a wall, and 2 of 10
+runs never arrived. It now walks the route. The property it guards, that the body never
+enters an alien, held throughout: 0 overlaps.
+
+**New criteria:**
+
+- **3D-28.** New routes per tick stay within twice the budget, and tick time stays under
+  32 full-map searches at p99 and 64 at worst. It is measured in searches on the same
+  machine, so it holds on CI.
+- **3D-29.** It checks the tier table at every district. It also checks that every
+  multi-step move happened far away and out of sight (16,661 of them), and that no
+  arrival landed in sight (110).
+
+**Not verified:**
+
+- Nobody has played it.
+- Whether a full city at district 100 is tense, empty or overwhelming is the user's call.
+  The arrival cap, travel speed and ceiling are single constants in `rules.js`.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    20 passed · 0 not demonstrated · 0 failed  (3D build 21; 3D-1 via the
+npm run test3d    22 passed · 0 not demonstrated · 0 failed  (3D build 23; 3D-1 via the
                   2D suites above, run alongside)
 ```

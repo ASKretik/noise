@@ -1,7 +1,7 @@
 # NOISE 3D — the next round
 
-Written Nov 18, 2026, revised the same day after N3 · **status: N0–N3 and N8.1 built;
-N8.2 next** · follows 3D build 21
+Written Nov 18, 2026, revised the same day after N3 · **status: N0–N3, N8.1 and N8.2 built;
+N8.3 next** · follows 3D build 23
 
 > A spec to pick up one phase at a time, whenever there is time. It describes what each
 > phase builds, the numbers it uses, the files it touches, how it is checked and what it
@@ -33,8 +33,8 @@ N8.2 next** · follows 3D build 21
 | N2 | Comic-accurate aliens, all ten species | 3 days (+1½ per species) | Medium | **done** (3D builds 13–14): ten species, one per belt |
 | N3 | Jumpscare and portal ascension | 3–3½ days | Low–medium | **done** (3D builds 15–20; capture reworked after review into a 7 s attack; build 20 found that a saved "mild" setting had been hiding it) |
 | N8.1 | Big maps: the size curve, the city builder with named places, the `next` ruleset | 4–5 days | High | **done** (3D build 21) |
-| **N8.2** | Aliens: arrival cap, hunting / patrol / travel speeds, arrivals near you; route-planning spread out so it never hitches | 3–4 days | Medium | **next** |
-| N8.3 | Keys (4 → 10) and portal placement; Tab map zoom, pan and place names; run length measured | 2–3 days | Medium | not started |
+| N8.2 | Aliens: arrival cap, hunting / patrol / travel speeds, arrivals near you; route-planning spread out so it never hitches | 3–4 days | Medium | **done** (3D build 23; build 22 before it: Tab map key beacons and the user's tier speeds) |
+| **N8.3** | Keys (4 → 10) and portal placement; Tab map zoom, pan and place names; run length measured | 2–3 days | Medium | **next** |
 | N8.4 | Chunks, a shadow box that follows you, the frame-rate setting; frame budget re-measured | 2–3 days | Medium | not started |
 | N8.5 | Behaviour-first Dispatch: new traits, tactics, bots, 3D constants | 5–7 days | High | not started |
 | N4.1 | Art: sky, lighting and weather, and the first three belts (RUST, TIDE, MOSS) | ~3 days | Medium | not started |
@@ -619,6 +619,28 @@ description. Where it differs from or adds to the plan above:
 - **3D-21 runs smaller than planned:** 500 cities (five at every district 1–100) and 60
   episodes, so the suite stays under a minute.
 - **Unchanged for now:** aliens and keys are as in 2D until N8.2 and N8.3.
+
+**N8.2 as built (3D builds 22–23).** `spec-3d.md`, "Aliens on city maps", has the
+details. The differences from the plan above:
+
+- **Tier speeds** are the user's 0.5 / 0.75 / 1 / 1.3 (build 22). The 2D game holds
+  EASY to HARD at three-quarters of their names.
+- **The hunting ceiling scales with the tier**, so the tier ratios hold at every depth:
+  70 % of walking on HARD, 91 % on ULTRA. With the new tier speeds, HARD reaches its
+  ceiling by district 13, so depth mostly raises patrol and travel speed.
+- **Travel scales with the tier too:** 2× walking on HARD, 2.6× on ULTRA, 1× on EASY.
+- **Arrivals** are drawn over the band of cells round you, out of sight and weighted by
+  the prediction. The 2D spawner's region-first draw missed the band on city maps and
+  fell back to uniform. The aliens there at the start are placed 60–120 m out.
+- **Performance** was solved mostly by FastFields: the same BFS, 12–15× faster. Without
+  it, ticks reached 11.7 ms. Two other fixes helped: a patrolling alien keeps its
+  destination for 6 s, and par is computed on FastFields (2D recomputes it at every
+  division). With all three, the tick p99 is 2.5 ms.
+- **3D-28 is machine-relative.** It counts ticks in units of one full-map search on the
+  same machine, so it means the same on CI. The "nothing created after loading" half
+  was checked in the browser (geometry, texture and program counts constant over 40 s of
+  play), not in Node.
+- **3D-27 walks the route** to the alien. On a city, a straight line finds a wall.
 
 ### Criteria
 
