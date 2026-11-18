@@ -3094,11 +3094,47 @@ as it does the map.
   one;
 - a wheel for phones.
 
+## R67 · Throws: no range, ray-traced (3D build 37)
+
+**Asked:** "make the range for these throwables infinite, and give them a raytracing for
+it."
+
+**Built.** The noise maker and the EMP lose their 8- and 6-cell limits.
+
+- **The throw is a ray.** It runs from the eye through the crosshair, carried in the
+  input record (quantised) instead of a target cell.
+- **The sim traces it itself** (`raycast.js throwLanding`): the same grid march as
+  `shotClear`, with each cell's span checked against the ground and against the cell's
+  solid top.
+  - The item lands where the ray reaches the ground.
+  - If the ray meets a wall or a rubble heap first, it drops in the last open cell
+    before it.
+  - At the sky or off the map, nothing lands.
+- **The page uses the same function**, so the ring is exactly where the item comes down,
+  at any distance.
+- **The arc.** A dotted arc from the hand to the ring is drawn, and the item flies along
+  it. The arc is presentation only: the landing is the ray's.
+- **Headless uses** still pass a cell (`{ x, y }`, walls-only line of sight), so bots and
+  tests can throw without a camera.
+
+**Tests:** 3D-17 now traces 4000 random rays against an independent reference (the
+touched cells by slab clip, sorted by entry), checks that the page's quantised ray lands
+where the sim says, and replays runs whose throws are rays.
+
+**Checked in the browser:**
+
+- landings at 2, 14, 32 and 53 m down a street;
+- aiming up lands short of the wall at the street's end;
+- an EMP thrown 32 m landed in exactly the aimed cell.
+
+**Not verified:** balance. Unlimited range makes both items stronger. Prices are
+unchanged and the user's call.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 36; 3D-1 via the
+npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 37; 3D-1 via the
                   2D suites above, run alongside)
 ```

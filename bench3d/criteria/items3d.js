@@ -5,8 +5,11 @@
 //
 //   dampers  the radius you are heard at is exactly 0.75x, once per district, one spent
 //   EMP      stuns exactly the awake aliens within 3 cells of the blast with no wall
-//            between, for stunTicks; touches no other alien; refuses a target too far,
-//            behind a wall, or in a wall
+//            between, for stunTicks; touches no other alien; refuses a target behind a
+//            wall or in a wall (no range limit since build 37)
+//   throws   the ray-trace (raycast.js throwLanding) agrees with an independent
+//            reference on random rays: short of the first solid, or where it meets the
+//            ground; the page's ray and the sim land in the same cell
 //   decoy    a hunt ends with its last-known cell on the decoy; the aliens it draws (the
 //            hunters, and patrols within the pull) head for it and keep it through the
 //            squad re-plans; aliens beyond the pull are untouched
@@ -17,8 +20,9 @@
 
 import { DistrictRunner } from '../../web3d/runner.js';
 import { replay } from '../../sim3d/record.js';
-import { lineOfSight } from '../../sim3d/raycast.js';
-import { ITEMS3D, EMP_RADIUS, DECOY_PULL, DAMPERS_FACTOR } from '../../sim3d/shop3d.js';
+import { lineOfSight, throwLanding } from '../../sim3d/raycast.js';
+import { solidTops } from '../../sim3d/solid.js';
+import { ITEMS3D, EMP_RADIUS, DECOY_PULL, DAMPERS_FACTOR, throwRayOf, THROW_Q, THROW_DQ } from '../../sim3d/shop3d.js';
 import { TILE, euclid, walkableCells } from '../../sim/grid.js';
 import { hashLog } from '../../sim/game.js';
 import { Rng } from '../../sim/prng.js';
@@ -71,7 +75,7 @@ export const criteria = [{
       const want = g.canUseItem('emp', tx, ty);
       // the reference validity
       const inside = tx >= 0 && ty >= 0 && tx < g.map.w && ty < g.map.h;
-      const refOk = inside && g.map.tiles[ty * g.map.w + tx] !== TILE.WALL && euclid(tx, ty, g.player.x, g.player.y) <= ITEMS3D.emp.range
+      const refOk = inside && g.map.tiles[ty * g.map.w + tx] !== TILE.WALL
         && lineOfSight(g.map, g.player.x + 0.5, g.player.y + 0.5, tx + 0.5, ty + 0.5, wallsOnly);
       if (want.ok !== refOk) { bad.push(`emp trial ${trial}: valid ${want.ok}, reference ${refOk}`); continue; }
       const expect = refOk ? g.patrols.filter((p) => !((p.stunnedUntil || 0) > g.tick) && euclid(p.x, p.y, tx, ty) <= EMP_RADIUS
@@ -101,7 +105,7 @@ export const criteria = [{
       g.alertTicks = g.params.alertTicks;                 // a hunt is on
       for (const p of g.patrols) { p.mode = 'hunt'; p.stunnedUntil = 0; }
       g.patrols[g.patrols.length - 1].mode = 'intercept'; // one alien not hunting
-      const free = walkableCells(g.map).filter((c) => euclid(c.x, c.y, g.player.x, g.player.y) <= ITEMS3D.decoy.range && euclid(c.x, c.y, g.player.x, g.player.y) >= 3
+      const free = walkableCells(g.map).filter((c) => euclid(c.x, c.y, g.player.x, g.player.y) <= 20 && euclid(c.x, c.y, g.player.x, g.player.y) >= 3
         && lineOfSight(g.map, g.player.x + 0.5, g.player.y + 0.5, c.x + 0.5, c.y + 0.5, wallsOnly));
       if (!free.length) continue;
       const t = free[rng.int(free.length)];
@@ -130,6 +134,64 @@ export const criteria = [{
       }
     }
 
+    // ---- throws: the ray-trace against an independent reference
+    let rays = 0, landed = 0, rayBad = 0;
+    {
+      const r = runner('rays', 40), g = r.game, map = g.map, tops = solidTops(r.level);
+      const spans = (x0, y0, dx, dy, cx, cy) => {   // the slab clip, written again here
+        let t0 = 0, t1 = 1;
+        const clip = (p, q) => { if (p === 0) return q >= 0; const r2 = q / p; if (p < 0) { if (r2 > t1) return false; if (r2 > t0) t0 = r2; } else { if (r2 < t0) return false; if (r2 < t1) t1 = r2; } return true; };
+        return clip(-dx, x0 - cx) && clip(dx, cx + 1 - x0) && clip(-dy, y0 - cy) && clip(dy, cy + 1 - y0) && t1 - t0 >= -1e-12 ? [t0, t1] : null;
+      };
+      const reference = (x0, y0, h0, dx, dy, dh) => {
+        let T = Infinity;
+        if (dx > 0) T = Math.min(T, (map.w - x0) / dx); else if (dx < 0) T = Math.min(T, -x0 / dx);
+        if (dy > 0) T = Math.min(T, (map.h - y0) / dy); else if (dy < 0) T = Math.min(T, -y0 / dy);
+        const ddx = dx * T, ddy = dy * T, dH = dh * T, sx = Math.floor(x0), sy = Math.floor(y0);
+        const cells = [];
+        for (let cy = Math.floor(Math.min(y0, y0 + ddy)); cy <= Math.floor(Math.max(y0, y0 + ddy)); cy++) {
+          for (let cx = Math.floor(Math.min(x0, x0 + ddx)); cx <= Math.floor(Math.max(x0, x0 + ddx)); cx++) {
+            const sp = spans(x0, y0, ddx, ddy, cx, cy);
+            if (sp) cells.push({ cx, cy, t0: sp[0], t1: sp[1] });
+          }
+        }
+        cells.sort((a, b) => a.t0 - b.t0 || a.t1 - b.t1);
+        let last = null;
+        for (const c of cells) {
+          const out = c.cx < 0 || c.cy < 0 || c.cx >= map.w || c.cy >= map.h;
+          const lo = Math.min(h0 + dH * c.t0, h0 + dH * c.t1);
+          if (c.cx === sx && c.cy === sy) { if (h0 + dH * c.t1 <= 0) return { x: sx, y: sy }; last = { x: sx, y: sy }; continue; }
+          if (out) return null;
+          if (lo < tops[c.cy * map.w + c.cx]) return last && { x: last.x, y: last.y };
+          if (h0 + dH * c.t1 <= 0) return { x: c.cx, y: c.cy };
+          last = { x: c.cx, y: c.cy };
+        }
+        return null;
+      };
+      const open = walkableCells(map);
+      for (let i = 0; i < 4000; i++) {
+        const c = open[rng.int(open.length)];
+        const x0 = c.x + 0.05 + rng.float() * 0.9, y0 = c.y + 0.05 + rng.float() * 0.9, h0 = 1.4 + rng.float() * 0.5;
+        const az = rng.float() * Math.PI * 2, el = -0.5 + rng.float() * 0.62;
+        const dx = Math.cos(az) * Math.cos(el) / 1.5, dy = Math.sin(az) * Math.cos(el) / 1.5, dh = Math.sin(el);
+        const got = throwLanding(map, tops, x0, y0, h0, dx, dy, dh), want = reference(x0, y0, h0, dx, dy, dh);
+        rays++;
+        if (!!got !== !!want || (got && (got.x !== want.x || got.y !== want.y))) { rayBad++; if (rayBad <= 2) bad.push(`ray ${i}: landed ${got && `${got.x},${got.y}`}, reference ${want && `${want.x},${want.y}`}`); }
+        else if (got) landed++;
+      }
+      // and the page's quantised ray lands where the sim says
+      g.player.x = open[0].x; g.player.y = open[0].y;
+      for (let i = 0; i < 300; i++) {
+        const eye = { x: (g.player.x + 0.5) * 1.5, y: 1.65, z: (g.player.y + 0.5) * 1.5 };
+        const a = rng.float() * Math.PI * 2, e = -0.6 + rng.float() * 0.55;
+        const dir = { x: Math.cos(a) * Math.cos(e), y: Math.sin(e), z: Math.sin(a) * Math.cos(e) };
+        const ray = throwRayOf(eye, dir, 1.5);
+        const sim = g.canUseItem('decoy', { ray });
+        const ref = throwLanding(map, tops, ray[0] / THROW_Q, ray[1] / THROW_Q, ray[2] / THROW_Q, ray[3] / THROW_DQ, ray[4] / THROW_DQ, ray[5] / THROW_DQ);
+        if (!!sim.land !== !!ref || (ref && (sim.land.x !== ref.x || sim.land.y !== ref.y))) { bad.push(`page ray ${i}: sim and trace disagree`); break; }
+      }
+    }
+
     // ---- caps: nothing carried refuses
     {
       const r = new DistrictRunner({ profileId: 'items3d', district: 14, tier: 'hard', loadout: { stunGun: true, bullets: 1, boltSeconds: 0 }, seedKey: 'none' });
@@ -145,7 +207,9 @@ export const criteria = [{
       for (let f = 0; f < 60 * 40 && !g.over; f++) {
         if (f % 60 === 0 && g.started) {
           const id = ['decoy', 'dampers', 'emp'][rr.int(3)];
-          s.useItem(id, g.player.x + rr.range(-4, 4), g.player.y + rr.range(-4, 4));
+          const a = rr.float() * Math.PI * 2;
+          const dir = { x: Math.cos(a) * 0.9, y: -0.3 - rr.float() * 0.3, z: Math.sin(a) * 0.9 };
+          s.useItem(id, { ray: throwRayOf({ x: s.body.x * 1.5, y: 1.65, z: s.body.y * 1.5 }, dir, 1.5) });
         }
         s.update(1 / 60, { moveX: Math.cos(f / 300), moveY: Math.sin(f / 410), sprint: false });
       }
@@ -157,6 +221,6 @@ export const criteria = [{
     }
 
     return bad.length ? [FAIL, bad.slice(0, 4).join('; ')]
-      : [PASS, `dampers 0.75x once; ${emps} EMPs stunned exactly the reference's ${empHits} aliens (${refusals} bad targets refused, nothing spent); ${decoys} decoys ended the hunt on themselves and drew ${drawnTotal} aliens, held through re-plans, none beyond the pull moved; nothing used with none carried; 3 item runs (${replays} uses) replay exactly`];
+      : [PASS, `${rays} throw rays traced exactly as the reference (${landed} landed), and the page's ray lands where the sim says; dampers 0.75x once; ${emps} EMPs stunned exactly the reference's ${empHits} aliens (${refusals} bad targets refused, nothing spent); ${decoys} decoys ended the hunt on themselves and drew ${drawnTotal} aliens, held through re-plans, none beyond the pull moved; nothing used with none carried; 3 item runs (${replays} uses) replay exactly`];
   },
 }];

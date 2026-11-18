@@ -210,9 +210,9 @@ run does not use comes home.
 
 | Item | Price | Carry | Per district | Rule (`Game3DNext`) |
 |---|---|---|---|---|
-| Noise maker | 60 | 3 | 3 | Thrown to a non-wall cell within 8 cells, no wall between (it goes over rubble). Ends a hunt with its last-known cell on the decoy, the game's own "search there" path. Hunters, and patrols within 14 cells, are sent to it, and for 40 ticks (10 s) the squad re-plan leaves them on it unless they arrive. Being seen again starts the hunt again |
+| Noise maker | 60 | 3 | 3 | Thrown where you aim, no range limit (build 37; see Throws below). Ends a hunt with its last-known cell on the decoy, the game's own "search there" path. Hunters, and patrols within 14 cells, are sent to it, and for 40 ticks (10 s) the squad re-plan leaves them on it unless they arrive. Being seen again starts the hunt again |
 | Dampers | 120 | 1 | 1 | `effectiveRadius` × 0.75 for the rest of the district; the stun gun's reach is unchanged |
-| EMP | 150 | 2 | 1 | Thrown within 6 cells, no wall between. Stuns every awake alien within 3 cells of the blast with no wall between, for `stunTicks` |
+| EMP | 150 | 2 | 1 | Thrown where you aim, no range limit. Stuns every awake alien within 3 cells of the blast with no wall between, for `stunTicks` |
 
 - **A use** is `{ id, x, y }` in the input record, hashed only when present, and resolves
   at the start of the next tick before movement, like a stun. Replays reproduce it
@@ -231,6 +231,16 @@ run does not use comes home.
   - Click throws (or puts the dampers on).
   - A decoy pulses and rattles for 10 seconds; an EMP flashes out to its radius.
   - When an item runs out, the gun comes back to hand.
+- **Throws (build 37) are ray-traced.**
+  - The page sends the throw's ray: the eye in 1/32 of a cell and of a metre, and the
+    view direction × 4096.
+  - The sim traces it over the grid with heights (`raycast.js throwLanding`): walls are
+    solid at any height, a rubble heap up to its top.
+  - The item lands where the ray meets the ground. If it meets a wall or a heap first,
+    it drops in the last open cell before it. Off the map, or at the sky, nothing lands.
+  - No range limit. The eye must be within the leash's slack of your cell.
+  - The page draws its landing ring from the same function, so ring and landing agree.
+  - A dotted arc runs from the hand to the ring, and the item flies along it.
 - **Phones** have no wheel yet.
 
 ## The world
@@ -787,7 +797,7 @@ alongside: `npm test` 12/1/0, `npm run webcheck` green).
 | 3D-13 | Movement never stutters: no frame under half its heading's speed, walking and sprinting, 0–45° | PASS |
 | 3D-14 | Bolt thinning matches its formula on all 100 districts, deterministic, reachable, applied by the runner | PASS |
 | 3D-15 | Jumpscare and ascension: at most 3 flashes a second, skippable but not before 0.5 s, within length, full/mild/off, the variant is the Jumpscares setting alone | PASS |
-| 3D-17 | Items do exactly what their rules say (dampers 0.75×; EMP against a reference on 160 placements; decoy ends the hunt, holds through re-plans, leaves aliens beyond the pull alone; caps; item runs replay) | PASS |
+| 3D-17 | Items do exactly what their rules say (4000 throw rays against an independent trace, page ray = sim landing; dampers 0.75×; EMP against a reference on 160 placements; decoy ends the hunt, holds through re-plans, leaves aliens beyond the pull alone; caps; item runs replay) | PASS |
 | 3D-20 | 2D unchanged: 10,000 2D levels hash byte-identical to before N8.1 touched `sim/gen.js` | PASS |
 | 3D-21 | Big maps: the agreed size curve, growing every district; 500 cities reachable for the human and aliens, places distinct; no arrival or division within the minimum distance over 60 episodes | PASS |
 | 3D-22 | The Dispatch learns habits, not rooms: geometry-only prediction ≥ 3× uniform for ten bots; habit bots recognised; habit-free runs unchanged; each tactic helps against its bot; map-open runs replay | PASS |

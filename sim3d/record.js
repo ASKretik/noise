@@ -9,7 +9,8 @@
 // (standing still over the map draws the aliens in). It is hashed only when true, so a
 // record that never opened the map -- every classic run -- hashes exactly as before.
 //
-// Since 3D build 36 (N6.1) a row can carry an item use, { id, x, y }, hashed when present.
+// Since 3D build 36 (N6.1) a row can carry an item use, hashed when present: { id, ray } from
+// the page (build 37: a throw is traced along the ray, shop3d.js THROW_Q) or { id, x, y }.
 //
 // Since 3D build 30 a shot also carries its aim (game3d.js aimOf: the line from your eye
 // to the point on the alien the crosshair was on), hashed only when present.
@@ -21,7 +22,7 @@ export class InputRecord {
   push(row) {
     const stunTarget = row.stunTarget ?? null;
     const stunAim = stunTarget != null && row.stunAim ? row.stunAim.slice() : null;
-    const item = row.item ? { id: row.item.id, x: row.item.x | 0, y: row.item.y | 0 } : null;
+    const item = !row.item ? null : row.item.ray ? { id: row.item.id, ray: row.item.ray.map((v) => v | 0) } : { id: row.item.id, x: row.item.x | 0, y: row.item.y | 0 };
     this.rows.push({ dir: row.dir, sprint: !!row.sprint, stunTarget, stunAim, mapOpen: !!row.mapOpen, item });
   }
   get length() { return this.rows.length; }
@@ -37,7 +38,10 @@ export class InputRecord {
       mix(r.dir); mix(r.sprint ? 1 : 0); mix(r.stunTarget ?? -1);
       if (r.stunAim) { mix(0x61696d); for (const v of r.stunAim) mix(v); }
       if (r.mapOpen) mix(0x6d6170);
-      if (r.item) { mix(0x6974656d); mix(ITEM_CODE[r.item.id] || 0); mix(r.item.x); mix(r.item.y); }
+      if (r.item) {
+        mix(0x6974656d); mix(ITEM_CODE[r.item.id] || 0);
+        if (r.item.ray) { mix(0x726179); for (const v of r.item.ray) mix(v); } else { mix(r.item.x); mix(r.item.y); }
+      }
     }
     return (h >>> 0).toString(16).padStart(8, '0');
   }

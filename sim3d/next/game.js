@@ -26,7 +26,10 @@ import { timeLimitTicks } from './rules.js';
 import { cornerMask } from '../dispatch/habits.js';
 import { tacticTargets, TACTIC_ALIENS } from '../dispatch/tactics.js';
 import { TILE } from '../../sim/grid.js';
-import { ITEMS3D, itemsOf, blankItems3d, DECOY_TICKS, DECOY_PULL, EMP_RADIUS, DAMPERS_FACTOR } from '../shop3d.js';
+import { ITEMS3D, itemsOf, blankItems3d, DECOY_TICKS, DECOY_PULL, EMP_RADIUS, DAMPERS_FACTOR, THROW_Q, THROW_DQ } from '../shop3d.js';
+import { throwLanding } from '../raycast.js';
+import { solidTops } from '../solid.js';
+import { AIM_FROM_SLACK } from '../game3d.js';
 
 /** A throw or a blast is stopped by walls only: it goes over rubble. */
 const wallsOnly = (t) => t === TILE.WALL;
@@ -77,33 +80,55 @@ export class Game3DNext extends Game3D {
   }
 
   /**
-   * Could this item be used now, at (x, y)? The page asks this to draw its target ring,
-   * and the sim asks it again when the use arrives with the next tick.
+   * Could this item be used now? A throw's target is either a RAY from the page -- { ray:
+   * [eye x, y, height, direction x, y, height] }, traced over the grid (raycast.js
+   * throwLanding): it lands where you aim, at any distance -- or, headless, a cell
+   * { x, y } in a clear line (walls stop it; it goes over rubble). The page asks this to
+   * draw its ring; the sim asks again, with the same ray, when the use arrives.
+   * @returns {{ok, reason, land: {x, y, px, py}|null}}
    */
-  canUseItem(id, x = 0, y = 0) {
+  canUseItem(id, a = null, b = null) {
+    const target = a !== null && typeof a === 'object' ? a : { x: a, y: b };
     const item = ITEMS3D[id];
-    if (!item) return { ok: false, reason: 'no such item' };
-    if (!this.started || this.over) return { ok: false, reason: 'not now' };
-    if (!(this.loadout.items[id] > 0)) return { ok: false, reason: 'none left' };
-    if (!this.itemCapOff && this.itemUses[id] >= item.perDistrict) return { ok: false, reason: 'used up here' };
-    if (id === 'dampers') return this.dampers ? { ok: false, reason: 'already on' } : { ok: true, reason: null };
-    const { w, h, tiles } = this.map;
-    if (!(x >= 0 && y >= 0 && x < w && y < h) || tiles[y * w + x] === TILE.WALL) return { ok: false, reason: 'no ground there' };
-    if (euclid(x, y, this.player.x, this.player.y) > item.range) return { ok: false, reason: 'too far' };
-    if (!lineOfSight(this.map, this.player.x + 0.5, this.player.y + 0.5, x + 0.5, y + 0.5, wallsOnly)) return { ok: false, reason: 'blocked' };
-    return { ok: true, reason: null };
+    const no = (reason) => ({ ok: false, reason, land: null });
+    if (!item) return no('no such item');
+    if (!this.started || this.over) return no('not now');
+    if (!(this.loadout.items[id] > 0)) return no('none left');
+    if (!this.itemCapOff && this.itemUses[id] >= item.perDistrict) return no('used up here');
+    if (id === 'dampers') return this.dampers ? no('already on') : { ok: true, reason: null, land: null };
+    const land = this._landing(target);
+    return land.land ? { ok: true, reason: null, land: land.land } : no(land.reason);
   }
 
-  /** Use an item. Returns { ok, reason, hit } -- the aliens it acted on. */
-  useItem(id, x = 0, y = 0) {
-    const check = this.canUseItem(id, x, y);
-    const res = { tick: this.tick, id, x, y, ok: check.ok, reason: check.reason, hit: [] };
+  /** Where a throw comes down, or why it cannot. */
+  _landing(target) {
+    const { w, h, tiles } = this.map;
+    if (target.ray) {
+      const [ex, ey, eh, dx, dy, dh] = target.ray;
+      const fx = ex / THROW_Q, fy = ey / THROW_Q, fh = eh / THROW_Q;
+      const tops = solidTops(this.level);
+      // the eye must be yours: inside the map, not in a wall, within the leash's slack
+      if (!(fx >= 0 && fy >= 0 && fx < w && fy < h) || tops[Math.floor(fy) * w + Math.floor(fx)] > 0 || !(fh >= 0 && fh <= 4)
+        || Math.hypot(fx - (this.player.x + 0.5), fy - (this.player.y + 0.5)) > AIM_FROM_SLACK) return { reason: 'not from where you are' };
+      const land = throwLanding(this.map, tops, fx, fy, fh, dx / THROW_DQ, dy / THROW_DQ, dh / THROW_DQ);
+      return land ? { land } : { reason: 'nothing to land on' };
+    }
+    const { x, y } = target;
+    if (!(x >= 0 && y >= 0 && x < w && y < h) || tiles[y * w + x] === TILE.WALL) return { reason: 'no ground there' };
+    if (!lineOfSight(this.map, this.player.x + 0.5, this.player.y + 0.5, x + 0.5, y + 0.5, wallsOnly)) return { reason: 'blocked' };
+    return { land: { x, y, px: x + 0.5, py: y + 0.5 } };
+  }
+
+  /** Use an item. Returns { ok, reason, x, y, hit } -- where it landed and the aliens it acted on. */
+  useItem(id, a = null, b = null) {
+    const check = this.canUseItem(id, a, b);
+    const res = { tick: this.tick, id, x: check.land?.x ?? 0, y: check.land?.y ?? 0, ok: check.ok, reason: check.reason, hit: [] };
     if (check.ok) {
       this.loadout.items[id]--;
       this.itemUses[id]++;
       if (id === 'dampers') this.dampers = true;
-      else if (id === 'decoy') res.hit = this._decoy(x, y);
-      else if (id === 'emp') res.hit = this._emp(x, y);
+      else if (id === 'decoy') res.hit = this._decoy(res.x, res.y);
+      else if (id === 'emp') res.hit = this._emp(res.x, res.y);
       this.itemLog.push(res);
     }
     this.lastItem = res;
@@ -153,7 +178,7 @@ export class Game3DNext extends Game3D {
   step(inputDir = -1, actions = null) {
     this.mapOpen = !!actions?.mapOpen;
     // N6.1: an item use resolves before the move, like the stun gun; it is in the record
-    if (actions?.item && this.started && !this.over) this.useItem(actions.item.id, actions.item.x, actions.item.y);
+    if (actions?.item && this.started && !this.over) this.useItem(actions.item.id, actions.item);
     const before = this.player.x * 65536 + this.player.y;
     const live = super.step(inputDir, actions);
     if (!live) return live;

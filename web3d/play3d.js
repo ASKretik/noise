@@ -20,7 +20,7 @@ import { Fx3D } from './fx3d.js';
 import { variantFor } from './sequences.js';
 import { Touch3D, isTouchDevice } from './touch3d.js';
 import { DistrictRunner } from './runner.js';
-import { ITEMS3D, ITEM3D_IDS, DECOY_TICKS, EMP_RADIUS } from '../sim3d/shop3d.js';
+import { ITEMS3D, ITEM3D_IDS, DECOY_TICKS, EMP_RADIUS, throwRayOf } from '../sim3d/shop3d.js';
 import { HabitFile } from '../sim3d/dispatch/habits.js';
 import { installDevRun } from './dev3d.js'; // DEV-MODE
 import { mountBanner } from './banner.js';
@@ -248,8 +248,8 @@ export class Play3D {
         id, label: it.label, count: `×${have}${used ? ' · used here' : ''}`,
         ok: have > 0 && !used && !(id === 'dampers' && g.dampers),
         note: id === 'dampers' ? 'Click: put them on. Heard at 3/4 the distance for the rest of the district.'
-          : id === 'decoy' ? `Click: throw it at the ground under the crosshair, up to ${it.range} cells. Hunters go there instead.`
-            : `Click: throw it, up to ${it.range} cells. Stuns every alien within ${EMP_RADIUS} cells of where it lands.`,
+          : id === 'decoy' ? 'Click: throw it where you aim, as far as you can see. Hunters go there instead.'
+            : `Click: throw it where you aim. Stuns every alien within ${EMP_RADIUS} cells of where it lands.`,
       });
     }
     return out;
@@ -290,15 +290,29 @@ export class Play3D {
     if (!g.canUseItem || !(g.loadout.items?.[this.active] > 0) || used || (this.active === 'dampers' && g.dampers)) this.active = 'gun';
   }
 
-  /** The cell on the ground under the crosshair, and whether the item in hand could go there. */
+  /**
+   * Where a throw would land: the ray from your eye through the crosshair, traced over the
+   * city by the sim's own function (canUseItem with the ray). No range; it lands where you
+   * aim, or just short of the first wall or heap the ray meets.
+   */
   aimItem(cam, g) {
-    if (this.active !== 'decoy' && this.active !== 'emp') return null;
+    if (!ITEMS3D[this.active]?.thrown) return null;
     const dir = new this.view.THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
-    if (dir.y > -0.02) return { ok: false, reason: 'aim at the ground' };
-    const k = -cam.position.y / dir.y;
-    const px = cam.position.x + dir.x * k, pz = cam.position.z + dir.z * k;
-    const x = Math.floor(px / CELL_M), y = Math.floor(pz / CELL_M);
-    return { x, y, ...g.canUseItem(this.active, x, y) };
+    const ray = throwRayOf(cam.position, dir, CELL_M);
+    const c = g.canUseItem(this.active, { ray });
+    return { ray, ok: c.ok, reason: c.reason, land: c.land, x: c.land?.x, y: c.land?.y };
+  }
+
+  /** The throw's path: from your hand up and over to where it lands. */
+  arcPoints(cam, land, n = 48) {
+    const T = this.view.THREE;
+    const fwd = new T.Vector3(0, 0, -1).applyQuaternion(cam.quaternion), right = new T.Vector3(1, 0, 0).applyQuaternion(cam.quaternion);
+    const a = cam.position.clone().addScaledVector(right, 0.28).addScaledVector(fwd, 0.5).add(new T.Vector3(0, -0.25, 0));
+    const b = new T.Vector3((land.x + 0.5) * CELL_M, 0.08, (land.y + 0.5) * CELL_M);
+    const H = Math.min(9, 0.6 + a.distanceTo(b) * 0.12);
+    const pts = [];
+    for (let i = 0; i <= n; i++) { const t = i / n; pts.push(a.clone().lerp(b, t).add(new T.Vector3(0, 4 * H * t * (1 - t), 0))); }
+    return pts;
   }
 
   /** Click with an item in hand: throw it, or put the dampers on. */
@@ -313,8 +327,16 @@ export class Play3D {
     }
     const t = this.itemTarget;
     if (!t?.ok) { this.audio.click(); return; }
-    this.runner.useItem(id, t.x, t.y);
-    this.spawnItemFx(id, t.x, t.y);
+    this.runner.useItem(id, { ray: t.ray });
+    // the item flies along the arc and lands; the sim has it land on the next tick
+    const T = this.view.THREE, pts = this.arcPoints(this.view.camera, t.land, 32);
+    const dur = 0.25 + pts[0].distanceTo(pts[pts.length - 1]) / 40;
+    const ball = new T.Mesh(new T.SphereGeometry(0.07, 8, 6), new T.MeshBasicMaterial({ color: new T.Color('#c8d8ff').multiplyScalar(2.4), toneMapped: false }));
+    this.view.scene.add(ball);
+    this.itemFx.push({ obj: ball, t: 0, dur, update(k) {
+      const u = Math.min(1, k / dur) * (pts.length - 1), i = Math.min(pts.length - 2, Math.floor(u));
+      ball.position.copy(pts[i]).lerp(pts[i + 1], u - i);
+    }, onEnd: () => this.spawnItemFx(id, t.x, t.y) });
   }
 
   /** What a thrown item looks like where it lands: a decoy blinking, an EMP's flash. */
@@ -356,30 +378,40 @@ export class Play3D {
   updateItemFx(dt) {
     for (const fx of this.itemFx) { fx.t += dt; fx.update(fx.t); }
     for (const fx of this.itemFx.filter((f) => f.t >= f.dur)) {
+      fx.onEnd?.();
       this.view.scene.remove(fx.obj);
       fx.obj.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); });
     }
-    this.itemFx = this.itemFx.filter((f) => f.t < f.dur);
+    this.itemFx = this.itemFx.filter((f) => f.t < f.dur && !f.done);
   }
 
-  /** The target ring on the ground for a throw: pale when it would land, grey when not. */
+  /** The landing ring and the arc for a throw: pale when it would land, grey when not. */
   showItemTarget(t) {
     const T = this.view.THREE;
     if (!this.itemRing) {
-      this.itemRing = new T.Mesh(new T.RingGeometry(0.62, 0.72, 40).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false }));
-      this.itemBlast = new T.Mesh(new T.RingGeometry(0.97, 1, 64).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false, toneMapped: false }));
-      this.view.scene.add(this.itemRing, this.itemBlast);
+      const mat = () => new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false, toneMapped: false });
+      this.itemRing = new T.Mesh(new T.RingGeometry(0.62, 0.72, 40).rotateX(-Math.PI / 2), mat());
+      this.itemBlast = new T.Mesh(new T.RingGeometry(0.97, 1, 64).rotateX(-Math.PI / 2), mat());
+      this.itemRing.material.opacity = 0.85; this.itemBlast.material.opacity = 0.45;
+      const geo = new T.BufferGeometry().setFromPoints(Array.from({ length: 49 }, () => new T.Vector3()));
+      this.itemArc = new T.Line(geo, new T.LineDashedMaterial({ color: 0xffffff, dashSize: 0.35, gapSize: 0.22, transparent: true, opacity: 0.75, depthWrite: false, toneMapped: false }));
+      this.itemArc.frustumCulled = false;
+      this.view.scene.add(this.itemRing, this.itemBlast, this.itemArc);
     }
-    const show = !!(t && t.x != null);
-    this.itemRing.visible = show;
+    const show = !!t?.land;
+    this.itemRing.visible = this.itemArc.visible = show;
     this.itemBlast.visible = show && this.active === 'emp';
     if (!show) return;
     const col = t.ok ? '#dbe6ff' : '#5c616b';
-    this.itemRing.material.color.set(col);
-    this.itemBlast.material.color.set(col);
-    this.itemRing.position.set((t.x + 0.5) * CELL_M, 0.06, (t.y + 0.5) * CELL_M);
+    for (const m of [this.itemRing, this.itemBlast, this.itemArc]) m.material.color.set(col);
+    this.itemRing.position.set((t.land.x + 0.5) * CELL_M, 0.06, (t.land.y + 0.5) * CELL_M);
     this.itemBlast.position.copy(this.itemRing.position);
     this.itemBlast.scale.setScalar(EMP_RADIUS * CELL_M);
+    const pts = this.arcPoints(this.view.camera, t.land), pos = this.itemArc.geometry.attributes.position;
+    pts.forEach((p, i) => pos.setXYZ(i, p.x, p.y, p.z));
+    pos.needsUpdate = true;
+    this.itemArc.geometry.computeBoundingSphere();
+    this.itemArc.computeLineDistances();
   }
 
   inHandText(g) {

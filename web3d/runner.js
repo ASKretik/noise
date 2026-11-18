@@ -118,7 +118,7 @@ export class DistrictRunner {
   update(dt, controls, solids = null) { return this.session.update(dt, controls, solids); }
 
   fire(targetId, aim = null) { this.session.fire(targetId, aim); }
-  useItem(id, x, y) { this.session.useItem(id, x, y); }
+  useItem(id, target) { this.session.useItem(id, target); }
 
   _afterTick(row) {
     this.lastRow = row;

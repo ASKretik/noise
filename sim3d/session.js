@@ -47,8 +47,8 @@ export class Session3D {
   /** Queue a trigger pull at an alien id; it resolves on the next tick. */
   /** @param {number[]|null} [aim]  game3d.js aimOf(): the line the shot travels */
   fire(targetId, aim = null) { this.pendingStun = targetId; this.pendingAim = aim; }
-  /** N6.1: use an item on the next tick; x, y the target cell (ignored by dampers). */
-  useItem(id, x = 0, y = 0) { this.pendingItem = { id, x, y }; }
+  /** N6.1: use an item on the next tick; target { ray } from the page, or a cell { x, y } (dampers need none). */
+  useItem(id, target = {}) { this.pendingItem = { id, ...target }; }
 
   /**
    * @param {number} dt seconds since the last frame

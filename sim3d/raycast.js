@@ -86,3 +86,50 @@ export function shotClear(map, tops, x0, y0, h0, x1, y1, h1) {
   });
   return hit === null;
 }
+
+/**
+ * N6.1: where a thrown item comes down. The ray starts at (x0, y0) in cells at height h0
+ * in metres and runs along (dx, dy) cells and dh metres per unit. It is traced over the
+ * grid with heights (tops from solid.js: walls solid at any height, a rubble heap up to
+ * its top): if it meets something solid, the item drops in the last open cell before it;
+ * if it meets the ground first, it lands where it does. No range: it runs to the edge of
+ * the map, and off the map nothing lands. Returns { x, y, px, py } -- the landing cell
+ * and the point (in cells) -- or null.
+ */
+export function throwLanding(map, tops, x0, y0, h0, dx, dy, dh) {
+  const { w, h } = map;
+  const sx = Math.floor(x0), sy = Math.floor(y0);
+  if (sx < 0 || sy < 0 || sx >= w || sy >= h) return null;
+  const solidAt = (cx, cy, hgt) => cx < 0 || cy < 0 || cx >= w || cy >= h || hgt < tops[cy * w + cx];
+  // straight down (or up): only the cell you stand in
+  if (Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9) return dh < 0 ? { x: sx, y: sy, px: x0, py: y0 } : null;
+  // the parameter at which the ray leaves the map horizontally
+  let tEnd = Infinity;
+  if (dx > 0) tEnd = Math.min(tEnd, (w - x0) / dx); else if (dx < 0) tEnd = Math.min(tEnd, -x0 / dx);
+  if (dy > 0) tEnd = Math.min(tEnd, (h - y0) / dy); else if (dy < 0) tEnd = Math.min(tEnd, -y0 / dy);
+  const x1 = x0 + dx * tEnd, y1 = y0 + dy * tEnd, ddx = x1 - x0, ddy = y1 - y0, dH = dh * tEnd;
+  const groundAt = (u) => ({ px: x0 + ddx * u, py: y0 + ddy * u });
+  // in the start cell itself it can only reach the ground
+  const [, s1] = cellSpan(x0, y0, ddx, ddy, sx, sy);
+  if (h0 + dH * s1 <= 0) { const u = h0 / -dH; return { x: sx, y: sy, ...groundAt(u) }; }
+  let last = { x: sx, y: sy }, out = null;
+  marchCells(x0, y0, x1 - Math.sign(ddx) * 1e-9, y1 - Math.sign(ddy) * 1e-9, (cx, cy) => {
+    if (cx < 0 || cy < 0 || cx >= w || cy >= h) return true;
+    const [t0, t1] = cellSpan(x0, y0, ddx, ddy, cx, cy);
+    const hIn = h0 + dH * t0, hOut = h0 + dH * t1;
+    if (solidAt(cx, cy, Math.min(hIn, hOut))) {
+      // it hit something solid in this cell: it falls short, into the cell before
+      const c = { x: last.x + 0.5, y: last.y + 0.5 };
+      out = { x: last.x, y: last.y, px: c.x, py: c.y };
+      return true;
+    }
+    if (hOut <= 0) {
+      const u = h0 / -dH;
+      out = { x: cx, y: cy, ...groundAt(u) };
+      return true;
+    }
+    last = { x: cx, y: cy };
+    return false;
+  });
+  return out;
+}

@@ -8,6 +8,23 @@
 
 export const CHANGES = [
   {
+    build: 37,
+    date: '2026-11-18',
+    phase: 'N6.1 throws',
+    changed: [
+      'The noise maker and the EMP have no range limit now: they land wherever you aim, as far as you can see.',
+      'Where they land is ray-traced through the city: the line from your eye through the crosshair runs until it meets the ground, which is where the item lands, or meets a wall or a rubble heap, in which case it drops just in front of it. Aim at the sky and nothing lands.',
+      'While one is in hand, a dotted arc runs from your hand up and over to the landing ring, and the item flies along it when you throw.',
+      'The throw\'s line goes into the run\'s record and the game traces the same line itself, so the ring always shows exactly where it will come down.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R). Take the noise maker, look down a long avenue and lift your aim slowly: the ring walks away up the street. Throw it to the far end, behind a hunting alien.',
+    ],
+    unverified: [
+      'Checked in the browser: landings from 2 m to 53 m down a street, the arc, the flight, an EMP landing in exactly the aimed cell 32 m away. A test traces 4000 random throws against an independent reference. With no range limit the items are stronger; whether that needs a price change is your call.',
+    ],
+  },
+  {
     build: 36,
     date: '2026-11-18',
     phase: 'N6.1',

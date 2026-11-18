@@ -9,21 +9,34 @@
 
 export const ITEMS3D = Object.freeze({
   decoy: Object.freeze({
-    id: 'decoy', label: 'Noise maker', price: 60, carry: 3, perDistrict: 3, range: 8,
-    blurb: 'A clockwork rattle you throw. Wherever it lands, any alien hunting you drops the chase and goes to search there, and the ones patrolling nearby go to look. Being seen again starts the hunt again.',
+    id: 'decoy', label: 'Noise maker', price: 60, carry: 3, perDistrict: 3, range: Infinity, thrown: true,
+    blurb: 'A clockwork rattle you throw as far as you can see: it lands where you aim. Wherever it lands, any alien hunting you drops the chase and goes to search there, and the ones patrolling nearby go to look. Being seen again starts the hunt again.',
   }),
   dampers: Object.freeze({
     id: 'dampers', label: 'Dampers', price: 120, carry: 1, perDistrict: 1, range: 0,
     blurb: 'Felt and rubber for your boots and kit. For the rest of the district they hear you at three quarters of the distance. The stun gun\'s reach does not change.',
   }),
   emp: Object.freeze({
-    id: 'emp', label: 'EMP', price: 150, carry: 2, perDistrict: 1, range: 6,
-    blurb: 'A pulse grenade. Every awake alien within 3 cells of where it lands, with nothing solid in between, is stunned as if shot.',
+    id: 'emp', label: 'EMP', price: 150, carry: 2, perDistrict: 1, range: Infinity, thrown: true,
+    blurb: 'A pulse grenade, thrown wherever you aim. Every awake alien within 3 cells of where it lands, with nothing solid in between, is stunned as if shot.',
   }),
 });
 export const ITEM3D_IDS = Object.freeze(Object.keys(ITEMS3D));
 /** Item ids as numbers, for the input record's hash (record.js). */
 export const ITEM_CODE = Object.freeze({ decoy: 1, dampers: 2, emp: 3 });
+
+/**
+ * A throw from the page is a ray: the eye (x, y in 1/THROW_Q of a cell, height in
+ * 1/THROW_Q of a metre) and a direction (horizontal in cells, vertical in metres, each
+ * x THROW_DQ). The sim traces it itself (raycast.js throwLanding), so the ring the page
+ * draws and where the item lands are the same calculation.
+ */
+export const THROW_Q = 32, THROW_DQ = 4096;
+/** The ray of a throw from the eye along a view direction, both in the page's metres. */
+export function throwRayOf(eye, dir, cellM) {
+  const q = (v) => Math.round(v * THROW_Q), dq = (v) => Math.round(v * THROW_DQ);
+  return [q(eye.x / cellM), q(eye.z / cellM), q(eye.y), dq(dir.x / cellM), dq(dir.z / cellM), dq(dir.y)];
+}
 
 /** How long a decoy holds the aliens it drew, unless they see you: 10 real seconds. */
 export const DECOY_TICKS = 40;
