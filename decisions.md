@@ -35,7 +35,7 @@ Three markers throughout:
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    18 passed · 0 not demonstrated · 0 failed  (3D build 17)
+npm run test3d    18 passed · 0 not demonstrated · 0 failed  (3D build 18)
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -406,6 +406,25 @@ caught by the cold fill light, read as two blue pipes -- lowered.
 
 **Not verified:** still never watched at full speed or heard; whether it scares is yours
 to judge.
+
+## R48 · The recording, read at last
+
+**The user put the recording in the project folder.** No ffmpeg here, but the system's own
+AVFoundation, driven from a 30-line Swift script, pulls frames out of a .mov; that is how
+it was read (every 0.5 s, then every 0.1 s round the capture).
+
+**What it showed (build 16, district 1, a Grey):** at 4.6-4.7 s the camera has turned onto
+the alien at arm's length; at 4.8 s the end card is up. One tenth of a second of sequence,
+then skipped -- exactly the held-key skip fixed in R47. The debug panel reads speed 0
+because the body was pressed against the now-solid alien, not because no key was held.
+
+**And a fault R47 had not found:** in that tenth of a second the minimap, keys, narrator
+and debug panel were all back on screen. `finish()` hides the HUD and releases the
+pointer, the browser reports the release a frame or two later, and `onLock(false)`
+un-hid the HUD -- over the face. My browser checks never released a real pointer lock,
+so they never saw it. **Fixed:** `onLock` leaves the HUD alone once the run has ended, and
+`showEnd()` brings it back with the end card. Checked by calling `onLock(false)` straight
+after `finish()`: HUD hidden through the scare, visible with the card.
 
 ## Current state
 
@@ -2123,5 +2142,5 @@ now reach up toward your face.
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    18 passed · 0 not demonstrated · 0 failed  (3D build 17)
+npm run test3d    18 passed · 0 not demonstrated · 0 failed  (3D build 18)
 ```

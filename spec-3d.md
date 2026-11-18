@@ -209,7 +209,8 @@ teeth, its slits pinch to burning needles and turn to stare straight at you; a s
 hit, a white-red flash, a scream (a distorted formant choir and a vibrato screech, over
 silence -- the ambience is cut under it), violent shake, a 16-22 degree zoom punch and
 colour-split tearing. A second spasm at 0.62 s; a hard cut to black and silence at 1.42 s,
-held to the end card. Nothing skips it before 1.0 s (the ascension: 0.8 s), and a key
+held to the end card. The HUD is off for the whole sequence (the pointer release at
+capture does not bring it back) and returns with the end card. Nothing skips it before 1.0 s (the ascension: 0.8 s), and a key
 held down auto-repeating never skips either -- only a fresh press of Space, Enter or
 Escape, or a click. **The portal is an ascension:** you rise from eye height to 40 m on an ease-in,
 turning 90°, the view widening 15° and tilting down over the district, motes streaming

@@ -8,6 +8,21 @@
 
 export const CHANGES = [
   {
+    build: 18,
+    date: '2026-11-19',
+    phase: 'N3',
+    changed: [
+      'Your recording confirmed it: build 16 got as far as turning you to face the alien, and 0.1 s later the end card was up. That is the skip fixed in build 17.',
+      'It also showed a second fault: when you are caught the game lets go of the mouse, and a moment later the minimap, keys and debug panel came back on top of the scene. They now stay off until the end card.',
+    ],
+    tryThis: [
+      'Get caught in district 1 again, holding W: you should get the full face, teeth and scream with nothing over it, then black, then the card.',
+    ],
+    unverified: [
+      'The mouse release was simulated in the browser here, not done by a real browser, and nothing has been heard.',
+    ],
+  },
+  {
     build: 17,
     date: '2026-11-19',
     phase: 'N3',

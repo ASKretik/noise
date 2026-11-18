@@ -372,7 +372,10 @@ export class Play3D {
     if (locked) { this.audio.start(); this.audio.resume(); }
     else if (!this.ended) this.audio.pause();
     $('overlay').hidden = locked || this.ended;
-    $('hud').hidden = false;
+    // finish() releases the pointer, and the browser reports it a moment later -- in the
+    // middle of the capture. The HUD stays off until the end card (showEnd) brings it back:
+    // build 16 put the minimap, keys and debug panel back over the alien's face.
+    if (!this.ended) $('hud').hidden = false;
     if (!locked) this.hud.showMap(false);
     if (!locked && !this.ended) {
       $('ov-title').textContent = 'PAUSED';
@@ -386,7 +389,7 @@ export class Play3D {
     this.ended = true;
     this.controls.unlock();
     this.audio.setTension(0);
-    $('hud').hidden = true;                 // the sequence plays clean; onLock() brings it back
+    $('hud').hidden = true;                 // the sequence plays clean; showEnd() brings it back
     const g = this.runner.game;
     const variant = variantFor(this.settings.jumpscares, this.settings.reduceMotion);
     const cam = this.view.camera.position;
@@ -460,6 +463,7 @@ export class Play3D {
   }
 
   showEnd(summary, result = null) {
+    $('hud').hidden = false;
     const secs = realSeconds(summary.ticks, this.runner.session.tickHz).toFixed(1);
     $('ov-title').textContent = summary.won ? 'THROUGH THE PORTAL' : summary.loseReason === 'timeout' ? 'TIMED OUT' : 'CAUGHT';
     $('ov-body').textContent = summary.won
