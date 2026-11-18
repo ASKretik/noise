@@ -18,8 +18,11 @@ import { Rng, hashString } from '../sim/prng.js';
 import { themeFor } from '../web/themes.js';
 import { WALL_M, RUBBLE_MIN_M, RUBBLE_MAX_M } from '../sim3d/units.js';
 import { worldSeed, rubbleRng, rubblePeak } from '../sim3d/solid.js';
-import { artFor, depthOf, beltOf } from './art/belts.js';
-import { surfaceTextures } from './art/textures.js';
+import { artFor, depthOf, beltOf, placeLook, PLACE_TYPE_ORDER, mixHex } from './art/belts.js';
+import { surfaceTextures, styleCanvases } from './art/textures.js';
+import { PLACE_PATTERNS } from './art/places.js';
+import { layerTextures, layeredMaterial, setLayers } from './art/layered.js';
+import { buildSigns } from './art/signs.js';
 import { buildProps } from './art/props.js';
 import { makeSky, skyDir } from './art/sky.js';
 import { makeWeather } from './art/weather.js';
@@ -44,7 +47,7 @@ export const CHUNK_CELLS = 32;
 export const SHADOW_HALF_M = 45;
 
 /** Split an instanced layer into per-chunk meshes sharing its geometry and material. */
-function chunked(mesh, cellM) {
+function chunked(mesh, cellM, track = (x) => x) {
   const size = CHUNK_CELLS * cellM;
   const buckets = new Map();
   const m = new THREE.Matrix4();
@@ -57,8 +60,17 @@ function chunked(mesh, cellM) {
   }
   const out = [];
   const c = new THREE.Color();
+  const layer = mesh.geometry.getAttribute('aLayer');
   for (const idx of buckets.values()) {
-    const part = new THREE.InstancedMesh(mesh.geometry, mesh.material, idx.length);
+    let geo = mesh.geometry;
+    if (layer) {
+      // N4.2: each part needs its own slice of the per-instance layer; the shape is shared
+      geo = track(new THREE.BufferGeometry());
+      geo.setIndex(mesh.geometry.index);
+      for (const [k, a] of Object.entries(mesh.geometry.attributes)) if (k !== 'aLayer') geo.setAttribute(k, a);
+      geo.setAttribute('aLayer', new THREE.InstancedBufferAttribute(Float32Array.from(idx, (src) => layer.getX(src)), 1));
+    }
+    const part = new THREE.InstancedMesh(geo, mesh.material, idx.length);
     idx.forEach((src, j) => {
       mesh.getMatrixAt(src, m);
       part.setMatrixAt(j, m);
@@ -266,6 +278,48 @@ export function buildWorld(level, { cellM, shadows = false }) {
   };
   const cellRng = (x, y, label) => new Rng(hashString(`${seed}:${label}:${x},${y}`), label);
 
+  // ---- N4.2: which place each cell is in, and what each kind of place is built of. On
+  // an art-directed belt's city map every place gets its kind's walls and floor and a
+  // shade of its own; the streets between keep the belt's plain look.
+  const places = styled && level.places ? level.places : [];
+  const placeAt = new Int32Array(map.w * map.h).fill(-1);
+  places.forEach((pl, k) => {
+    for (let y = Math.max(0, pl.y); y < Math.min(map.h, pl.y + pl.h); y++) for (let x = Math.max(0, pl.x); x < Math.min(map.w, pl.x + pl.w); x++) placeAt[y * map.w + x] = k;
+  });
+  const looks = places.length ? Object.fromEntries(PLACE_TYPE_ORDER.map((t) => [t, placeLook(art, t)])) : null;
+  const lookAt = (x, y) => {
+    if (!looks || x < 0 || y < 0 || x >= map.w || y >= map.h) return null;
+    const k = placeAt[y * map.w + x];
+    return k < 0 ? null : looks[places[k].type];
+  };
+  const placeTint = places.map((pl) => {
+    const r = new Rng(hashString(`${seed}:place:${pl.id}`), 'tint');
+    const b = 0.92 + r.float() * 0.14;
+    return [b * (0.96 + r.float() * 0.08), b * (0.96 + r.float() * 0.08), b * (0.96 + r.float() * 0.08)];
+  });
+  const shade = (x, y, wear) => {
+    const k = placeAt[y * map.w + x];
+    return k < 0 || !places.length ? col.setRGB(wear, wear, wear) : col.setRGB(wear * placeTint[k][0], wear * placeTint[k][1], wear * placeTint[k][2]);
+  };
+  let wallLayers = null, floorLayers = null;
+  if (looks) {
+    const lr = (label) => new Rng(hashString(`${seed}:layer:${label}`), label);
+    const wl = [{ ...styleCanvases(art.wall, seed, true), rough: art.wall.roughness, metal: art.wall.metalness || 0 }];
+    const fl = [{ ...styleCanvases(art.floor, seed, false), rough: art.floor.roughness, metal: 0 }];
+    const wIdx = {}, fIdx = {};
+    for (const t of PLACE_TYPE_ORDER) {
+      const L = looks[t];
+      wIdx[t] = L.walls.map((sp) => { wl.push({ ...PLACE_PATTERNS[sp.pattern](lr(`${t}:${sp.pattern}`), sp), rough: sp.rough, metal: sp.metal }); return wl.length - 1; });
+      fIdx[t] = fl.length;
+      fl.push({ ...PLACE_PATTERNS[L.floor.pattern](lr(`${t}:${L.floor.pattern}`), L.floor), rough: L.floor.rough, metal: 0 });
+    }
+    wallLayers = { tex: layerTextures(wl), index: wIdx };
+    floorLayers = { tex: layerTextures(fl), index: fIdx };
+    for (const L of [wallLayers, floorLayers]) track(L.tex.map, L.tex.normal, L.tex.rm, ...(L.tex.emissive ? [L.tex.emissive] : []));
+  }
+  /** How tall a wall cell is drawn: its place's walls (tenements 5.4 m, depots 4.4 m), else WALL_M. */
+  const heightAt = (x, y) => lookAt(x, y)?.height ?? WALL_M;
+
   // ---- floor: one tile per non-wall cell, ground / groundAlt, seams in the texture
   const floorArt = styled ? surfaceTextures(art.floor, seed, false) : null;
   if (floorArt) track(floorArt.map, floorArt.normalMap, ...(floorArt.roughnessMap ? [floorArt.roughnessMap] : []));
@@ -273,7 +327,7 @@ export function buildWorld(level, { cellM, shadows = false }) {
   const floorCells = [];
   for (let y = 0; y < map.h; y++) for (let x = 0; x < map.w; x++) if (map.tiles[y * map.w + x] !== TILE.WALL) floorCells.push([x, y]);
   const floorGeo = track(new THREE.PlaneGeometry(cellM, cellM).rotateX(-Math.PI / 2));
-  const floorMat = track(new THREE.MeshStandardMaterial(floorArt
+  const floorMat = track(floorLayers ? layeredMaterial(floorLayers.tex) : new THREE.MeshStandardMaterial(floorArt
     ? { map: floorTex, normalMap: floorArt.normalMap, roughnessMap: floorArt.roughnessMap, roughness: floorArt.roughnessMap ? 1 : art.floor.roughness, metalness: 0 }
     : { map: floorTex, roughness: 0.92, metalness: 0 }));
   const floor = new THREE.InstancedMesh(floorGeo, floorMat, floorCells.length);
@@ -285,9 +339,10 @@ export function buildWorld(level, { cellM, shadows = false }) {
     if (styled) m4.compose(v.set((x + 0.5) * cellM, 0, (y + 0.5) * cellM), q.setFromAxisAngle(yAxis, r.int(4) * Math.PI / 2), one);
     else m4.makeTranslation((x + 0.5) * cellM, 0, (y + 0.5) * cellM);
     floor.setMatrixAt(i, m4);
-    if (styled) floor.setColorAt(i, col.setRGB(1, 1, 1).multiplyScalar(0.86 + r.float() * 0.22));
+    if (styled) floor.setColorAt(i, shade(x, y, 0.86 + r.float() * 0.22));
     else floor.setColorAt(i, col.copy(r.bool(0.5) ? pal.ground : pal.groundAlt).multiplyScalar(0.92 + r.float() * 0.16));
   });
+  if (floorLayers) setLayers(floor, floorCells.map(([x, y]) => { const L = lookAt(x, y); return L ? floorLayers.index[L.type] : 0; }));
   floor.receiveShadow = shadows;
   group.add(floor);
 
@@ -296,31 +351,47 @@ export function buildWorld(level, { cellM, shadows = false }) {
   // down on the roofs) but no body: on a city map that is about a third of all walls.
   const isWall = (x, y) => x < 0 || y < 0 || x >= map.w || y >= map.h || map.tiles[y * map.w + x] === TILE.WALL;
   const walls = cellsOf(TILE.WALL);
-  const faced = walls.filter(([x, y]) => !isWall(x - 1, y) || !isWall(x + 1, y) || !isWall(x, y - 1) || !isWall(x, y + 1));
+  // (N4.2: walls differ in height, so a neighbour covers a face only if it is as tall)
+  const covers = (x, y, hgt) => isWall(x, y) && heightAt(x, y) >= hgt;
+  const faced = walls.filter(([x, y]) => {
+    const hh = heightAt(x, y);
+    return !covers(x - 1, y, hh) || !covers(x + 1, y, hh) || !covers(x, y - 1, hh) || !covers(x, y + 1, hh);
+  });
   const wallArt = styled ? surfaceTextures(art.wall, seed, true) : null;
   if (wallArt) track(wallArt.map, wallArt.normalMap, ...(wallArt.roughnessMap ? [wallArt.roughnessMap] : []));
   const wallTex = wallArt ? wallArt.map : track(wallTexture(seed));
   const wallGeo = track(new THREE.BoxGeometry(cellM, WALL_M, cellM));
-  const wallMat = track(new THREE.MeshStandardMaterial(wallArt
+  // tenement windows glow faintly at dusk and plainly by midnight
+  const wallMat = track(wallLayers ? layeredMaterial(wallLayers.tex, { emissiveIntensity: 0.18 + 0.62 * art.t }) : new THREE.MeshStandardMaterial(wallArt
     ? { map: wallTex, normalMap: wallArt.normalMap, roughnessMap: wallArt.roughnessMap, roughness: wallArt.roughnessMap ? 1 : art.wall.roughness, metalness: art.wall.metalness }
     : { map: wallTex, roughness: 0.88 }));
   const wallMesh = new THREE.InstancedMesh(wallGeo, wallMat, Math.max(1, faced.length));
   wallMesh.count = faced.length;
   const capGeo = track(new THREE.BoxGeometry(cellM * 1.02, 0.12, cellM * 1.02));
   const capMat = track(new THREE.MeshStandardMaterial({
-    color: styled ? new THREE.Color(art.wall.base).lerp(new THREE.Color(0xffffff), 0.12) : pal.wallCap, roughness: 0.7,
+    color: looks ? 0xffffff : styled ? new THREE.Color(art.wall.base).lerp(new THREE.Color(0xffffff), 0.12) : pal.wallCap, roughness: 0.7,
   }));
   const capMesh = new THREE.InstancedMesh(capGeo, capMat, walls.length);
+  const wallLayerIdx = [];
   faced.forEach(([x, y], i) => {
     const r = cellRng(x, y, 'wall');
-    m4.makeTranslation((x + 0.5) * cellM, WALL_M / 2, (y + 0.5) * cellM);
+    const hh = heightAt(x, y);
+    m4.compose(v.set((x + 0.5) * cellM, hh / 2, (y + 0.5) * cellM), q.identity(), sc.set(1, hh / WALL_M, 1));
     wallMesh.setMatrixAt(i, m4);
-    if (styled) wallMesh.setColorAt(i, col.setRGB(1, 1, 1).multiplyScalar(0.84 + r.float() * 0.24));
+    if (styled) wallMesh.setColorAt(i, shade(x, y, 0.84 + r.float() * 0.24));
     else wallMesh.setColorAt(i, col.copy(pal.wall).multiplyScalar(0.88 + r.float() * 0.24));
+    if (wallLayers) {
+      // a place with two wall patterns (a door, a loading bay) shows the second on some cells
+      const L = lookAt(x, y), opts = L ? wallLayers.index[L.type] : [0];
+      wallLayerIdx.push(opts.length > 1 && r.float() < 0.3 ? opts[1] : opts[0]);
+    }
   });
+  if (wallLayers) setLayers(wallMesh, wallLayerIdx);
+  const white = new THREE.Color(0xffffff), tar = new THREE.Color('#262422');
   walls.forEach(([x, y], i) => {
-    m4.makeTranslation((x + 0.5) * cellM, WALL_M + 0.06, (y + 0.5) * cellM);
+    m4.makeTranslation((x + 0.5) * cellM, heightAt(x, y) + 0.06, (y + 0.5) * cellM);
     capMesh.setMatrixAt(i, m4);
+    if (looks) { const L = lookAt(x, y); capMesh.setColorAt(i, L ? col.set(L.walls[0].base).lerp(tar, L.type === 'park' ? 0 : 0.45) : col.set(art.wall.base).lerp(white, 0.12)); }
   });
   wallMesh.castShadow = wallMesh.receiveShadow = shadows;
   group.add(wallMesh, capMesh);
@@ -332,6 +403,25 @@ export function buildWorld(level, { cellM, shadows = false }) {
     // the same Rng and first draw as solid.js, so the heap is as tall as the sim thinks
     const r = rubbleRng(seed, x, y);
     const peak = rubblePeak(r);
+    // N4.2: a yard's rubble is containers and crates, a market's is its stalls -- each
+    // still exactly as tall as the heap the sim knows (solid.js), so shots agree
+    const L = lookAt(x, y);
+    if (L?.goods && (L.type === 'yards' || L.type === 'market')) {
+      const cxm = (x + 0.5) * cellM, czm = (y + 0.5) * cellM, g = L.goods;
+      if (L.type === 'yards') {
+        blocks.push({ x: cxm, z: czm, sx: 0.94 * cellM, sy: peak, sz: 0.62 * cellM, ry: (r.bool(0.5) ? 0 : Math.PI / 2) + (r.float() - 0.5) * 0.08, tilt: 0, colour: g[r.int(g.length)], shade: 0.85 + r.float() * 0.25 });
+        for (let k = 1 + r.int(3); k > 0; k--) {
+          const e = (0.26 + r.float() * 0.16) * cellM;
+          blocks.push({ x: cxm + (r.float() - 0.5) * 0.7 * cellM, z: czm + (r.float() - 0.5) * 0.7 * cellM, sx: e, sy: Math.min(peak, e), sz: e, ry: r.float() * Math.PI, tilt: 0, colour: g[r.int(g.length)], shade: 0.7 + r.float() * 0.3 });
+        }
+      } else {
+        const c = g[r.int(g.length)];
+        blocks.push({ x: cxm, z: czm, sx: 0.88 * cellM, sy: peak - 0.07, sz: 0.88 * cellM, ry: 0, tilt: 0, colour: c, shade: 0.8 + r.float() * 0.2 });
+        blocks.push({ x: cxm, z: czm, y0: peak - 0.07, sx: 1.06 * cellM, sy: 0.07, sz: 1.06 * cellM, ry: 0, tilt: 0.06, colour: mixHex(c, '#c9c4b8', 0.35), shade: 1 });
+      }
+      continue;
+    }
+    const scorch = L?.type === 'ruins';
     const n = 5 + r.int(4);
     for (let k = 0; k < n; k++) {
       const big = k === 0;
@@ -345,15 +435,16 @@ export function buildWorld(level, { cellM, shadows = false }) {
         ry: r.float() * Math.PI,
         tilt: big ? (r.float() - 0.5) * 0.15 : (r.float() - 0.5) * 0.7,
         top: k === 0 || r.bool(0.4),
-        shade: 0.85 + r.float() * 0.3,
+        shade: (0.85 + r.float() * 0.3) * (scorch ? 0.6 : 1),
       });
     }
   }
   const rubbleGeo = track(new THREE.BoxGeometry(1, 1, 1));
   const rubbleMat = track(new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.97, flatShading: true }));
-  const rubble = new THREE.InstancedMesh(rubbleGeo, rubbleMat, Math.max(1, blocks.length));
-  rubble.count = blocks.length;
-  blocks.forEach((b, i) => {
+  const heaps = blocks.filter((b) => !b.colour), goods = blocks.filter((b) => b.colour);
+  const rubble = new THREE.InstancedMesh(rubbleGeo, rubbleMat, Math.max(1, heaps.length));
+  rubble.count = heaps.length;
+  heaps.forEach((b, i) => {
     q.setFromEuler(new THREE.Euler(b.tilt, b.ry, b.tilt * 0.5));
     m4.compose(v.set(b.x, b.sy / 2 - 0.05, b.z), q, sc.set(b.sx, b.sy, b.sz));
     rubble.setMatrixAt(i, m4);
@@ -362,6 +453,26 @@ export function buildWorld(level, { cellM, shadows = false }) {
   });
   rubble.castShadow = rubble.receiveShadow = shadows;
   group.add(rubble);
+  // N4.2: containers, crates and stalls, in their own colours over a light ribbed skin
+  if (goods.length) {
+    const skin = track(canvasTexture(128, (g, n) => {
+      g.fillStyle = '#d8d8d4'; g.fillRect(0, 0, n, n);
+      for (let x = 0; x < n; x += 8) { g.fillStyle = 'rgba(0,0,0,0.16)'; g.fillRect(x, 0, 2, n); g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(x + 3, 0, 1, n); }
+      const r = new Rng(seed, 'goods');
+      for (let i = 0; i < 500; i++) { g.fillStyle = `rgba(30,20,10,${0.05 + r.float() * 0.15})`; g.fillRect(r.int(n), r.int(n), 1 + r.int(3), 1 + r.int(8)); }
+      g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0, 0, n, 3); g.fillRect(0, n - 3, n, 3);
+    }));
+    const goodsMesh = new THREE.InstancedMesh(rubbleGeo, track(new THREE.MeshStandardMaterial({ map: skin, roughness: 0.7, metalness: 0.25 })), goods.length);
+    goods.forEach((b, i) => {
+      q.setFromEuler(new THREE.Euler(b.tilt, b.ry, 0));
+      m4.compose(v.set(b.x, (b.y0 || 0) + b.sy / 2 - 0.05, b.z), q, sc.set(b.sx, b.sy, b.sz));
+      goodsMesh.setMatrixAt(i, m4);
+      goodsMesh.setColorAt(i, col.set(b.colour).multiplyScalar(b.shade * 1.25));
+    });
+    goodsMesh.castShadow = goodsMesh.receiveShadow = shadows;
+    goodsMesh.userData.whole = true;
+    group.add(goodsMesh);
+  }
 
   // ---- water: a shallow sheet with a scrolling ripple normal map
   const waterCells = cellsOf(TILE.COVER);
@@ -410,16 +521,42 @@ export function buildWorld(level, { cellM, shadows = false }) {
     group.add(new THREE.LineSegments(eg, track(new THREE.LineBasicMaterial({ color: 0xb4c4d6, transparent: true, opacity: 0.35 }))));
   }
 
-  // ---- the belt's props on the walls (N4.1), chunked with the rest
-  for (const prop of buildProps(level, art, cellM, seed, track)) group.add(prop);
+  // ---- N4.2: a park's lone wall cells are trees: a crown of leaves on the clipped trunk
+  if (looks) {
+    const crowns = walls.filter(([x, y]) => lookAt(x, y)?.type === 'park' && !isWall(x - 1, y) && !isWall(x + 1, y) && !isWall(x, y - 1) && !isWall(x, y + 1));
+    if (crowns.length) {
+      const leaf = looks.park.walls[0];
+      const crown = new THREE.InstancedMesh(track(new THREE.IcosahedronGeometry(1, 1)), track(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true })), crowns.length);
+      crowns.forEach(([x, y], i) => {
+        const r = cellRng(x, y, 'crown');
+        const k = 1.15 + r.float() * 0.5;
+        m4.compose(v.set((x + 0.5) * cellM, WALL_M + k * 0.45, (y + 0.5) * cellM), q.setFromAxisAngle(yAxis, r.float() * 6.28), sc.set(k, k * (0.7 + r.float() * 0.3), k));
+        crown.setMatrixAt(i, m4);
+        crown.setColorAt(i, col.set(leaf.base).lerp(new THREE.Color('#4f6b34'), 0.35 + r.float() * 0.3).multiplyScalar(1.3 + r.float() * 0.4));
+      });
+      crown.castShadow = crown.receiveShadow = shadows;
+      crown.userData.whole = true;
+      group.add(crown);
+    }
+  }
+
+  // ---- the belt's props on the walls (N4.1), chunked with the rest; not on a park's
+  // hedges or a plaza's monuments, and hung from each wall's real top
+  for (const prop of buildProps(level, art, cellM, seed, track, {
+    heightAt, skip: (x, y) => { const t = lookAt(x, y)?.type; return t === 'park' || t === 'plaza'; },
+  })) group.add(prop);
+  // ---- N4.2: every place's name at its gates, and the wall art on the street walls
+  if (looks) for (const m of buildSigns(level, { cellM, seed, art, lookAt, heightAt, track })) group.add(m);
 
   // ---- cut every instanced layer into chunks (N8.4)
-  const layers = group.children.filter((ch) => ch.isInstancedMesh);
+  // (a few small layers -- containers, tree crowns -- cost less drawn whole: one call each)
+  for (const ch of group.children) if (ch.isInstancedMesh && ch.userData.whole) ch.computeBoundingSphere();
+  const layers = group.children.filter((ch) => ch.isInstancedMesh && !ch.userData.whole);
   let chunkCount = 0;
   for (const layer of layers) {
     group.remove(layer);
     if (layer.count === 0) { layer.dispose(); continue; }
-    const parts = chunked(layer, cellM);
+    const parts = chunked(layer, cellM, track);
     chunkCount += parts.length;
     group.add(...parts);
   }

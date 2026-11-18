@@ -8,6 +8,26 @@
 
 export const CHANGES = [
   {
+    build: 31,
+    date: '2026-11-18',
+    phase: 'N4.2',
+    changed: [
+      'Every place in a district now looks like what it is, in its belt\'s colours. Tenements are two-storey brick blocks (5.4 m) with windows, doors and a few lit rooms. Plazas are paved, with stone monuments. Markets have chequered tiles and roll-down shutters, and their stalls are kiosks. Yards have gravel, corrugated fences, and stacks of containers and crates. Parks have grass, clipped hedges and trees. Canals have granite setts. Depots are taller halls of ribbed metal with loading doors and a hazard band. Ruins are burnt and cracked, on ash and broken brick.',
+      'Each place also gets a shade of its own, so two markets side by side are still two.',
+      'Every place has its name on an enamel plate where you walk in, on the wall beside a gate or an alley mouth. Open plazas and canals have it on a post. The plate\'s colour tells you the kind of place.',
+      'The walls facing the streets have old posters, graffiti, stencils, warning plates and peeling paint: most in markets and tenements, none in parks, more deeper into a belt. None of it is story yet; that comes with the story phase.',
+      'Streets and avenues keep the plain belt look, so places stand out against them. Belts 4-10 keep their old look until N4.3.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R). In districts 1-30, walk down an avenue and look into each place you pass, then open the Tab map: the names on the plates are the names on the map.',
+      'Look at a tenement block at district 9 or 10, at night, for the lit windows.',
+    ],
+    unverified: [
+      'Checked in the browser on districts 1, 5, 12 and 20: every kind of place, the signs and the wall art. A frame at 1080p Medium costs about 1 ms more than before (6.4-8.5 ms at districts 20 and 30, against 5.9-7.5 ms at the unchanged district 100 in the same session), and the most draw calls is 143. Not checked on a weaker laptop. The texture arrays need about 26 MB more graphics memory.',
+      'Whether each kind of place is the right look is your call. Each one is a few lines of data in web3d/art/belts.js and one drawing function in web3d/art/places.js.',
+    ],
+  },
+  {
     build: 30,
     date: '2026-11-18',
     phase: 'stun gun',

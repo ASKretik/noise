@@ -1,16 +1,16 @@
 {
   "11": {
     "status": "pass",
-    "build": 29,
+    "build": 31,
     "date": "2026-11-18",
     "by": "Claude, play.html benchmark() in the Claude desktop browser pane on an Apple M3 laptop (integrated GPU), pane hidden; not a human-observed frame counter",
-    "note": "N4.1 re-measure with the belt art in (sky dome, canvas albedo + normal + roughness maps, instanced props, weather particles), Medium, 1920x1080 at pixel ratio 1, GPU forced to finish every frame, camera turning a full circle, two runs each. District 20 (TIDE at midnight, heaviest rain, 5200-particle budget): mean 3.7 / 3.7 ms, p95 9.6 / 7.1 ms, 141 draw calls. District 30 (MOSS at midnight, vines and spores): mean 2.9 / 6.3 ms, p95 3.5 / 11.5 ms, 122 calls, 215k triangles. District 100 (COBALT, the biggest city, on the fallback art with the new sky): mean 4.7 / 6.5 ms, p95 7.9 / 10.4 ms, 132 calls, 273k triangles. All under the 16.7 ms budget and the 150-call cap. Timings in a hidden pane vary by about a third between runs. Build 26 (N8.4, district 100 before the art): mean 5.3-8.4 ms, p95 10.7-12.2 ms. Weaker laptops and phones: not measured."
+    "note": "N4.2 re-measure with the place art in (texture arrays for walls and floors, place heights, containers and kiosks, tree crowns, name signs, wall art), Medium, 1920x1080 at pixel ratio 1, GPU forced to finish every frame, camera turning a full circle, two runs each, in one session. District 20 (TIDE, midnight rain): mean 6.8 / 8.5 ms, p95 12.0 / 13.6 ms, 143 draw calls. District 30 (MOSS): mean 6.4 / 7.6 ms, p95 11.0 / 12.8 ms, 120 calls, 201k triangles. District 100 (unchanged fallback art, the control): mean 5.9 / 7.5 ms, p95 9.3 / 12.9 ms, 132 calls. The machine ran about 1.5 ms slower than at build 29 (district 100 then: 4.7-6.5 ms), so the place art itself costs about 1 ms. All under the 16.7 ms budget and the 150-call cap. Build 29 (N4.1): district 20 mean 3.7 ms, 141 calls. Weaker laptops and phones: not measured."
   },
   "12": {
     "status": "pass",
-    "build": 29,
+    "build": 31,
     "date": "2026-11-18",
     "by": "Claude, screenshot review of 3d/belts.html and play.html in the browser pane (not a human review)",
-    "note": "N4.1: RUST, TIDE and MOSS art-directed, reviewed in play.html at dusk (k=0) and midnight (k=9) of each belt; 3d/belts.html at belt offsets 0 and 9 for all ten belts (seven still on 2D palettes, with the new sky and light). Aliens, gold keys, coins by value and the teal portal stay readable at dusk and at midnight; no large-area art colour shares their hue and lightness (3D-16). Fixed on the way: cyan water (now per-belt water colours), RUST too dark, dust invisible, puddles repeating on a grid. Build 14 species review (Mirages raised to 0.62 opacity) in decisions.md R44."
+    "note": "N4.1: RUST, TIDE and MOSS art-directed, reviewed in play.html at dusk (k=0) and midnight (k=9) of each belt; 3d/belts.html at belt offsets 0 and 9 for all ten belts (seven still on 2D palettes, with the new sky and light). Aliens, gold keys, coins by value and the teal portal stay readable at dusk and at midnight; no large-area art colour shares their hue and lightness (3D-16). Fixed on the way: cyan water (now per-belt water colours), RUST too dark, dust invisible, puddles repeating on a grid. Build 14 species review (Mirages raised to 0.62 opacity) in decisions.md R44. Build 31 (N4.2): every kind of place reviewed in play.html at districts 1, 5, 12 and 20 (tenements, plaza, market, yards, park, canal, depot, ruins), with the signs and wall art; entities unchanged and the place, sign and ink colours pass 3D-16."
   }
 }

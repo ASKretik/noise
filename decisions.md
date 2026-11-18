@@ -2870,11 +2870,87 @@ it is close. The reach is one constant. Not played with a mouse by a person.
 Waiting for the story would leave the walls bare for three phases. Doing it all now
 would mean writing story content before the story exists.
 
+## R63 · N4.2: every place looks like what it is (3D build 31)
+
+**Asked:** "there are different regions in the same district, like different buildings
+etc. I want the art to be slightly different for each of them, else there is no point in
+naming the buildings alone." I agreed. The city builder has given every place a kind and
+a name since N8.1, but the renderer never read them, so "Wren Market" and "Larch Blocks"
+looked the same. I recommended doing this before the other seven belts, because the
+kinds of place change how every belt is built. The user said "Yes, places first", so the
+old N4.2 (seven belts, centrepieces, bloom) is now N4.3.
+
+**Three levels of look:**
+
+1. **Belt:** the colours (N4.1).
+2. **Kind of place:** the pattern. `belts.js placeLook` pulls the belt's wall and floor
+   colours toward the kind's tint, so RUST tenements are rusty brick and TIDE's are wet.
+3. **Place:** a shade of its own, a few per cent.
+
+The streets between places keep the belt's plain look.
+
+**Built** (browser-only, plus one line in `solid.js`):
+
+- `places.js`: 9 wall and 8 floor patterns.
+- `layered.js`: per surface, one `DataArrayTexture` holds the street's slice and every
+  kind's. Each wall and floor instance carries `aLayer`. A `MeshStandardMaterial` reads
+  its maps from the array, its map lookups swapped in `onBeforeCompile`.
+- Heights: tenements 5.4 m, depots 4.4 m. `solid.js` now treats every wall as solid at
+  any height (it was 3.2 m), so the taller drawing changes no sim decision.
+- Fittings:
+  - yards' rubble is containers and crates, markets' is kiosks, each exactly as tall as
+    the heap the sim knows, so 3D-6 still holds;
+  - a park's lone wall cells are trees.
+- `signs.js`: name plates at the gates, and wall art with no story in it. One merged
+  mesh each.
+
+**Why texture arrays.** One material per kind would multiply every chunk's wall and
+floor draws by up to nine. With arrays the count stayed flat. The extra cost is about
+26 MB of graphics memory.
+
+**Caught on the way:**
+
+- **The lint caught three colours:**
+  - a plaza's stone sat on the copper coin's hue and lightness: greyed;
+  - a market's mauve-brown goods colour did the same;
+  - the name plates' cream lettering sat on the keys' gold: now a neutral off-white.
+- **Lightning:** I dropped a lightning mark from the warning plates, which would read
+  as the bolt pickup.
+- **Seen in the browser and fixed:**
+  - containers were near-black: tinted over the dark belt wall texture, they now have
+    their own light ribbed skin;
+  - lit windows were blown out to white: now a dim lamp gradient with a curtain, glowing
+    0.18 at dusk to 0.8 at midnight;
+  - the park was too dark: greener;
+  - flat roofs were pale: darker.
+- **The first measurement put district 20 at 150 draw calls**, the cap. Containers and
+  tree crowns are now drawn whole instead of per chunk: 143.
+
+**Measured** (Medium, 1080p, M3, one session):
+
+| District | Mean | Draw calls |
+|---|---|---|
+| 20 | 6.8–8.5 ms | 143 |
+| 30 | 6.4–7.6 ms | 120 |
+| 100 (unchanged, the control) | 5.9–7.5 ms | 132 |
+
+The machine ran about 1.5 ms slower than at build 29, so the place art itself costs
+about 1 ms. Building the world takes about 250 ms warm.
+
+**Not verified:**
+
+- no person has walked it;
+- not measured on a weaker laptop;
+- whether each kind's look is right is the user's call.
+
+**Left for N4.3:** belts 4–10 (with places from the start), ruined facades on rubble,
+district-number signs, landmark centrepieces, bloom, the colour grade.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    26 passed · 0 not demonstrated · 0 failed  (3D build 30; 3D-1 via the
+npm run test3d    26 passed · 0 not demonstrated · 0 failed  (3D build 31; 3D-1 via the
                   2D suites above, run alongside)
 ```

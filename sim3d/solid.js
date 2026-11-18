@@ -1,7 +1,8 @@
 // sim3d/solid.js -- what a stun shot cannot pass through, and how tall it is. Pure.
 //
 // The stun gun fires along what you see (sim3d/game3d.js), so the sim has to know the
-// shape the renderer draws: a wall stands WALL_M tall; a rubble heap is as tall as its
+// shape the renderer draws: a wall stops a shot at any height (tenements are drawn
+// 5.4 m tall, the rest WALL_M); a rubble heap is as tall as its
 // biggest block, a seeded draw per cell that web3d/world.js makes from the same Rng, in
 // the same order, before it draws the rest of the heap. Water, black boxes and open
 // ground stop nothing.
@@ -10,7 +11,7 @@
 
 import { TILE } from '../sim/grid.js';
 import { Rng, hashString } from '../sim/prng.js';
-import { WALL_M, RUBBLE_MIN_M, RUBBLE_MAX_M } from './units.js';
+import { RUBBLE_MIN_M, RUBBLE_MAX_M } from './units.js';
 
 /** The seed every drawn detail of a district comes from. */
 export const worldSeed = (level) => hashString(`world:${level.seed ?? level.level}`);
@@ -31,7 +32,7 @@ export function solidTops(level) {
   for (let y = 0; y < map.h; y++) {
     for (let x = 0; x < map.w; x++) {
       const t = map.tiles[y * map.w + x];
-      if (t === TILE.WALL) tops[y * map.w + x] = WALL_M;
+      if (t === TILE.WALL) tops[y * map.w + x] = Infinity;   // drawn 3.2-5.4 m tall (N4.2): solid all the way up
       else if (t === TILE.BUILDING) tops[y * map.w + x] = rubblePeak(rubbleRng(seed, x, y));
     }
   }

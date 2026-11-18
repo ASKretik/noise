@@ -19,11 +19,11 @@ import { WALL_M } from '../../sim3d/units.js';
 const DIR4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 
 /** Every wall face that looks onto open ground: { x, y, dx, dy }. */
-function openFaces(map) {
+function openFaces(map, skip = null) {
   const out = [];
   const { w, h, tiles } = map;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    if (tiles[y * w + x] !== TILE.WALL) continue;
+    if (tiles[y * w + x] !== TILE.WALL || skip?.(x, y)) continue;
     for (const [dx, dy] of DIR4) {
       const nx = x + dx, ny = y + dy;
       if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
@@ -34,9 +34,12 @@ function openFaces(map) {
 }
 
 /**
+ * @param {object} [o]
+ * @param {Function} [o.heightAt]  (x, y) => how tall that wall cell is drawn (N4.2)
+ * @param {Function} [o.skip]      (x, y) => true for walls that take no props (hedges, monuments)
  * @returns {THREE.Object3D[]} instanced meshes to add to the world group
  */
-export function buildProps(level, art, cellM, seed, track) {
+export function buildProps(level, art, cellM, seed, track, { heightAt = () => WALL_M, skip = null } = {}) {
   const props = art.props;
   if (!props) return [];
   const { map } = level;
@@ -65,7 +68,7 @@ export function buildProps(level, art, cellM, seed, track) {
 
   if (props.kind === 'pipes') {
     const runs = [], drops = [], valves = [];
-    for (const f of openFaces(map)) {
+    for (const f of openFaces(map, skip)) {
       // one height per straight wall line, so pipes run the whole length of a wall
       const line = f.dy !== 0 ? `h${f.y}:${f.dy}` : `v${f.x}:${f.dx}`;
       const lr = rngOf(line);
@@ -92,7 +95,7 @@ export function buildProps(level, art, cellM, seed, track) {
     make(new THREE.TorusGeometry(0.17, 0.03, 6, 14), new THREE.MeshStandardMaterial({ color: accent, roughness: 0.6, metalness: 0.4 }), valves);
   } else if (props.kind === 'harbour') {
     const posts = [], caps = [], buoys = [], bands = [];
-    for (const f of openFaces(map)) {
+    for (const f of openFaces(map, skip)) {
       const r = rngOf(`b${f.x},${f.y},${f.dx},${f.dy}`);
       if (r.float() > props.density) continue;
       const along = (r.float() - 0.5) * cellM * 0.5;
@@ -118,14 +121,14 @@ export function buildProps(level, art, cellM, seed, track) {
     make(new THREE.CylinderGeometry(1, 1, 1, 12), new THREE.MeshStandardMaterial({ color: new THREE.Color(props.band), roughness: 0.5 }), bands);
   } else if (props.kind === 'vines') {
     const strands = [];
-    for (const f of openFaces(map)) {
+    for (const f of openFaces(map, skip)) {
       const r = rngOf(`v${f.x},${f.y},${f.dx},${f.dy}`);
       if (r.float() > props.density) continue;
       const n = 3 + r.int(5);
       for (let k = 0; k < n; k++) {
         const len = 0.5 + r.float() * r.float() * 2.3;
         const along = (r.float() - 0.5) * cellM * 0.9;
-        const p = onFace(f, along, WALL_M - len / 2, 0.03);
+        const p = onFace(f, along, heightAt(f.x, f.y) - len / 2, 0.03);
         q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(f.dx, 0, f.dy));
         strands.push({
           m: m4.clone().compose(p, q, sc.set(0.04 + r.float() * 0.05, len, 0.02)),

@@ -1,7 +1,7 @@
 # NOISE 3D — the next round
 
-Written Nov 18, 2026, revised the same day after N3 · **status: N0–N3, N8 and N4.1
-built; N4.2 next** · follows 3D build 30 (build 30: the stun gun shoots what you can see)
+Written Nov 18, 2026, revised the same day after N3 · **status: N0–N3, N8, N4.1 and N4.2
+built; N4.3 next** · follows 3D build 31 (build 30: the stun gun shoots what you can see)
 
 > A spec to pick up one phase at a time, whenever there is time. It describes what each
 > phase builds, the numbers it uses, the files it touches, how it is checked and what it
@@ -42,7 +42,8 @@ built; N4.2 next** · follows 3D build 30 (build 30: the stun gun shoots what yo
 | N8.4 | Chunks, a shadow box that follows you, the frame-rate setting; frame budget re-measured | 2–3 days | Medium | **done** (3D build 26; build 25 before it: a held Tab keeps the map up) |
 | N8.5 | Behaviour-first Dispatch: new traits, tactics, bots, 3D constants | 5–7 days | High | **done** (3D build 28; build 27 before it: developer mode) |
 | N4.1 | Art: sky, lighting and weather, and the first three belts (RUST, TIDE, MOSS) | ~3 days | Medium | **done** (3D build 29) |
-| **N4.2** | Art: the other seven belts, a centrepiece per landmark, ruined facades, bloom and colour grade | 5–6 days | Medium | **next** |
+| N4.2 | Art per place (R63): each of the eight kinds of place its own walls, floor, height and fittings, a shade per place, name signs at the gates, wall art without story; on RUST, TIDE and MOSS | 2–3 days | Medium | **done** (3D build 31) |
+| **N4.3** | Art: the other seven belts, places built in from the start; a centrepiece per landmark, bloom and colour grade | 5–6 days | Medium | **next** |
 | N6.1 | Items: the 3D inventory, noise maker, dampers, EMP (the rules layer itself is built in N8.1) | 3–4 days | Medium | not started |
 | N6.2 | Items: portable black box, intel chip, noise generator; balance measured | 3–5 days | Medium | not started |
 | N9.1 | Floors prototype: enterable two-floor buildings in belt 4; stairs for you, vents for them; the N4 art and N6 items patched for floors here | ~1½ weeks (+1–2 days of patching) | High | not started |
@@ -301,6 +302,24 @@ coins by value, teal portal. Belt art may not use large areas of those hues.
 **Estimate:** 8–9 days (a first pass on sky, lighting and three belts in about 3).
 **Difficulty:** medium (art direction more than engineering). **Risk:** laptop GPUs with
 weather and bloom together; measure.
+
+**N4.2 as built (3D build 31).** Asked after N4.1: places should look different, "else
+there is no point in naming the buildings" (R63). `spec-3d.md`, "Places", has the
+details. In short:
+
+- **Belt, then kind of place, then place.** The belt gives the colours, the kind of place
+  the pattern (brick and windows, shutters, hedges...), each place a shade of its own.
+  Streets keep the belt's plain look.
+- **One texture array per surface** holds the street's and every kind of place's
+  textures, picked per instance. Draw calls did not grow (143 at most).
+- **Heights:** tenements 5.4 m, depots 4.4 m. The sim treats every wall as solid at any
+  height (`solid.js`), so the taller drawing changes nothing it decides.
+- **Fittings:** yards' rubble is containers and crates, markets' is kiosks, each exactly as
+  tall as the heap the sim knows; a park's lone wall cells are trees.
+- **Names** on plates at the gates; **wall art** without story (posters, tags, stencils,
+  warnings, peeling paint). The story's wall art is still N5's.
+- **Still N4.3's:** the ruined facades of rubble cells, signs with the district number,
+  landmark centrepieces, bloom, the colour grade, and all of it for belts 4–10.
 
 **N4.1 as built (3D build 29).** `spec-3d.md`, "Belt art", has the details.
 Differences from the plan:

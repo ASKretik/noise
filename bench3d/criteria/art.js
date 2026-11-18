@@ -9,13 +9,13 @@
 // Alongside it, the shape the renderer relies on: every colour a well-formed hex, the
 // light falling (or holding) from dusk to midnight, and the sun under the horizon by the
 // time the moon is up. Belts not yet art-directed (artFor returns null) are listed: they
-// fall back to their 2D palettes in world.js until N4.2.
+// fall back to their 2D palettes in world.js until N4.3.
 
 const PASS = 'PASS', FAIL = 'FAIL';
 
 export const criteria = [{
   n: 16,
-  text: 'Belt art palettes keep clear of the entity colours: no large-area colour within 25° of hue and 0.25 of lightness of an alien, key, coin or portal, dusk to midnight',
+  text: 'Belt art palettes keep clear of the entity colours: no large-area colour (streets and every kind of place) and no sign or wall-art ink within 25° of hue and 0.25 of lightness of an alien, key, coin or portal, dusk to midnight',
   async fn() {
     const { artFor, largeAreaColours, clashes, hexToHsl, BELT_NAMES, ENTITY_COLOURS } = await import('../../web3d/art/belts.js');
     const problems = [];
@@ -52,9 +52,17 @@ export const criteria = [{
       }
     }
     if (!styled.length) problems.push('no belt is art-directed');
+    // N4.2: the signs' plates and lettering and the wall art's inks and papers
+    const { SIGN_COLOURS, DECAL_INKS, POSTER_PAPERS } = await import('../../web3d/art/belts.js');
+    const small = [...Object.entries(SIGN_COLOURS).map(([k, v]) => [`sign ${k}`, v]), ...DECAL_INKS.map((v) => ['ink', v]), ...POSTER_PAPERS.map((v) => ['paper', v])];
+    for (const [what, hex] of small) {
+      checked++;
+      const hit = clashes(hex);
+      if (hit.length) problems.push(`${what} ${hex} clashes with ${hit.join(', ')}`);
+    }
 
     return problems.length
       ? [FAIL, problems.slice(0, 6).join('; ')]
-      : [PASS, `${styled.length} belts art-directed (${styled.join(', ')}): ${checked} large-area colours over ${styled.length * 10} districts, none within 25°/0.25 of ${Object.keys(ENTITY_COLOURS).length} entity colours; horizons darken dusk to midnight. On 2D palettes until N4.2: ${fallback.join(', ')}`];
+      : [PASS, `${styled.length} belts art-directed (${styled.join(', ')}): ${checked} large-area colours over ${styled.length * 10} districts, none within 25°/0.25 of ${Object.keys(ENTITY_COLOURS).length} entity colours; horizons darken dusk to midnight; sign and wall-art colours clear too. On 2D palettes until N4.3: ${fallback.join(', ')}`];
   },
 }];

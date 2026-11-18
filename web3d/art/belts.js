@@ -144,13 +144,74 @@ export function artFor(district) {
   };
 }
 
+// ------------------------------------------------------------------ places (N4.2)
+
+/** The eight kinds of place the city builder makes (sim3d/next/city.js PLACE_TYPES). */
+export const PLACE_TYPE_ORDER = Object.freeze(['tenements', 'plaza', 'market', 'yards', 'park', 'canal', 'depot', 'ruins']);
+
+/**
+ * What each kind of place is built of. The PATTERN is the place's own (brick and windows
+ * for tenements, a hedge for a park); the COLOURS are the belt's, pulled `mix` of the way
+ * toward the place's tint, so RUST tenements are rusty brick and TIDE's are wet. Streets
+ * and avenues keep the belt's plain look, so every place stands out against them.
+ *
+ *   walls     one or two wall patterns (a second one varies the cells: a door, a gap)
+ *   height    how tall its walls are drawn, in metres (the sim treats every wall as solid)
+ *   goods     colours of what fills it (crates, containers, stalls), small areas
+ */
+const PLACE_LOOKS = {
+  tenements: { walls: ['brick', 'brickDoor'], floor: 'cobbles', height: 5.4, wallTint: '#4f3128', floorTint: '#38332f', mix: 0.55, rough: [0.9, 0.85] },
+  plaza: { walls: ['ashlar'], floor: 'paving', height: 3.2, wallTint: '#62615c', floorTint: '#4e4b45', mix: 0.7, rough: [0.8, 0.75] },
+  market: { walls: ['shutters'], floor: 'chequer', height: 3.2, wallTint: '#3f4650', floorTint: '#47433d', mix: 0.5, rough: [0.6, 0.7], metal: 0.3, goods: ['#3c5468', '#55623a', '#504048', '#6a6a62'] },
+  yards: { walls: ['corrugated'], floor: 'gravel', height: 3.2, wallTint: '#43494d', floorTint: '#3a3833', mix: 0.5, rough: [0.65, 0.95], metal: 0.45, goods: ['#2f4a5c', '#3f5233', '#4f3d2e', '#4a4f55'] },
+  park: { walls: ['hedge'], floor: 'grass', height: 3.2, wallTint: '#2a4222', floorTint: '#3a4f2a', mix: 0.8, rough: [0.95, 0.95] },
+  canal: { walls: ['ashlar'], floor: 'setts', height: 3.2, wallTint: '#4b4a45', floorTint: '#3d3c38', mix: 0.45, rough: [0.8, 0.7] },
+  depot: { walls: ['cladding', 'claddingDoor'], floor: 'concrete', height: 4.4, wallTint: '#3c4247', floorTint: '#3f3f3c', mix: 0.5, rough: [0.55, 0.6], metal: 0.5 },
+  ruins: { walls: ['scorched'], floor: 'ash', height: 3.2, wallTint: '#1f1b19', floorTint: '#262321', mix: 0.45, rough: [0.95, 0.97] },
+};
+
+/**
+ * One kind of place in one district's art: { type, walls: [{pattern, base, detail,
+ * rough, metal}], floor: {pattern, base, detail, rough}, height, goods }.
+ */
+export function placeLook(art, type) {
+  const L = PLACE_LOOKS[type];
+  if (!L) return null;
+  const wallBase = mixHex(art.wall.base, L.wallTint, L.mix), wallDetail = mixHex(art.wall.detail, L.wallTint, L.mix * 0.6);
+  const floorBase = mixHex(art.floor.base, L.floorTint, L.mix), floorDetail = mixHex(art.floor.detail, L.floorTint, L.mix * 0.6);
+  return {
+    type, height: L.height, goods: L.goods || null,
+    walls: L.walls.map((pattern) => ({ pattern, base: wallBase, detail: wallDetail, rough: L.rough[0], metal: L.metal || 0 })),
+    floor: { pattern: L.floor, base: floorBase, detail: floorDetail, rough: L.rough[1] },
+  };
+}
+
+/**
+ * Name signs (N4.2): an enamel plate per kind of place, cream lettering. And the wall
+ * art's inks (posters, graffiti, stencils). Small areas, but there are hundreds of them,
+ * so 3D-16 checks these too: no red, gold, copper, violet or teal.
+ */
+export const SIGN_COLOURS = Object.freeze({
+  tenements: '#1d2836', plaza: '#2a2a2e', market: '#1f3326', yards: '#2b2b2b',
+  park: '#1e3322', canal: '#1c2a38', depot: '#141414', ruins: '#2a2522', lettering: '#dcdcd6',
+});
+export const DECAL_INKS = Object.freeze(['#e4e4e2', '#2a2d33', '#4f79c4', '#6e8f3e', '#8c8f96', '#3d5a8a', '#a9b4bf']);
+export const POSTER_PAPERS = Object.freeze(['#b8b4aa', '#8a9bb0', '#7f8f6a', '#9a9a94', '#6f7f99']);
+
 /** The colours that cover a lot of screen in a district, for the legibility rule. */
 export function largeAreaColours(art) {
-  return [
+  const out = [
     ['wall', art.wall.base], ['floor', art.floor.base], ['rubble', art.rubble], ['water', art.water],
     ['props', art.props.base], ['sky zenith', art.sky.zenith], ['sky horizon', art.sky.horizon],
     ['clouds', art.sky.cloud], ['fog', art.fog.color],
   ];
+  // N4.2: every kind of place's walls, floor and goods -- a yard full of containers is a lot of screen
+  for (const type of PLACE_TYPE_ORDER) {
+    const L = placeLook(art, type);
+    out.push([`${type} wall`, L.walls[0].base], [`${type} floor`, L.floor.base]);
+    for (const g of L.goods || []) out.push([`${type} goods`, g]);
+  }
+  return out;
 }
 
 /**

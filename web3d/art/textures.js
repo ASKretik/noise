@@ -15,7 +15,7 @@
 import * as THREE from 'three';
 import { Rng } from '../../sim/prng.js';
 
-function canvas(w, h) {
+export function canvas(w, h) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   return c;
@@ -30,7 +30,7 @@ function texture(cv, { srgb = true } = {}) {
 }
 
 /** A tangent-space normal map from a height canvas (red channel = height), by Sobel. */
-function normalFrom(heightCv, strength) {
+export function normalFrom(heightCv, strength) {
   const w = heightCv.width, h = heightCv.height;
   const src = heightCv.getContext('2d').getImageData(0, 0, w, h).data;
   const out = canvas(w, h), g = out.getContext('2d'), img = g.createImageData(w, h);
@@ -50,20 +50,20 @@ function normalFrom(heightCv, strength) {
   return out;
 }
 
-const rgba = (hex, a) => {
+export const rgba = (hex, a) => {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 };
-const grey = (v, a = 1) => `rgba(${v},${v},${v},${a})`;
+export const grey = (v, a = 1) => `rgba(${v},${v},${v},${a})`;
 
-function speckle(g, rng, w, h, n, colour, alpha, size = 2) {
+export function speckle(g, rng, w, h, n, colour, alpha, size = 2) {
   for (let i = 0; i < n; i++) {
     g.fillStyle = rgba(colour, alpha * (0.4 + rng.float() * 0.6));
     g.fillRect(rng.int(w), rng.int(h), 1 + rng.int(size), 1 + rng.int(size));
   }
 }
 
-function blotch(g, rng, x, y, r, colour, alpha) {
+export function blotch(g, rng, x, y, r, colour, alpha) {
   const grd = g.createRadialGradient(x, y, 0, x, y, r);
   grd.addColorStop(0, rgba(colour, alpha));
   grd.addColorStop(1, rgba(colour, 0));
@@ -71,7 +71,7 @@ function blotch(g, rng, x, y, r, colour, alpha) {
   g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
 }
 
-function streak(g, x, y, wdt, len, colour, alpha) {
+export function streak(g, x, y, wdt, len, colour, alpha) {
   const grd = g.createLinearGradient(0, y, 0, y + len);
   grd.addColorStop(0, rgba(colour, alpha));
   grd.addColorStop(1, rgba(colour, 0));
@@ -239,6 +239,12 @@ const STYLES = {
   mossyStone: (rng, s) => mossyStone(rng, s),
   flagstones: (rng, s) => flagstones(rng, s),
 };
+
+/** The raw canvases of a belt style ({c, h, r?, strength}), for the place layers (N4.2). */
+export function styleCanvases(surface, seed, wall) {
+  const make = STYLES[surface.style];
+  return make ? make(new Rng(seed, `art:${surface.style}`), surface, wall) : null;
+}
 
 /**
  * Textures for a surface of an art-directed belt.

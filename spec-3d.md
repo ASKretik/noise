@@ -88,6 +88,9 @@ web3d/      browser leaves, plus two DOM-free modules
     props.js      instanced wall props: pipes, harbour posts and buoys, vines
     weather.js    one Points cloud, moved and wrapped round the camera in its shader
     sky.js        the sky dome shader: gradient, sun or moon, stars, clouds, canopy, beam
+    places.js     each kind of place's wall and floor patterns (N4.2)
+    layered.js    texture arrays and the material that reads a slice per instance
+    signs.js      name plates at the gates, and the wall art
 3d/         index.html (hub), play.html (district), belts.html (dev)
 vendor/three/0.185.1/   three.js, unmodified, hash-checked (VERSION.md)
 bench3d/    acceptance3d.js, criteria/*.js, hash2d.js, fakeidb.js, measured.json
@@ -465,6 +468,48 @@ midnight rain) mean 3.7 ms, p95 7.1–9.6 ms, 141 calls; district 30 (MOSS) mean
 ms, p95 3.5–11.5 ms, 122 calls; district 100 (fallback art) mean 4.7–6.5 ms, p95
 7.9–10.4 ms, 132 calls.
 
+### Places (N4.2, 3D build 31)
+
+On an art-directed belt's city map, every place looks like what it is. Three levels: the
+**belt** gives the colours (`belts.js placeLook`: the belt's wall and floor colours pulled
+toward the kind's tint), the **kind of place** gives the pattern (`places.js`), and each
+**place** a few per cent of its own shade and warmth. Streets, avenues and alleys
+outside places keep the belt's plain surfaces, so places stand out against them.
+
+| Kind | Walls (height) | Floor | Fittings |
+|---|---|---|---|
+| Tenements | Brick, two storeys of windows, some lit at night; doors on 30 % of cells (5.4 m) | Cobbles | — |
+| Plaza | Dressed stone (monuments, fountain plinths) | Large paving flags | — |
+| Market | Signboard over a roll-down shutter | Chequered tiles | Stalls as kiosks with an awning |
+| Yards | Corrugated fencing | Gravel with ruts | Containers and crates |
+| Park | Clipped hedge | Grass | Lone wall cells are trees, with a crown |
+| Canal | Dressed stone | Granite setts | — |
+| Depot | Ribbed metal, hazard band; loading doors on 30 % (4.4 m) | Concrete, saw cuts, oil | — |
+| Ruins | The belt's wall, burnt and cracked | Ash and brick chips | Rubble darkened |
+
+- **One material per surface.** The street's texture and every kind's are slices of one
+  `DataArrayTexture` each (colour, normal, roughness and metalness, emission), and each
+  wall and floor instance carries `aLayer`, the slice it shows (`layered.js`). The
+  material is a `MeshStandardMaterial` with its map lookups swapped for array lookups.
+  Draw calls did not grow; the arrays take about 26 MB of graphics memory.
+- **Heights are drawn, not simulated.** `solid.js` treats a wall as solid at any height. A
+  wall's face is hidden only by a neighbour at least as tall.
+- **Fittings keep the heap's height.** A yard's containers and a market's kiosks stand
+  exactly as tall as the rubble heap `solid.js` knows, so the stun gun still agrees with
+  what you see. They are drawn whole (one call each), like the tree crowns.
+- **Name plates** (`signs.js`): every place's name, in serif capitals on an enamel plate
+  coloured by its kind. They hang on the wall beside a gate or alley mouth, facing the
+  street, at most two per place on different sides; plazas and canals have a post. At
+  district 20: 48 places, 193 quads.
+- **Wall art** on walls that face open ground: posters, graffiti, stencils, warning plates
+  and peeling paint, from a 64-tile atlas. The chance per face depends on the kind of
+  place (markets 30 %, tenements 20 %, parks none) and rises 0.7× to 1.3× through the
+  belt. No story content. One merged mesh each for signs and wall art: two draw calls.
+- **Belt props** (pipes, harbour posts, vines) skip hedges and monuments, and vines hang
+  from each wall's real top.
+- **Measured** (Medium, 1080p, M3, same session): districts 20 and 30 mean 6.4–8.5 ms,
+  at most 143 calls; the unchanged district 100 5.9–7.5 ms. About 1 ms for the place art.
+
 **Bolts thin out deeper into each belt** (`sim3d/bolts.js`): the generator's bolts are
 kept in full in a belt's first district and cut to `max(1, round(n × (1 − 2k/27)))` at
 depth `k` (0–9), about a third by its tenth; the next belt starts full again. The kept set
@@ -630,9 +675,9 @@ alongside: `npm test` 12/1/0, `npm run webcheck` green).
 | 3D-8 | Save isolation, both sweeps run against each other, guest leaves MAIN byte-identical | PASS |
 | 3D-9 | Headless career: win, score, payout, dossier, unlock, purchase, kit carried on | PASS |
 | 3D-10 | Nothing optional or off-site loads; templated dispatch narrates live 3D state | PASS |
-| 3D-11 | Frame budget, 1080p Medium (re-recorded at build 29 with the belt art: M3, districts 20, 30 and 100, means 2.9–6.5 ms, p95 3.5–11.5 ms, at most 141 draw calls) | PASS, by hand |
+| 3D-11 | Frame budget, 1080p Medium (re-recorded at build 31 with the place art: M3, districts 20, 30 and 100, means 5.9–8.5 ms, p95 9.3–13.6 ms, at most 143 draw calls) | PASS, by hand |
 | 3D-12 | All ten belts legible (recorded screenshot review; re-reviewed at build 29 at dusk and midnight) | PASS, by hand |
-| 3D-16 | Belt art palettes keep clear of the entity colours: no large-area colour within 25° of hue and 0.25 of lightness, every district of every art-directed belt; horizons darken dusk to midnight | PASS |
+| 3D-16 | Belt art palettes keep clear of the entity colours: no large-area colour (streets and every kind of place) and no sign or wall-art ink within 25° of hue and 0.25 of lightness, every district of every art-directed belt; horizons darken dusk to midnight | PASS |
 | 3D-13 | Movement never stutters: no frame under half its heading's speed, walking and sprinting, 0–45° | PASS |
 | 3D-14 | Bolt thinning matches its formula on all 100 districts, deterministic, reachable, applied by the runner | PASS |
 | 3D-15 | Jumpscare and ascension: at most 3 flashes a second, skippable but not before 0.5 s, within length, full/mild/off, the variant is the Jumpscares setting alone | PASS |
