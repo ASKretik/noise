@@ -8,6 +8,22 @@
 
 export const CHANGES = [
   {
+    build: 35,
+    date: '2026-11-18',
+    phase: 'glow setting',
+    changed: [
+      'New setting: Glow and colour grade. Automatic (the default) keeps it as it was: on at High and Medium, off at Low. On turns it on at any quality, Off turns it off at any quality.',
+      'It switches the moment you change it, without a reload, and is remembered like the other settings. Off saves about 3-4 ms a frame at 1080p Medium on this Mac.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R). In a night district (VIOLET 48-50 is the clearest), press Esc, open Settings, and flip Glow and colour grade between on and off to compare.',
+      'If EMBER or VIOLET stutters, try Off there before lowering Quality.',
+    ],
+    unverified: [
+      'Checked in the browser: all three choices at High and at Low, switching live, the choice saved, no shader errors. Not tried on a weaker laptop.',
+    ],
+  },
+  {
     build: 34,
     date: '2026-11-18',
     phase: 'N4.3 (3 of 3)',

@@ -551,7 +551,7 @@ outside places keep the belt's plain surfaces, so places stand out against them.
 
 ### Glow and grade (N4.3, 3D build 34)
 
-`post.js`, on at Medium and High (Low draws straight to the screen):
+`post.js`, set by **Settings › Glow and colour grade** (build 35): automatic (the default) is on at Medium and High and off at Low; on and off override the quality tier. It switches live (`Play3D.applyGlow`) and is saved with the other settings.
 
 1. **The scene** is drawn into a half-float target, multisampled 2× on Medium and 4× on
    High, so anything brighter than white keeps its excess. Glowing props and landmark

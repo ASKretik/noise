@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   sound: true,
   jumpscares: 'full',        // full | mild | off
   fpsCap: 'auto',            // 'auto' (the display's own rate) | 60 | 30 -- N8.4
+  glow: 'auto',              // 'auto' (on at High and Medium, off at Low) | 'on' | 'off' -- bloom and grade, N4.3
 });
 
 export function loadSettings() {

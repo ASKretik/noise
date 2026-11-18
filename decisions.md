@@ -3015,11 +3015,31 @@ three builds so each could be reviewed: the belts, then the landmarks, then the 
 - whether each belt's look is right (the user's call);
 - the grade's subtlety on a calibrated display.
 
+## R65 · Glow gets its own setting (3D build 35)
+
+**Asked:** "Add glow setting". I offered it after build 34 measured bloom and grade at
+about 3–4 ms a frame on Medium, with EMBER and VIOLET's slowest frames at 16–19 ms.
+
+**Built:** Settings › Glow and colour grade:
+
+- **automatic** (the default): on at High and Medium, off at Low, exactly as in build 34;
+- **on:** on at any quality, Low included (no multisampling there);
+- **off:** off at any quality.
+
+It switches the moment it changes (`Play3D.applyGlow` creates or drops the post
+pipeline, and the belt's grade is reapplied) and is saved in `noise3d-settings-v2`. A
+player can now drop the glow alone, keeping shadows and resolution.
+
+**Checked in the browser:** all three choices at High and at Low, switching live, the
+choice saved, no shader errors.
+
+**Not verified:** a weaker laptop.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    26 passed · 0 not demonstrated · 0 failed  (3D build 34; 3D-1 via the
+npm run test3d    26 passed · 0 not demonstrated · 0 failed  (3D build 35; 3D-1 via the
                   2D suites above, run alongside)
 ```

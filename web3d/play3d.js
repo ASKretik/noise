@@ -71,8 +71,8 @@ export class Play3D {
       antialias: this.quality.antialias,
     });
     this.view.renderer.shadowMap.enabled = this.quality.shadows;
-    // N4.3: bloom and the belt's grade on High (half-resolution glow) and Medium (quarter); Low draws plain
-    if (this.quality.id !== 'low') this.view.setPost(createPost(this.view.renderer, { scale: this.quality.id === 'high' ? 0.5 : 0.25, samples: this.quality.id === 'high' ? 4 : 2 }));
+    // N4.3: bloom and the belt's grade, by the Glow setting (applyGlow)
+    this.applyGlow();
 
     this.audio = new Audio3D();
     this.controls = new Controls($('view'));
@@ -774,8 +774,28 @@ export class Play3D {
     $('s-jumpscare').value = s.jumpscares || 'full';
     $('s-fps').value = String(s.fpsCap || 'auto');
     $('s-fps').addEventListener('change', (e) => { s.fpsCap = e.target.value === 'auto' ? 'auto' : Number(e.target.value); saveSettings(s); });
+    $('s-glow').value = s.glow || 'auto';
+    $('s-glow').addEventListener('change', (e) => { s.glow = e.target.value; saveSettings(s); this.applyGlow(); });
     $('s-jumpscare').addEventListener('change', (e) => { s.jumpscares = e.target.value; saveSettings(s); });
     $('s-quality').addEventListener('change', (e) => setQuality(e.target.value));
+  }
+
+  /**
+   * Glow and colour grade (web3d/post.js), switched live by the Glow setting: automatic
+   * means on at High (half-resolution glow, 4x multisampling) and Medium (quarter, 2x)
+   * and off at Low. It costs about 3-4 ms a frame at 1080p Medium on an M3, which is why
+   * it is a setting of its own and not only part of Quality.
+   */
+  applyGlow() {
+    const g = this.settings.glow || 'auto';
+    const want = g === 'on' || (g === 'auto' && this.quality.id !== 'low');
+    if (want && !this.view.post) {
+      const q = this.quality.id;
+      this.view.setPost(createPost(this.view.renderer, { scale: q === 'high' ? 0.5 : 0.25, samples: q === 'high' ? 4 : q === 'medium' ? 2 : 0 }));
+      if (this.world) this.view.post.setGrade(this.world.art.grade);
+    } else if (!want && this.view.post) {
+      this.view.setPost(null);
+    }
   }
 
   // ---------------------------------------------------------------- tuning panel
