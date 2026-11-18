@@ -8,6 +8,23 @@
 
 export const CHANGES = [
   {
+    build: 22,
+    date: '2026-11-18',
+    phase: 'N8.1',
+    changed: [
+      'Keys are easy to find on the Tab map: each one has a gold beacon with rings pulsing out about once a second, a breathing marker and its distance. When the portal opens it gets a teal one. Your own arrow stays the same size however big the map is.',
+      'Alien speed per tier is now 0.5x (EASY), 0.75x (MEDIUM), 1x (HARD) and 1.3x (ULTRA) of full speed. Before, the first three were held to three-quarters of that (0.375x, 0.56x, 0.75x) and ULTRA was 1x. Every tier is about a third faster.',
+      'In practice a hunting alien now runs at 29-33% of your walking speed on EASY, 43-50% on MEDIUM, 57-67% on HARD and 74-87% on ULTRA, rising over districts 1-10. On ULTRA, outrunning one rarely works: hide.',
+      'The tier picker in the hub shows the new speeds.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R), hold Tab and find the keys. Then get spotted on your usual tier and see whether you can still break away.',
+    ],
+    unverified: [
+      'The new speeds have only been played by bots (they still win district 1 on EASY). Whether HARD still feels fair is your call.',
+    ],
+  },
+  {
     build: 21,
     date: '2026-11-18',
     phase: 'N8.1',

@@ -6,6 +6,7 @@
 
 import { Dossier } from '../sim/predictor/dossier.js';
 import { DIFFICULTIES, DIFFICULTY_IDS, difficultyOf } from '../sim/difficulty.js';
+import { TIER_SPEED_3D, TIER_BLURB_3D } from '../sim3d/next/rules.js';
 import { SHOP_ITEMS, canBuy, STUN_GUN_CAPACITY } from '../sim/shop.js';
 import { DISTRICT_THEMES, BLOCK_SIZE, TOTAL_DISTRICTS } from '../web/themes.js';
 import { install as installTheme } from '../web/theme.js';
@@ -92,7 +93,7 @@ async function chooseTier(id) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'l3-tier';
-    b.innerHTML = `<b>${t.label}</b><span>aliens at ${Math.round(t.speedFactor * 100)}% speed · score ×${t.scoreMult.toFixed(2)}</span><em>${esc(t.blurb)}</em>`;
+    b.innerHTML = `<b>${t.label}</b><span>aliens at ${Math.round(TIER_SPEED_3D[tid] * 100)}% speed · score ×${t.scoreMult.toFixed(2)}</span><em>${esc(TIER_BLURB_3D[tid] || t.blurb)}</em>`;
     b.addEventListener('click', () => { store.chooseDifficulty(tid); openHub(id); });
     host.append(b);
   }

@@ -6,7 +6,6 @@
 // what happens. Keeping it DOM-free is what lets the whole loop run under Node.
 
 import { createSystem, resolveDifficulty } from '../sim/system.js';
-import { levelParams } from '../sim/difficulty.js';
 import { regionAdjacency } from '../sim/regions.js';
 import { FieldPool } from '../sim/pathfind.js';
 import { hashString } from '../sim/prng.js';
@@ -15,7 +14,7 @@ import { Game3D } from '../sim3d/game3d.js';
 import { Session3D } from '../sim3d/session.js';
 import { TICK_HZ_3D } from '../sim3d/units.js';
 import { thinBolts } from '../sim3d/bolts.js';
-import { generateDistrict, rulesetOf, maxTicksFor } from '../sim3d/next/rules.js';
+import { generateDistrict, rulesetOf, maxTicksFor, paramsFor } from '../sim3d/next/rules.js';
 import { sizeFor } from '../sim3d/next/size.js';
 
 /** One field pool per map size, shared by every runner: a district reuses its buffers. */
@@ -45,8 +44,8 @@ export class DistrictRunner {
   constructor(o) {
     this.o = o;
     this.district = o.district;
-    this.params = levelParams(o.district, o.tier);
     this.ruleset = rulesetOf(o.ruleset);
+    this.params = paramsFor(this.ruleset, o.district, o.tier);
     const size = this.ruleset === 'classic' ? 32 * 20 : sizeFor(o.district).w * sizeFor(o.district).h;
     const pool = poolFor(size);
     this.level = generateDistrict(this.ruleset, o.profileId, o.district, { pool, params: this.params });

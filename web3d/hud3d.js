@@ -179,7 +179,40 @@ export class Hud3D {
       const c = mc.getContext('2d');
       c.setTransform(dpr * k, 0, 0, dpr * k, 0, 0);
       c.drawImage(this.boardCanvas, 0, 0);
-      c.translate(body.x * T, body.y * T);
+
+      // Beacons over the keys and the portal, at a fixed screen size: on a city map the
+      // board's own key icons shrink to a few pixels and are easy to miss. Rings pulse out
+      // about once a second (well under the 3-a-second flash limit) and the marker breathes.
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const now = performance.now() / 1000;
+      const beacon = (cx, cy, color, label, phase0) => {
+        const px = (cx + 0.5) * T * k, py = (cy + 0.5) * T * k;
+        for (const off of [0, 0.5]) {
+          const ph = (now / 1.2 + phase0 + off) % 1;
+          c.globalAlpha = (1 - ph) * 0.9;
+          c.strokeStyle = color; c.lineWidth = 2.5;
+          c.beginPath(); c.arc(px, py, 6 + 22 * ph, 0, Math.PI * 2); c.stroke();
+        }
+        c.globalAlpha = 0.6 + 0.4 * (0.5 + 0.5 * Math.sin((now + phase0) * Math.PI * 2.4));
+        c.fillStyle = color; c.strokeStyle = '#05070a'; c.lineWidth = 2;
+        c.beginPath(); c.moveTo(px, py - 8); c.lineTo(px + 6, py); c.lineTo(px, py + 8); c.lineTo(px - 6, py); c.closePath();
+        c.stroke(); c.fill();
+        c.globalAlpha = 1;
+        c.font = '600 11px ui-monospace, Menlo, monospace';
+        c.lineWidth = 3; c.strokeStyle = 'rgba(5,7,10,0.85)'; c.fillStyle = color;
+        const right = px + 11 + c.measureText(label).width < cw;   // flip the label at the right edge
+        c.textAlign = right ? 'left' : 'right';
+        const lx = right ? px + 11 : px - 11;
+        c.strokeText(label, lx, py + 4); c.fillText(label, lx, py + 4);
+        c.textAlign = 'left';
+      };
+      const metres = (x, y) => `${Math.round(Math.hypot(x + 0.5 - body.x, y + 0.5 - body.y) * cellM)} m`;
+      game.caches.forEach((q, i) => { if (!q.collected) beacon(q.x, q.y, COLORS.key, metres(q.x, q.y), i * 0.17); });
+      if (game.portalRevealed) beacon(game.portal.x, game.portal.y, COLORS.portal, `PORTAL ${metres(game.portal.x, game.portal.y)}`, 0);
+
+      // you: the same arrow at a fixed screen size, so it does not shrink with the map
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      c.translate(body.x * T * k, body.y * T * k);
       c.rotate(-yaw);
       c.fillStyle = COLORS.beacon; c.strokeStyle = '#041014'; c.lineWidth = 2;
       c.beginPath(); c.moveTo(0, -11); c.lineTo(7, 8); c.lineTo(0, 4); c.lineTo(-7, 8); c.closePath(); c.stroke(); c.fill();
