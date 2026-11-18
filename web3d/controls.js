@@ -49,20 +49,27 @@ export class Controls {
       if (e.target?.closest?.('input, select, textarea')) return;
       if (MOVE[e.code]) { this.held.add(MOVE[e.code]); e.preventDefault(); this.emit('move'); }
       if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.sprint = true;
+      // The map stays up for as long as Tab (or M) is held. Every keydown is swallowed,
+      // auto-repeats included: a repeat that slipped through did the browser's own Tab,
+      // walking focus off the page, and the window blur that follows closed the map --
+      // which is why a held Tab only flashed it (3D build 24, fixed in 25).
+      if (e.code === 'Tab' || e.code === 'KeyM') {
+        e.preventDefault();
+        if (!this.mapOpen) { this.mapOpen = true; this.emit('map', true); }
+      }
       if (e.repeat) return;
       if (e.code === 'KeyR') this.emit('restart');
       if (e.code === 'KeyL') this.emit('bolt');
       if (e.code === 'KeyH') this.emit('toggle', 'heatmap');
       if (e.code === 'KeyV') this.emit('toggle', 'visited');
       if (e.code === 'KeyI') this.emit('toggle', 'intercepts');
-      if (e.code === 'Tab' || e.code === 'KeyM') { e.preventDefault(); this.mapOpen = true; this.emit('map', true); }
       if (e.code === 'Backquote') this.emit('tune');
       this.emit('any');
     });
     window.addEventListener('keyup', (e) => {
       if (MOVE[e.code]) this.held.delete(MOVE[e.code]);
       if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.sprint = false;
-      if (e.code === 'Tab' || e.code === 'KeyM') { this.mapOpen = false; this.emit('map', false); }
+      if (e.code === 'Tab' || e.code === 'KeyM') { e.preventDefault(); this.mapOpen = false; this.emit('map', false); }
     });
     window.addEventListener('blur', () => {
       this.held.clear(); this.sprint = false;

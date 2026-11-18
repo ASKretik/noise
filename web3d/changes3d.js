@@ -8,6 +8,20 @@
 
 export const CHANGES = [
   {
+    build: 25,
+    date: '2026-11-18',
+    phase: 'N8.3',
+    changed: [
+      'Holding Tab (or M) now keeps the map up for as long as you hold it. Before, it only flashed: once your keyboard started repeating Tab, each repeat did the browser\'s own Tab and moved focus off the page, and losing focus closed the map.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R), hold Tab for a few seconds, scroll to zoom and drag around while holding it.',
+    ],
+    unverified: [
+      'Tested with simulated key repeats (every one is now swallowed); a real held key could not be pressed from here.',
+    ],
+  },
+  {
     build: 24,
     date: '2026-11-18',
     phase: 'N8.3',

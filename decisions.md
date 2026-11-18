@@ -2492,6 +2492,30 @@ the clamped one.
   trackpad.
 - Run length is from bots only.
 
+---
+
+## R56 · A held Tab only flashed the map (3D build 25)
+
+**Asked:** "pressing tab, only blinks the map once, i want the map to be displayed as long
+as tab is being pressed".
+
+**Why.** The keydown handler returned early on auto-repeats (`if (e.repeat) return`)
+*before* reaching the Tab check, so only the first Tab keydown was cancelled. Every
+repeat after it did the browser's own Tab: focus walked through the page's few
+focusable elements and out to the browser's own toolbar. The window then lost focus, and
+build 24's guard against alt-tab (close the map on window blur) closed it. Even without
+that guard, focus leaving the page can end the pointer lock, which also closes the map.
+
+**Fixed:** every Tab and M keydown is cancelled, repeats included, and the map opens
+once; the keyup is cancelled too.
+
+**Checked:**
+
+- In the browser, one keydown and twelve repeats were all cancelled; the map stayed up
+  while held and closed on release.
+- A real held key cannot be pressed from here; synthetic events do not perform the
+  browser's default actions.
+
 ## Current state
 
 ```
