@@ -1,7 +1,7 @@
 # NOISE 3D — the next round
 
-Written Nov 18, 2026, revised the same day after N3 · **status: N0–N3 and N8.1–N8.4
-built; N8.5 next** · follows 3D build 26
+Written Nov 18, 2026, revised the same day after N3 · **status: N0–N3 and N8 built;
+N4.1 next** · follows 3D build 28
 
 > A spec to pick up one phase at a time, whenever there is time. It describes what each
 > phase builds, the numbers it uses, the files it touches, how it is checked and what it
@@ -40,8 +40,8 @@ built; N8.5 next** · follows 3D build 26
 | N8.2 | Aliens: arrival cap, hunting / patrol / travel speeds, arrivals near you; route-planning spread out so it never hitches | 3–4 days | Medium | **done** (3D build 23; build 22 before it: Tab map key beacons and the user's tier speeds) |
 | N8.3 | Keys (4 → 10) and portal placement; Tab map zoom, pan and place names; run length measured | 2–3 days | Medium | **done** (3D build 24) |
 | N8.4 | Chunks, a shadow box that follows you, the frame-rate setting; frame budget re-measured | 2–3 days | Medium | **done** (3D build 26; build 25 before it: a held Tab keeps the map up) |
-| **N8.5** | Behaviour-first Dispatch: new traits, tactics, bots, 3D constants | 5–7 days | High | **next** |
-| N4.1 | Art: sky, lighting and weather, and the first three belts (RUST, TIDE, MOSS) | ~3 days | Medium | not started |
+| N8.5 | Behaviour-first Dispatch: new traits, tactics, bots, 3D constants | 5–7 days | High | **done** (3D build 28; build 27 before it: developer mode) |
+| **N4.1** | Art: sky, lighting and weather, and the first three belts (RUST, TIDE, MOSS) | ~3 days | Medium | **next** |
 | N4.2 | Art: the other seven belts, a centrepiece per landmark, ruined facades, bloom and colour grade | 5–6 days | Medium | not started |
 | N6.1 | Items: the 3D inventory, noise maker, dampers, EMP (the rules layer itself is built in N8.1) | 3–4 days | Medium | not started |
 | N6.2 | Items: portable black box, intel chip, noise generator; balance measured | 3–5 days | Medium | not started |
@@ -688,6 +688,26 @@ apart, both halves, one per place. The details:
 - **The shadow box is 90 m across, not 60**, so its edge falls well into the fog.
 - **The result:** district 100 on Medium went from a 12.4 ms mean and 17.0 ms p95 to
   5.3–8.4 ms and about 11 ms. 3D-11 is re-recorded at build 26.
+
+**N8.5 as built (3D build 28).** `spec-3d.md`, "The Dispatch learns habits, not
+rooms", has the details. Differences from the plan:
+
+- **The habit file is separate from the dossier.** It is `profile.habits3d`; the 20
+  traits are unchanged and keep their 2D couplings. The "couplings3d" step was not
+  needed: the tactics carry the behaviour, and prediction beats uniform 7× or more on
+  geometry alone.
+- **The baseline is the five ordinary bots only.** The habit bots are what it has to
+  tell apart from ordinary play. The spread floor is 0.05, so a habit no ordinary bot
+  has (reading the map) still needs a clear amount of it.
+- **Measuring the habits took three passes** (decisions.md R60):
+  - the map state was not on the game's view at first;
+  - corner hesitation happens on the approach, so the zone is two cells, not one;
+  - "under threat" has to be judged before the step, or escapes don't count;
+  - a step toward the key isn't fleeing.
+- **The hide tactic was changed after measurement.** Sending aliens to water on a calm
+  hider's route made it *harder* to catch (15 of 20 caught against 19). It now acts only
+  once you have gone to ground. The runner's flank point moved to 5–11 cells so it can
+  be reached in time.
 
 ### Criteria
 

@@ -8,6 +8,25 @@
 
 export const CHANGES = [
   {
+    build: 28,
+    date: '2026-11-18',
+    phase: 'N8.5',
+    changed: [
+      'The Dispatch now learns your habits, not your favourite rooms. Five of them, measured every run and kept in your save file: whether you hide when they are near, stop at corners, get lost, stand still reading the map, or run when seen.',
+      'Each habit it is sure of gets a counter-tactic. Hide, and once you have gone to ground they search the water where you were last seen, and wait outside your black box. Stop at corners, and they wait just round the next corner on your route. Get lost, and they cut you off between you and the key you need. Stand still over the map, and the nearest ones walk to you. Run, and they flank the side you run to.',
+      'A tactic only exists once a habit is clearly yours, and grows as the file backs it up. If you do not have the habit, nothing changes: tested tick for tick.',
+      'The intercepted chatter now says what it has on you, for example: File note: subject stops at corners. Units, hold just round the next corner on its route.',
+      'Its guess of where you will be in five seconds now comes only from where you can physically get to, so it no longer learns which rooms you like.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R). Play a few districts with one habit on purpose (stand still with Tab held, or hide in water whenever they come near) and watch the chatter and where they turn up.',
+      'In dev mode, tick "they can\'t catch me" to watch the tactics play out without dying.',
+    ],
+    unverified: [
+      'Tested with bots that exaggerate each habit. Whether the tactics feel clever or unfair to a person is your call. Each one\'s strength is a single number in the code.',
+    ],
+  },
+  {
     build: 27,
     date: '2026-11-18',
     phase: 'dev mode',

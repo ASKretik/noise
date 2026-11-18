@@ -157,9 +157,12 @@ export class Hud3D {
   }
 
   /** Templated dispatch from live predictor state. The model path never runs on this page. */
-  narrate({ game, prediction, dossier, chain, lastSpawn, level, profile, mode }) {
+  narrate({ game, prediction, dossier, chain, lastSpawn, level, profile, mode, habits }) {
     const state = buildState({ game, prediction, dossier, chain, lastSpawn, level, profile, mode });
-    this.dispatch(templated(state), 'template');
+    // N8.5: once the file holds a habit the aliens act on, the chatter says which.
+    const h = habits?.strongest?.();
+    const note = h ? ` File note: subject ${h.hint}. Units, ${h.tactic}.` : '';
+    this.dispatch(templated(state) + note, 'template');
   }
 
   /**

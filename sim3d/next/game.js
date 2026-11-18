@@ -23,6 +23,8 @@ import { stepDownhill, UNREACHABLE, HUMAN, ALIEN } from '../../sim/pathfind.js';
 import { lineOfSight } from '../raycast.js';
 import { FastFields } from './field.js';
 import { timeLimitTicks } from './rules.js';
+import { cornerMask } from '../dispatch/habits.js';
+import { tacticTargets, TACTIC_ALIENS } from '../dispatch/tactics.js';
 
 /** Target fields kept: enough for every alien's route plus the shared search targets. */
 export const FIELD_CACHE = 80;
@@ -34,11 +36,96 @@ export const FIELD_CACHE = 80;
  */
 export const COMMIT_TICKS = 24;
 
+/** Stand still with the map open this long (ticks, at full strength 1.5 s) and they come. */
+export const MAP_STILL_TICKS = 6;
+
 export class Game3DNext extends Game3D {
+  /**
+   * @param {object} o  Game3D's options, plus
+   * @param {import('../dispatch/habits.js').HabitFile} [o.habits]  the file on your habits
+   *   (N8.5); its tactic strengths are fixed for the run
+   */
   constructor(o) {
     super(o);
     // The time limit follows this run's own route (N8.3); see timeLimitTicks.
     if (o.maxTicks == null) this.maxTicks = timeLimitTicks(this.par);
+    this.habits = o.habits || null;
+    this.tacticStrength = this.habits ? this.habits.strengths() : null;
+    this.mapOpen = false;
+    this.mapStill = 0;
+    // The habit measure reads the map state off the view, like everything else it reads.
+    Object.defineProperty(this._view, 'mapOpen', { get: () => this.mapOpen, enumerable: true });
+    this.tacticMoves = 0;          // aliens sent by a tactic, for the bench
+  }
+
+  /**
+   * One tick, as in Game3D, plus whether the Tab map was open: it is part of the input
+   * record, because the "map" tactic acts on it, so replays must see it.
+   */
+  step(inputDir = -1, actions = null) {
+    this.mapOpen = !!actions?.mapOpen;
+    const before = this.player.x * 65536 + this.player.y;
+    const live = super.step(inputDir, actions);
+    if (!live) return live;
+    const still = this.player.x * 65536 + this.player.y === before;
+    this.mapStill = this.mapOpen && still && this.started ? this.mapStill + 1 : 0;
+    const s = this.tacticStrength?.map || 0;
+    if (s > 0 && this.alertTicks === 0 && this.mapStill >= Math.round(MAP_STILL_TICKS / s) && this.mapStill % 8 === Math.round(MAP_STILL_TICKS / s) % 8) {
+      this._closeIn(Math.max(1, Math.round(TACTIC_ALIENS * s)));
+    }
+    return live;
+  }
+
+  /** "Map" tactic: the nearest aliens walk to where you are standing reading the map. */
+  _closeIn(n) {
+    const near = this.patrols
+      .filter((p) => !this._isInert(p) && p.mode !== 'hunt' && p.mode !== 'cutoff')
+      .map((p) => ({ p, d: euclid(p.x, p.y, this.player.x, this.player.y) }))
+      .filter((e) => e.d <= 60)
+      .sort((a, b) => a.d - b.d || a.p.id - b.p.id)
+      .slice(0, n);
+    const at = { x: this.player.x, y: this.player.y, region: this.regions.regionOf[this.player.y * this.map.w + this.player.x] };
+    for (const { p } of near) {
+      this._setTarget(p, at, 'intercept');
+      p.tactic = 'map';
+      this.tacticMoves++;
+    }
+  }
+
+  /**
+   * Which aliens the habit tactics take this re-plan, and where they go: id -> target.
+   * The rest follow the squad plan. Chasers are never taken, and at least one alien is
+   * always left to the plan.
+   */
+  _tacticPlan(plan, hunting) {
+    const out = new Map();
+    const S = this.tacticStrength;
+    if (!S) return out;
+    const keys = hunting ? ['run'] : ['hide', 'corner', 'lost'];
+    if (!keys.some((k) => S[k] > 0)) return out;
+    const corners = this._corners || (this._corners = cornerMask(this.map));
+    const free = this.patrols.filter((p) => !this._isInert(p) && plan.get(p.id)?.role !== 'chase');
+    let left = free.length - 1;
+    for (const key of keys) {
+      const s = S[key] || 0;
+      if (!(s > 0) || left <= 0) continue;
+      const targets = tacticTargets(this, key, corners);
+      if (!targets.length) continue;
+      let n = Math.min(left, Math.max(1, Math.round(TACTIC_ALIENS * s)));
+      for (let k = 0; n > 0 && k < n * 2; k++) {
+        const t = targets[k % targets.length];
+        let best = null, bd = Infinity;
+        for (const p of free) {
+          if (out.has(p.id)) continue;
+          const d = euclid(p.x, p.y, t.x, t.y);
+          if (d < bd || (d === bd && best && p.id < best.id)) { bd = d; best = p; }
+        }
+        if (!best) break;
+        out.set(best.id, { ...t, key, region: this.regions.regionOf[t.y * this.map.w + t.x], role: hunting ? 'cutoff' : 'intercept' });
+        n--; left--;
+      }
+    }
+    return out;
   }
 
   // Built lazily: the 2D constructor already asks for fields before this one returns.
@@ -127,7 +214,21 @@ export class Game3DNext extends Game3D {
     if (!force && this.tick % every !== 0) return;
     const plan = this.spawnPolicy.assign(this.view, this.rngSpawn, this.patrols);
     if (!plan) return;
+    const tactics = this._tacticPlan(plan, this.alertTicks > 0);
     for (const p of this.patrols) {
+      // N8.5: an alien a habit tactic takes goes where the tactic says. It keeps its route
+      // if it is already on that tactic and the target has moved less than 4 cells.
+      const tt = tactics.get(p.id);
+      if (tt) {
+        p.role = tt.role;
+        const same = p.tactic === tt.key && p.target && p.field && Math.abs(p.target.x - tt.x) + Math.abs(p.target.y - tt.y) < 4;
+        if (same) { p.mode = tt.role; continue; }
+        this._setTarget(p, tt, tt.role);
+        p.tactic = tt.key;
+        this.tacticMoves++;
+        continue;
+      }
+      if (p.tactic !== 'map') p.tactic = null;
       const t = plan.get(p.id);
       if (!t) continue;
       p.role = t.role;

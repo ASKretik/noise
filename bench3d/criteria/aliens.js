@@ -22,7 +22,12 @@ import { makeBot, BOT_NAMES } from '../../bots/policies.js';
 
 const PASS = 'PASS', FAIL = 'FAIL';
 const TIERS = ['easy', 'medium', 'hard', 'ultra'];
-/** Bounds in full-map searches: about 4 ms (p99) and 8 ms (worst) on the M3 it was built on. */
+/**
+ * Bounds in full-map searches: about 4 ms at the 99th percentile and 8 ms at the 99.9th
+ * on the M3 it was built on. Not the single slowest tick: a garbage-collection pause can
+ * land on any tick of any JavaScript, and once put one at 45 ms in a run whose 99th
+ * percentile was 3 ms (decisions.md R60).
+ */
 const P99_FIELDS = 32, WORST_FIELDS = 64;
 
 function drive(r, botName, seed, ticks, onTick) {
@@ -42,7 +47,7 @@ function drive(r, botName, seed, ticks, onTick) {
 export const criteria = [
   {
     n: 28,
-    text: `Smooth on big maps: at district 100 with the city filling up, new route fields per tick never exceed twice the budget, and the tick's sim work stays under ${P99_FIELDS} full-map searches at the 99th percentile and ${WORST_FIELDS} at worst`,
+    text: `Smooth on big maps: at district 100 with the city filling up, new route fields per tick never exceed twice the budget, and the tick's sim work stays under ${P99_FIELDS} full-map searches at the 99th percentile and ${WORST_FIELDS} at the 99.9th`,
     async fn() {
       const problems = [];
       const times = [];
@@ -70,12 +75,14 @@ export const criteria = [
         });
       }
       times.sort((a, b) => a - b);
-      const p99 = times[Math.floor(times.length * 0.99)], worst = times[times.length - 1];
+      const p99 = times[Math.floor(times.length * 0.99)], worst = times[Math.floor(times.length * 0.999)];
       if (worstBuilt > 2 * budget) problems.push(`${worstBuilt} route fields built in one tick, ceiling ${2 * budget}`);
       if (p99 / fieldMs > P99_FIELDS) problems.push(`p99 tick ${p99.toFixed(2)} ms = ${(p99 / fieldMs).toFixed(0)} searches`);
-      if (worst / fieldMs > WORST_FIELDS) problems.push(`worst tick ${worst.toFixed(2)} ms = ${(worst / fieldMs).toFixed(0)} searches`);
+      if (worst / fieldMs > WORST_FIELDS) problems.push(`p99.9 tick ${worst.toFixed(2)} ms = ${(worst / fieldMs).toFixed(0)} searches`);
+      const slowest = times[times.length - 1];
       const detail = `${ticks} ticks, up to ${maxPop} aliens; at most ${worstBuilt} new routes in a tick (budget ${budget}); ` +
-        `one full-map search ${fieldMs.toFixed(3)} ms; tick p99 ${p99.toFixed(2)} ms (${(p99 / fieldMs).toFixed(0)} searches), worst ${worst.toFixed(2)} ms (${(worst / fieldMs).toFixed(0)})`;
+        `one full-map search ${fieldMs.toFixed(3)} ms; tick p99 ${p99.toFixed(2)} ms (${(p99 / fieldMs).toFixed(0)} searches), ` +
+        `p99.9 ${worst.toFixed(2)} ms (${(worst / fieldMs).toFixed(0)}), slowest ${slowest.toFixed(2)} ms`;
       return problems.length ? [FAIL, `${problems.join('; ')} -- ${detail}`] : [PASS, detail];
     },
   },

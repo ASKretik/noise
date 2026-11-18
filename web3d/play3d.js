@@ -19,6 +19,7 @@ import { Fx3D } from './fx3d.js';
 import { variantFor } from './sequences.js';
 import { Touch3D, isTouchDevice } from './touch3d.js';
 import { DistrictRunner } from './runner.js';
+import { HabitFile } from '../sim3d/dispatch/habits.js';
 import { installDevRun } from './dev3d.js'; // DEV-MODE
 import { mountBanner } from './banner.js';
 import { loadSettings, saveSettings } from './settings3d.js';
@@ -56,6 +57,8 @@ export class Play3D {
     this.attempt = 0;
     this.chains = new Map();
     this.dossier = null;
+    /** The sandbox's file on your habits, for this page only (a career's is saved). */
+    this.habits = new HabitFile();
     this.paused = true;
     this.t = 0;
     this.bob = 0;
@@ -168,6 +171,7 @@ export class Play3D {
         tickHz: this.tune.tickHz,
         loadout: this.loadout(),
         ruleset: this.ruleset,
+        habits: this.habits,
       });
     this.runner.session.response = this.tune.response;
     this.dossier = this.runner.dossier;
@@ -375,7 +379,7 @@ export class Play3D {
     const r = this.runner;
     this.hud.narrate({
       game: r.game, prediction: r.prediction, dossier: r.dossier, chain: r.chain,
-      lastSpawn: r.lastSpawn, level: r.district,
+      lastSpawn: r.lastSpawn, level: r.district, habits: r.habits,
       profile: this.profileName(), mode: r.mode,
     });
   }
@@ -477,6 +481,7 @@ export class Play3D {
     clearTimeout(this.overlayTimer);
     const saved = this.career ? this.career.finishRun(this.runner) : Promise.resolve(null);
     if (!this.career) this.dossier.update(this.runner.system.traits || this.runner.system.liveTraits(), { levelCompleted: summary.won });
+    if (!this.career && this.runner.habitValues) this.habits.update(this.runner.habitValues);
     // the end card waits for the sequence; the timer is only a fallback for a hidden tab
     const fallback = new Promise((res) => { this.overlayTimer = setTimeout(res, (this.fx.run.def.duration + 0.6) * 1000); });
     const runner = this.runner;
@@ -546,6 +551,7 @@ export class Play3D {
     const r = this.runner;
     const g = r.game;
     const intent = this.touch ? this.touch.intent(this.controls.yaw) : this.controls.intent();
+    intent.mapOpen = !this.hud.map.hidden;     // part of the input record since N8.5
     this.fps += ((dt > 0 ? 1 / dt : 60) - this.fps) * 0.05;
     // awake aliens are solid to your body: you bump into one and it gets you
     if (!this.paused && !g.over) r.update(dt, intent, this.entities.solids());

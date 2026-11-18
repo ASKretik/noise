@@ -68,6 +68,11 @@ sim3d/      pure, Node-runnable, imports only sim/ and sim3d/
     game.js       Game3DNext extends Game3D: populations, travel, route budget (N8.2)
     spawn.js      arrivals: in a band round you, out of sight, weighted by the prediction
     field.js      FastFields: the same BFS numbers as sim/pathfind.js, 12-15x faster
+  dispatch/     the 3D Dispatch (N8.5): habits, not rooms
+    habits.js     five habit measures, the per-profile habit file, tactic strengths
+    priors3d.js   GENERATED (npm run priors3d): the bot population's habit baseline
+    geometry.js   GeometryChain: tier 1 as "where you can reach in k ticks", nothing learned
+    tactics.js    the targets each habit's tactic sends aliens to
 web3d/      browser leaves, plus two DOM-free modules
   runner.js     DOM-free: level, predictor system, Game3D, Session3D for one district
   career3d.js   DOM-free: difficulty, attempts, scoring, payout, unlocks from /sim
@@ -312,6 +317,60 @@ fixed screen size. It has rings pulsing out about once a second (under the 3-fla
 limit), a breathing marker and its distance. The portal gets a teal one. The player's
 arrow no longer shrinks with the map.
 
+### The Dispatch learns habits, not rooms (N8.5, 3D build 28)
+
+On `next`, the predictor keeps the 2D game's arithmetic (`sim/predictor/combine.js`) and
+its 20-trait dossier, with two changes. Both are 3D-only; nothing under `sim/predictor/`
+changed.
+
+- **Tier 1 is geometry only.** `GeometryChain` gives each region's share of the cells
+  you could reach in k = 20 ticks (5 s) from where you are now, with a 3 % floor. It
+  learns nothing, so the "which room do you favour" part of the Dispatch is gone.
+  Measured top-1 accuracy is 39–100 % across the ten bots, at least 7× a uniform guess.
+- **The habit file.** Five habits are measured each run from the tick samples, plus
+  whether the Tab map was open. That is now part of the input record, hashed only when
+  true, so classic records hash as before. Each habit is folded into an exponentially
+  weighted file kept on the profile as `habits3d`, written through the store's
+  active-profile path:
+
+  | Habit | Measured as |
+  |---|---|
+  | hide | under threat, the share of time in a black box or standing still in water |
+  | corner | the stop rate within two cells of a convex wall corner, minus the stop rate elsewhere (calm, map closed) |
+  | lost | walking away from the nearest key, retreading ground, opening the map |
+  | map | the share of the run standing still with the map open |
+  | run | under threat (judged before the step), moving away from the alien without moving toward the key; sprinting counts half |
+
+- **Scoring a habit.** Each habit is z-scored against the five ordinary bots
+  (`npm run priors3d`, 120 runs). A tactic's strength is 0 at z ≤ 0.5 and reaches 1 at
+  z = 2, times the confidence `n / (n + 1.5)`.
+- **Tactics.** At each squad re-plan, `round(3 × strength)` aliens (at least one, never
+  a chaser, never the last plan alien) are sent to the tactic's targets
+  (`tactics.js`):
+  - **hide:** the water nearest your last-known position once you have gone to ground,
+    and the exit of your black box;
+  - **corner:** just round the corners on your route;
+  - **lost:** halfway along your route to the next key;
+  - **run:** during a chase, the open ground 5–11 cells away that is furthest from every
+    alien;
+  - **map:** standing still with the map open for `6 / strength` ticks sends the
+    nearest aliens to you.
+
+  All of them use the ordinary movement rules (3D-29).
+- **The chatter** appends "File note: subject …. Units, …" for the strongest habit.
+
+Measured against the habit bots over 20 paired runs (3D-22):
+
+| Tactic | Effect |
+|---|---|
+| hide | first seen 48 s → 36 s |
+| corner | first seen 39 s → 22 s |
+| lost | first seen 39 s → 23 s |
+| map | first seen 46 s → 26 s |
+| run | detections 21.1 → 24.4 |
+
+Bots with no habit: 24 of 24 paired runs identical, tick for tick.
+
 ### Drawing a city (N8.4, 3D build 26)
 
 - **Chunks.** Every instanced layer (floor, walls, caps, rubble, water, black boxes) is
@@ -492,7 +551,7 @@ For testing every district while the game is built, and to be removed when it is
 ## Acceptance criteria
 
 `npm run test3d` (CI runs it with `--skip-2d`, the 2D suites having just run).
-**24 passed · 0 not demonstrated · 0 failed** at 3D build 27 (3D-1 by the 2D suites run
+**25 passed · 0 not demonstrated · 0 failed** at 3D build 28 (3D-1 by the 2D suites run
 alongside: `npm test` 12/1/0, `npm run webcheck` green).
 
 | # | Criterion | Result |
@@ -515,9 +574,10 @@ alongside: `npm test` 12/1/0, `npm run webcheck` green).
 | 3D-15 | Jumpscare and ascension: at most 3 flashes a second, skippable but not before 0.5 s, within length, full/mild/off, the variant is the Jumpscares setting alone | PASS |
 | 3D-20 | 2D unchanged: 10,000 2D levels hash byte-identical to before N8.1 touched `sim/gen.js` | PASS |
 | 3D-21 | Big maps: the agreed size curve, growing every district; 500 cities reachable for the human and aliens, places distinct; no arrival or division within the minimum distance over 60 episodes | PASS |
+| 3D-22 | The Dispatch learns habits, not rooms: geometry-only prediction ≥ 3× uniform for ten bots; habit bots recognised; habit-free runs unchanged; each tactic helps against its bot; map-open runs replay | PASS |
 | 3D-26 | Species table: ten distinct species, threat-red glow, known features and markings | PASS |
 | 3D-27 | Contact: the body never enters an awake alien; walking at one (along its route, since build 23) ends in a capture; stunned ones are passable | PASS |
-| 3D-28 | Smooth on big maps: at district 100 with the city filling, new routes per tick within twice the budget; tick p99 under 32 and worst under 64 full-map searches (machine-relative) | PASS |
+| 3D-28 | Smooth on big maps: at district 100 with the city filling, new routes per tick within twice the budget; tick p99 under 32 and p99.9 under 64 full-map searches (machine-relative) | PASS |
 | 3D-29 | Fair speed: tiers 0.5 : 0.75 : 1 : 1.3 at every district, hunting under its ceiling; no two-step move near you or in sight; no arrival in sight | PASS |
 | 3D-30 | Keys and portal: 4–10 keys by district, own places, ≥ 17 cells apart, both halves; portal from the quarter furthest from the keys; time limit max(6 min, 6 × par) | PASS |
 | 3D-31 | Developer mode removable in one step: a dry run of `npm run remove-devmode` leaves no references, rewritten scripts parse; the code stored only as a salted digest | PASS |
@@ -552,7 +612,11 @@ date and who measured — in both cases Claude in the browser pane, not a human.
 5. **Audio unheard; no real phone.** Touch was tested in an emulated 740×360 viewport.
    iPhone Safari allows neither full screen nor an orientation lock for a page.
 6. ~~**Is 48 × 30 m too small?**~~ Yes, said the user. Settled by N8.1's cities, ×5 to ×60.
-   The predictor still uses the 2D constants; N8.5 recalibrates them for behaviour.
+   N8.5 replaced the room chain with geometry and added the habit file; the dossier's 20
+   traits still use the 2D couplings.
+8. **The Dispatch's opening line** (`web/dispatch.js`, a 2D file) says "barely a guess"
+   for any new subject, even when the projection is sharp, as it is in 3D. Left as is
+   with the 2D game.
 7. **Not built:** the foresight overlay (each alien's predicted path on the floor).
 
 ## Integration (a separate decision, plan phase 10)

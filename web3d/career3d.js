@@ -11,6 +11,8 @@ import { resolveDifficulty } from '../sim/system.js';
 import { scoreRun } from '../sim/score.js';
 import { Dossier } from '../sim/predictor/dossier.js';
 import { DistrictRunner } from './runner.js';
+import { HabitFile } from '../sim3d/dispatch/habits.js';
+import { saveHabits3d } from './persist3d.js';
 
 export class Career3D {
   /** @param {import('../sim/profile.js').ProfileStore} store  with the profile already loaded */
@@ -18,6 +20,7 @@ export class Career3D {
     this.store = store;
     this.profile = store.current();
     this.dossier = Dossier.fromJSON(this.profile.dossier);
+    this.habits = HabitFile.fromJSON(this.profile.habits3d);
     this.chains = new Map();
     this.attempt = 0;
     this.mode = 'full';
@@ -46,6 +49,7 @@ export class Career3D {
       district: n,
       tier: this.tier,
       dossier: this.dossier,
+      habits: this.habits,
       chain: this.chains.get(n),
       difficulty: this.difficulty,
       loadout: { stunGun: inv.stunGun, bullets: inv.bullets, boltSeconds: inv.boltSeconds },
@@ -73,8 +77,10 @@ export class Career3D {
     summary.mode3d = true;
 
     this.dossier.update(traits, { levelCompleted: summary.won });
+    if (runner.habitValues) this.habits.update(runner.habitValues);
     try {
       await this.store.saveDossier(this.dossier.toJSON());
+      if (runner.habitValues) await saveHabits3d(this.store, this.habits.toJSON());
       await this.store.recordRun(summary);
       await this.store.addCoins(earned);
       await this.store.recordScore(runner.district, scored.score);

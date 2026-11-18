@@ -16,6 +16,7 @@
     "stamp": "node tools/stamp-build.mjs",
     "test3d": "node bench3d/acceptance3d.js",
     "stamp3d": "node tools/stamp3d.mjs",
+    "priors3d": "node bench3d/priors3d.js",
     "devcode": "node tools/devcode.mjs",
     "remove-devmode": "node tools/remove-devmode.mjs"
   },

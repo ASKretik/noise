@@ -2644,11 +2644,90 @@ the art also later, it is art first. so lets go with A."
 
 The total remaining is about 10–15 weeks.
 
+---
+
+## R60 · N8.5: the Dispatch learns habits, not rooms (3D build 28)
+
+**Asked:** "Start N8.5". The plan, from R51: the user asked for the aliens to learn
+"the behaviour of the player rather than the exact location (like the player likes to
+hide, has trouble at the corners, gets lost pretty easily, stays at the same place
+looking at map ...)".
+
+**Built** (3D-only, `sim3d/dispatch/`; nothing in `sim/predictor/` changed):
+
+- **Tier 1 is geometry only.** `GeometryChain`: each region's share of the cells you can
+  reach in 20 ticks. The room chain is gone from 3D.
+- **The habit file.** Five habit measures, kept per profile as `habits3d` and z-scored
+  against the five ordinary bots (`npm run priors3d`).
+- **A tactic per habit,** in the squad re-plan, at a strength set by how far the habit
+  sits above the population. At 0 a tactic does not exist.
+- **The Tab map** is now part of the input record.
+- **Five habit bots:** hider, cornerShy, wanderer, mapReader and runner.
+- **The chatter's file note** names the strongest habit.
+
+**What the measurements said, in order:**
+
+1. **The first recognition pass caught two of five.** The hider was recognised, but the
+   map reader and wanderer read zero on the map habit and the corner bot read *negative*.
+   - **Map:** the map state was never put on the game's view, which is what the
+     measure reads. It is now.
+   - **Corner:** the bot hesitates on the approach, the cell before the corner zone,
+     which the measure counted as "elsewhere". The zone is now two cells, and the bot
+     decides on one.
+2. **The map reader also read as corner-shy,** because stopping to read the map counted
+   as stopping at a corner. The corner measure now uses calm, map-closed ticks only.
+3. **The runner read average.** "Under threat" was judged after the step, so every
+   successful escape (11 → 13 cells) was excluded, and walking past an alien toward a
+   key counted as fleeing. Both fixed. After that, every habit bot's strongest habit is
+   its own, and of the ordinary bots only the random walker (lost) and the evader (run)
+   show one, both fairly.
+4. **Paired runs** (20 each, same district, seed and record, tactics on vs off): the
+   corner, lost and map tactics got their bot first seen 16–20 s sooner. But **the hide
+   tactic backfired**: 15 of 20 caught against 19.
+   - Sending aliens to water ahead of a hider who is calmly walking took them off a squad
+     plan that was already working.
+   - The alien camped outside the black box kept the bot hidden for good.
+   - **Fix:** it now acts only once you have gone to ground, searching the water nearest
+     where you were last seen. Result: same captures, first seen at 36 s instead of 48.
+5. **The runner's flank point** (8–14 cells) was usually reached too late. At 5–11
+   cells the runner is seen 16 % more in chases (21.1 → 24.4 detections); captures are
+   unchanged. It's the weakest tactic, honestly reported.
+6. **Bots with no habit:** 24 of 24 paired runs identical, tick for tick. A player without
+   a habit plays the same game as before.
+
+**New criterion 3D-22** checks all of this: prediction at least 3× uniform for ten
+bots (7.2× is the worst), recognition, the paired effects, no-habit identity, and an
+exact replay of a map-open run. It runs in about 28 s.
+
+**Seen in the browser:** with a map habit at strength 0.77, standing still with the map
+open for a few seconds sent both aliens on the map to the player's cell. The record
+holds the map rows, and the chatter ended "File note: subject stands still to read its
+map. Units, close in while it reads."
+
+**A flaky check, found and fixed.** The first full suite failed 3D-28: one district-100
+tick took 44.8 ms, while the 99th percentile was 3.2 ms. Two causes:
+
+- **Real extra work.** The geometry tier ran a full-map search whenever you moved, though
+  it only needs depth 20. It now stops at depth 20, covering the same cells; the 99th
+  percentile is back to 2.7 ms.
+- **An isolated slow tick.** It appeared in 2 of about 8 runs, both while the machine was
+  busy, and never under `--trace-gc`, where major collections take about 0.5 ms. That
+  points to the process being descheduled, not sim work.
+
+The worst-case bound is now on the 99.9th percentile rather than the single slowest tick;
+the slowest is still printed.
+
+**Left as is:** the Dispatch's opening line for a new subject (`web/dispatch.js`, 2D) says
+"barely a guess" even when the projection is sharp. It is 2D wording, untouched.
+
+**Not verified:** no person has played against the tactics. Each tactic's reach (aliens
+per tactic, the strength curve, the map stillness time) is one constant.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    24 passed · 0 not demonstrated · 0 failed  (3D build 27; 3D-1 via the
+npm run test3d    25 passed · 0 not demonstrated · 0 failed  (3D build 28; 3D-1 via the
                   2D suites above, run alongside)
 ```

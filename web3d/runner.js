@@ -18,6 +18,8 @@ import { generateDistrict, rulesetOf, paramsFor } from '../sim3d/next/rules.js';
 import { sizeFor } from '../sim3d/next/size.js';
 import { Game3DNext } from '../sim3d/next/game.js';
 import { nextSpawnPolicy } from '../sim3d/next/spawn.js';
+import { GeometryChain } from '../sim3d/dispatch/geometry.js';
+import { HabitAccumulator, HabitFile } from '../sim3d/dispatch/habits.js';
 
 /** One field pool per map size, shared by every runner: a district reuses its buffers. */
 const pools = new Map();
@@ -42,6 +44,9 @@ export class DistrictRunner {
    * @param {boolean} [o.thinBolts]   default true: fewer bolts deeper into each belt
    * @param {string}  [o.ruleset]     'next' (default: N8's city maps) or 'classic' (32 x 20,
    *                                  the parity reference)
+   * @param {HabitFile} [o.habits]    the file on your habits (N8.5, `next` only): its
+   *                                  tactics act this run, and this run's habits are
+   *                                  measured into `habitValues` for the caller to fold in
    */
   constructor(o) {
     this.o = o;
@@ -59,22 +64,39 @@ export class DistrictRunner {
     this.mode = o.mode || 'full';
     this.difficulty = o.difficulty || resolveDifficulty({ mode: this.mode, params: this.params, runs: [] });
     this.dossier = o.dossier || new Dossier();
+    // `next` plays Game3DNext with its own arrival policy (N8.2) and, from N8.5, a Dispatch
+    // that learns habits, not rooms: tier 1 is geometry only (GeometryChain), and the habit
+    // file's tactics steer the squad. `classic` stays the plain Game3D on the Dispatch's
+    // own spawner and room chain, the parity reference.
+    const next = this.ruleset === 'next';
     this.system = createSystem({
       level: this.level, dossier: this.dossier, mode: this.mode,
-      tau: this.difficulty.tau, chain: o.chain,
+      tau: this.difficulty.tau,
+      chain: o.chain || (next ? new GeometryChain(this.level) : undefined),
     });
     this.seed = hashString(o.seedKey || `${o.profileId}#${o.district}`);
-    // `next` plays Game3DNext with its own arrival policy (N8.2); `classic` stays the
-    // plain Game3D on the Dispatch's own spawner, the parity reference.
-    const next = this.ruleset === 'next';
     this.spawnPolicy = next ? nextSpawnPolicy(this.system) : this.system.spawnPolicy;
     const GameClass = next ? Game3DNext : Game3D;
+    this.habits = next ? (o.habits || new HabitFile()) : null;
+    this.habitAcc = next ? new HabitAccumulator(this.level.map) : null;
+    this.habitValues = null;
+    const sys = this.system.observer;
+    const observer = !next ? sys : {
+      onTick: (sample, view) => {
+        this.system.chain.locate?.(sample.x, sample.y);
+        sys.onTick(sample, view);
+        this.habitAcc.observe(sample, view);
+      },
+      onObjective: (info) => sys.onObjective(info),
+      onRunEnd: (summary, leg) => { sys.onRunEnd(summary, leg); this.habitValues = this.habitAcc.values(); },
+    };
     this.game = new GameClass({
       level: this.level, params: this.params, pool, seed: this.seed,
-      spawnPolicy: this.spawnPolicy, observer: this.system.observer,
+      spawnPolicy: this.spawnPolicy, observer,
       tau: this.difficulty.tau, lambdaScale: this.difficulty.lambdaScale,
       logLevel: 'player', freezeUntilFirstMove: true,
       loadout: o.loadout,
+      habits: this.habits,
     });
     this.prediction = this.system.predictNow(this.game.view);
     this.lastRow = null;

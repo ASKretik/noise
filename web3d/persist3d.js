@@ -93,6 +93,15 @@ async function sweepOld3dBuilds() {
   }
 }
 
+/**
+ * Write the file on your habits (N8.5) to the active profile, through the store's one
+ * write path -- the same one every other field goes through, so a guest run can never
+ * touch the main file. Stored as `habits3d` on the record (migrate() keeps extra fields).
+ */
+export function saveHabits3d(store, json) {
+  return store._commit((rec) => { rec.habits3d = json; });
+}
+
 /** @returns {Promise<{store: ProfileStore, degraded: boolean, reason: string|null}>} */
 export async function createProfileStore3d() {
   try {

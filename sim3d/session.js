@@ -58,6 +58,7 @@ export class Session3D {
     const g = this.game;
     if (g.over) return 0;
     const sprintHeld = this.sprintHeld(controls);
+    this.mapOpen = !!controls.mapOpen;
     if (!this.leash.prepare(g, this.body, sprintHeld)) this.snapped++;
     moveBody(this.body, controls.moveX || 0, controls.moveY || 0, this.speed(controls), dt, this.leash.blocked, this.response, { sprint: sprintHeld, solids });
 
@@ -76,10 +77,10 @@ export class Session3D {
   _tick(sprintHeld) {
     const g = this.game;
     const d = this.leash.decide(g, this.body, sprintHeld);
-    const row = { dir: d.dir, sprint: d.sprint, stunTarget: this.pendingStun };
+    const row = { dir: d.dir, sprint: d.sprint, stunTarget: this.pendingStun, mapOpen: !!this.mapOpen };
     this.pendingStun = null;
     this.record.push(row);
-    g.step(row.dir, { sprint: row.sprint, stunTarget: row.stunTarget });
+    g.step(row.dir, { sprint: row.sprint, stunTarget: row.stunTarget, mapOpen: row.mapOpen });
     if (!g.over && !this.leash.prepare(g, this.body, sprintHeld)) this.snapped++;
     this.onTick?.(row, this);
   }
