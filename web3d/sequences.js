@@ -11,34 +11,55 @@
 /** WCAG 2.3.1: no more than three flashes in any one-second period. */
 export const FLASH_MAX_PER_SECOND = 3;
 
-const JUMP_FADE = [[0, 0], [0.6, 0], [1.1, 1]];
-
 export const SEQUENCES = Object.freeze({
+  // The capture is a short game-over cutscene, not a flash: the alien lunges in with its
+  // arms out, GRABS (the view jolts toward it), drags you face to face, its jaw unhinges
+  // and it screams while the frame shakes and tears -- then a hard cut to black and
+  // silence before the end card. Distances are metres from your eyes to its face.
   jumpscare: Object.freeze({
     full: Object.freeze({
-      duration: 1.1, skippable: true,
-      lunge: true,                 // the alien is pulled to 0.55 m in front of your eyes
-      snap: 0.12,                  // seconds for the camera to turn to it
-      flashes: [{ t: 0, dur: 0.12, color: '#ff1a2e', alpha: 0.55 }],
+      duration: 2.6, skippable: true, lunge: true,
+      snap: 0.12,                  // seconds for the camera to whip round to it
+      flashes: [
+        { t: 0.35, dur: 0.08, color: '#ff1a2e', alpha: 0.35 },     // the grab
+        { t: 0.9, dur: 0.12, color: '#ff1a2e', alpha: 0.6 },       // the scream
+      ],
       tracks: {
-        jaw: [[0, 0], [0.12, 0], [0.32, 1], [1.1, 1]],
-        shake: [[0, 0], [0.12, 0.045], [0.6, 0]],
-        glitch: [[0, 0], [0.12, 1], [0.45, 0.7], [0.6, 0]],
-        fade: JUMP_FADE,
+        approach: [[0, 0], [0.3, 1]],                                // from where it was to arm's length
+        // ends at 0.58 m, minus the grab's 0.1 m pull: eyes and the screaming mouth fill the view
+        dist: [[0, 0.9], [0.35, 0.9], [0.5, 0.72], [0.95, 0.58], [2.6, 0.58]],
+        reach: [[0, 0.2], [0.3, 1], [2.6, 1]],
+        pull: [[0, 0], [0.35, 0], [0.42, 0.14], [0.9, 0.1], [2.6, 0.1]],
+        jaw: [[0, 0], [0.8, 0.1], [1.0, 1], [2.6, 1]],
+        shake: [[0, 0], [0.35, 0.03], [0.6, 0.01], [0.9, 0.07], [1.8, 0.05], [1.85, 0]],
+        glitch: [[0, 0], [0.35, 0.4], [0.5, 0.1], [0.9, 1], [1.7, 0.8], [1.85, 0]],
+        fov: [[0, 0], [0.8, 0], [1.0, -10], [2.6, -10]],
+        fade: [[0, 0], [1.84, 0], [1.86, 1], [2.6, 1]],             // a hard cut, then held black
       },
-      shriek: { at: 0.1, level: 1 },
+      grab: { at: 0.35, level: 1 },
+      shriek: { at: 0.85, level: 1, dur: 1.0 },
+      cut: { at: 1.85 },
     }),
     mild: Object.freeze({
-      duration: 1.1, skippable: true, lunge: false, snap: 0.3,
-      flashes: [{ t: 0, dur: 0.2, color: '#ff1a2e', alpha: 0.22 }],
-      tracks: { jaw: [[0, 0], [0.3, 0], [0.7, 0.55], [1.1, 0.55]], shake: [[0, 0]], glitch: [[0, 0]], fade: JUMP_FADE },
-      shriek: { at: 0.1, level: 0.3 },
+      duration: 2.4, skippable: true, lunge: true, snap: 0.3,
+      flashes: [{ t: 0.9, dur: 0.2, color: '#ff1a2e', alpha: 0.2 }],
+      tracks: {
+        approach: [[0, 0], [0.3, 1]],
+        dist: [[0, 0.9], [2.4, 0.9]],
+        reach: [[0, 0.2], [0.3, 1], [2.4, 1]],
+        pull: [[0, 0]], shake: [[0, 0]], glitch: [[0, 0]], fov: [[0, 0]],
+        jaw: [[0, 0], [0.9, 0], [1.2, 0.55], [2.4, 0.55]],
+        fade: [[0, 0], [1.6, 0], [2.0, 1], [2.4, 1]],
+      },
+      grab: { at: 0.35, level: 0.4 },
+      shriek: { at: 0.9, level: 0.3, dur: 0.8 },
+      cut: null,
     }),
     off: Object.freeze({
       duration: 0.9, skippable: true, lunge: false, snap: 0.45,
       flashes: [],
       tracks: { jaw: [[0, 0]], shake: [[0, 0]], glitch: [[0, 0]], fade: [[0, 0]] },
-      shriek: null,
+      grab: null, shriek: null, cut: null,
     }),
   }),
 

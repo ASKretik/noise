@@ -2,7 +2,7 @@
 
 import { SEQUENCES, FLASH_MAX_PER_SECOND, maxFlashesPerSecond, variantFor, sample } from '../../web3d/sequences.js';
 
-const BOUND = { jumpscare: 1.2, ascension: 2.5 };
+const BOUND = { jumpscare: 3.0, ascension: 2.5 };
 
 export const criteria = [{
   n: 15,

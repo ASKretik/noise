@@ -28,7 +28,7 @@ Written Nov 18, 2026 · **status: proposed, nothing built** · follows 3D build 
 | N0 | Audio stops when paused | ½ day | Low | **done** (3D build 11) |
 | N1 | Fewer bolts deeper into each belt | ½ day | Low | **done** (3D build 12) |
 | N2 | Comic-accurate aliens, all ten species | 3 days (+1½ per species) | Medium | **done** (3D builds 13–14): ten species, one per belt |
-| N3 | Jumpscare and portal ascension | 3–3½ days | Low–medium | **done** (3D build 15) |
+| N3 | Jumpscare and portal ascension | 3–3½ days | Low–medium | **done** (3D builds 15–16; capture reworked as a cutscene after review) |
 | N4 | Belt art direction | 8–9 days | Medium | not started |
 | N5 | Story frame | 6–10 days | Medium | not started |
 | N6 | The rules layer and the new shop items | 8–12 days | Medium | not started |
@@ -546,6 +546,7 @@ generalised to three floors and belts 8–10.
 | 3D-24 | N9 | Leash and smoothness on multi-floor maps |
 | 3D-25 | N9 | Predictor beats uniform on multi-floor maps |
 | 3D-26 | N2 | Species table: one distinct species per belt, threat-red glow, known features (built, passing) |
+| 3D-27 | N3 | Contact: awake aliens are solid to the body, walking at one ends in a capture (built, passing) |
 
 Re-checked as phases change rendering: 3D-11 (frame budget) and 3D-12 (legibility),
 recorded in `bench3d/measured.json`. Unchanged throughout: 3D-1 (the 2D suites) and 3D-3

@@ -1,7 +1,7 @@
 # NOISE 3D — build spec
 
 Written Nov 17, 2026 as a plan · **rewritten the same day to describe the system as built**
-(3D build 15: plan phases 0–9, the R39 movement fix, and next-round phases N0–N3)
+(3D build 16: plan phases 0–9, the R39 movement fix, and next-round phases N0–N3)
 
 > This is the description, not the plan. The plan-stage version is in git history
 > (`git log --follow spec-3d.md`); the phased build order and its progress table are in
@@ -197,12 +197,15 @@ is a 0.6 s convulsion, then a collapse with the eyes dark. They glide toward the
 cell at the speed their move period implies. A floor ring per alien shows the radius at which it hears you — red when it does, easing
 smaller when you step into water. Keys glow; coins are coloured and sized by value and
 instanced by value; bolts are extruded glyphs; the open portal is a beam visible over
-every wall. Pickups fly to the camera. **Capture is a jumpscare** (`web3d/sequences.js` data, `web3d/fx3d.js` playback):
+every wall. Pickups fly to the camera. **Awake aliens are solid to your body** (stunned ones are not), so the body can no
+longer lead the sim through an alien before the next tick registers the capture. **Capture
+is a game-over cutscene** (`web3d/sequences.js` data, `web3d/fx3d.js` playback, 2.6 s):
 when a hunting alien comes within two cells a heartbeat swells and the drone ducks; on
-capture the camera snaps to the alien (0.12 s), the alien is pulled to 0.55 m from your
-eyes, its jaw drops open into a dark maw, the frame shakes and tears into displaced,
-colour-split slices, a distorted shriek sweeps 220 → 1400 Hz, and it fades to black
-(1.1 s). **The portal is an ascension:** you rise from eye height to 40 m on an ease-in,
+capture the camera whips to the alien (0.12 s), it lunges in to arm's length with both
+arms reaching up at you, grabs (a thud, the view jolted 0.14 m toward it), drags you face
+to face, its jaw unhinges into a dark maw and it shrieks while the frame shakes, zooms
+and tears into colour-split slices -- then a hard cut to black and silence, and the end
+card. **The portal is an ascension:** you rise from eye height to 40 m on an ease-in,
 turning 90°, the view widening 15° and tilting down over the district, motes streaming
 upward and the beam brightening, into a teal-white whiteout (2.4 s). Both are skippable;
 Settings → Jumpscares picks full, mild or off, and reduce motion turns full into mild.
@@ -265,7 +268,7 @@ minutes; if the banner's number is behind the update note, reload.
 ## Acceptance criteria
 
 `npm run test3d` (CI runs it with `--skip-2d`, the 2D suites having just run).
-**17 passed · 0 not demonstrated · 0 failed** at 3D build 15.
+**18 passed · 0 not demonstrated · 0 failed** at 3D build 16.
 
 | # | Criterion | Result |
 |---|---|---|
@@ -286,6 +289,7 @@ minutes; if the banner's number is behind the update note, reload.
 | 3D-14 | Bolt thinning matches its formula on all 100 districts, deterministic, reachable, applied by the runner | PASS |
 | 3D-15 | Jumpscare and ascension: at most 3 flashes a second, skippable, within length, full/mild/off, reduce motion never full | PASS |
 | 3D-26 | Species table: ten distinct species, threat-red glow, known features and markings | PASS |
+| 3D-27 | Contact: the body never enters an awake alien; walking at one ends in a capture; stunned ones are passable | PASS |
 
 3D-11 and 3D-12 pass only on an entry in `bench3d/measured.json` naming the build, the
 date and who measured — in both cases Claude in the browser pane, not a human.

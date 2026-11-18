@@ -74,7 +74,7 @@ export class DistrictRunner {
   get map() { return this.level.map; }
   get chain() { return this.system.chain; }
 
-  update(dt, controls) { return this.session.update(dt, controls); }
+  update(dt, controls, solids = null) { return this.session.update(dt, controls, solids); }
 
   fire(targetId) { this.session.fire(targetId); }
 

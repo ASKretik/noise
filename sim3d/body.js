@@ -41,7 +41,7 @@ export const bodyCell = (body) => ({ x: Math.floor(body.x), y: Math.floor(body.y
  * @param {number} dt       seconds
  * @param {(cx:number, cy:number) => boolean} blocked
  * @param {number} [response] how fast velocity approaches its target, per second
- * @param {{sprint?: boolean}} [opts]
+ * @param {{sprint?: boolean, solids?: Array<{x:number, y:number, r:number}>}} [opts]
  */
 export function moveBody(body, ix, iy, maxSpeed, dt, blocked, response = RESPONSE, opts = {}) {
   const len = Math.hypot(ix, iy);
@@ -76,6 +76,24 @@ export function moveBody(body, ix, iy, maxSpeed, dt, blocked, response = RESPONS
     body.x += sx;
     body.y += sy;
     resolve(body, blocked);
+    if (opts.solids) resolveCircles(body, opts.solids);
+  }
+}
+
+/**
+ * Push the body out of solid circles -- the awake aliens -- and cancel velocity into them.
+ * Without this the body could lead the sim through an alien and out the other side
+ * before the next tick registered the capture (decisions.md R46).
+ */
+export function resolveCircles(body, solids, r = BODY_RADIUS) {
+  for (const c of solids) {
+    const dx = body.x - c.x, dy = body.y - c.y;
+    const d = Math.hypot(dx, dy), min = r + c.r;
+    if (d >= min) continue;
+    const nx = d > 1e-6 ? dx / d : 1, ny = d > 1e-6 ? dy / d : 0;
+    body.x = c.x + nx * min; body.y = c.y + ny * min;
+    const into = body.vx * nx + body.vy * ny;
+    if (into < 0) { body.vx -= into * nx; body.vy -= into * ny; }
   }
 }
 

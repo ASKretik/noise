@@ -365,13 +365,16 @@ export class Play3D {
         const toYaw = Math.atan2(-(at.x - cam.x), -(at.z - cam.z));
         let diff = toYaw - this.controls.yaw;
         diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-        this.endAnim = { t0: this.t, fromYaw: this.controls.yaw, dYaw: diff, fromPitch: this.controls.pitch, dur: seq.snap };
+        // with the lunge, look down a little: its face is below your eyes once it is close
+        this.endAnim = { t0: this.t, fromYaw: this.controls.yaw, dYaw: diff, fromPitch: this.controls.pitch, dur: seq.snap, toPitch: seq.lunge ? -0.3 : -0.06 };
         if (seq.lunge) {
-          // 0.55 m from your eyes to its face; its face is ~0.28 m ahead of its feet
-          const fwd = new this.view.THREE.Vector3(-Math.sin(toYaw), 0, -Math.cos(toYaw));
-          const to = new this.view.THREE.Vector3(cam.x, 0, cam.z).addScaledVector(fwd, 0.83);
-          const from = new this.view.THREE.Vector3(at.x, 0, at.z);
-          this.entities.scare = { id: best.id, from, to, pos: from.clone(), heading: toYaw + Math.PI, jaw: 0 };
+          // The cutscene moves the alien along the line from your eyes to it; its face is
+          // ~0.28 m ahead of its feet. d0 is where it starts: wherever it really was.
+          const T = this.view.THREE;
+          const fwd = new T.Vector3(-Math.sin(toYaw), 0, -Math.cos(toYaw));
+          const eye = new T.Vector3(cam.x, 0, cam.z);
+          const d0 = Math.max(0.6, Math.hypot(at.x - cam.x, at.z - cam.z) - 0.28);
+          this.entities.scare = { id: best.id, eye, fwd, d0, pos: new T.Vector3(at.x, 0, at.z), heading: toYaw + Math.PI, jaw: 0, reach: 0 };
         }
       }
       document.body.classList.add('g3-caught');
@@ -440,7 +443,8 @@ export class Play3D {
     const g = r.game;
     const intent = this.touch ? this.touch.intent(this.controls.yaw) : this.controls.intent();
     this.fps += ((dt > 0 ? 1 / dt : 60) - this.fps) * 0.05;
-    if (!this.paused && !g.over) r.update(dt, intent);
+    // awake aliens are solid to your body: you bump into one and it gets you
+    if (!this.paused && !g.over) r.update(dt, intent, this.entities.solids());
 
     if (this.killcam) {
       this.killcamFrame(dt);
@@ -469,7 +473,7 @@ export class Play3D {
       const k = Math.min(1, (this.t - this.endAnim.t0) / (this.endAnim.dur || 0.45));
       const e = 1 - (1 - k) * (1 - k);
       this.controls.yaw = this.endAnim.fromYaw + this.endAnim.dYaw * e;
-      this.controls.pitch = this.endAnim.fromPitch * (1 - e) - 0.06 * e;
+      this.controls.pitch = this.endAnim.fromPitch * (1 - e) + (this.endAnim.toPitch ?? -0.06) * e;
       cam.rotation.set(this.controls.pitch, this.controls.yaw, 0);
     }
     // ---- the capture jumpscare and the portal ascension (web3d/sequences.js)
@@ -479,15 +483,24 @@ export class Play3D {
       if (fx.kind === 'jumpscare') {
         const sc = this.entities.scare;
         if (sc) {
-          sc.pos.lerpVectors(sc.from, sc.to, Math.min(1, st / 0.12));
+          const ap = fx.track('approach', this.t);
+          const d = ap < 1 ? sc.d0 + (0.9 - sc.d0) * ap : fx.track('dist', this.t);
+          sc.pos.copy(sc.eye).addScaledVector(sc.fwd, d + 0.28);
           sc.jaw = fx.track('jaw', this.t) * 0.95;
+          sc.reach = fx.track('reach', this.t);
+          // the grab drags you toward it
+          cam.position.addScaledVector(sc.fwd, fx.track('pull', this.t));
         }
         const amp = fx.track('shake', this.t);
         if (amp > 0) {
           cam.position.x += amp * Math.sin(this.t * 91);
           cam.position.y += amp * Math.sin(this.t * 73 + 1);
+          cam.rotation.z = amp * 1.5 * Math.sin(this.t * 61);
         }
-        if (def.shriek && fx.once('shriek', def.shriek.at, this.t)) this.audio.shriek(def.shriek.level);
+        this.view.setHFov(this.settings.fov + fx.track('fov', this.t));
+        if (def.grab && fx.once('grab', def.grab.at, this.t)) this.audio.grab(def.grab.level);
+        if (def.shriek && fx.once('shriek', def.shriek.at, this.t)) this.audio.shriek(def.shriek.level, def.shriek.dur);
+        if (def.cut && fx.once('cut', def.cut.at, this.t)) this.audio.cut();
       } else {
         cam.position.y += fx.track('lift', this.t) * 38;
         this.controls.yaw = this.ascend.fromYaw + fx.track('spin', this.t);

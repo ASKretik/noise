@@ -185,7 +185,33 @@ export class Audio3D {
   }
 
   /** The jumpscare's shriek: a sawtooth tearing upward over a noise burst, distorted. */
-  shriek(level = 1) {
+  /** The grab: a heavy, close thud, and the heartbeat stops. */
+  grab(level = 1) {
+    if (!this.ctx || !this.bus || !this.enabled || level <= 0) return;
+    this.setTension(0);
+    const ctx = this.ctx, t = ctx.currentTime;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(90, t); o.frequency.exponentialRampToValueAtTime(38, t + 0.25);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.6 * level, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+    o.connect(g).connect(this.bus); o.start(t); o.stop(t + 0.35);
+    const n = ctx.createBufferSource(); n.buffer = this.noise;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 600;
+    const ng = ctx.createGain(); ng.gain.setValueAtTime(0.35 * level, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    n.connect(lp).connect(ng).connect(this.bus); n.start(t);
+  }
+
+  /** The hard cut to black: everything goes silent at once. setTension(0) brings the drone back. */
+  cut() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.amb._nodes?.master?.gain.setTargetAtTime(0.0001, t, 0.01);
+    if (this.bus) { this.bus.gain.setTargetAtTime(0.0001, t, 0.01); this.bus.gain.setTargetAtTime(this.enabled ? 0.9 : 0, t + 0.9, 0.05); }
+  }
+
+  shriek(level = 1, dur = 0.9) {
     if (!this.ctx || !this.bus || !this.enabled || level <= 0) return;
     this.setTension(0);
     const m = this.amb._nodes?.master;
@@ -198,16 +224,16 @@ export class Audio3D {
     const out = ctx.createGain();
     out.gain.setValueAtTime(0.0001, t);
     out.gain.exponentialRampToValueAtTime(0.32 * level, t + 0.025);
-    out.gain.setValueAtTime(0.32 * level, t + 0.35);
-    out.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+    out.gain.setValueAtTime(0.32 * level, t + dur * 0.6);
+    out.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     shaper.connect(out).connect(this.bus);
     for (const det of [0, 37]) {
       const o = ctx.createOscillator();
       o.type = 'sawtooth';
       o.detune.value = det;
       o.frequency.setValueAtTime(220, t);
-      o.frequency.exponentialRampToValueAtTime(1400, t + 0.9);
-      o.connect(shaper); o.start(t); o.stop(t + 0.95);
+      o.frequency.exponentialRampToValueAtTime(1400, t + dur);
+      o.connect(shaper); o.start(t); o.stop(t + dur + 0.05);
     }
     const n = ctx.createBufferSource();
     n.buffer = this.noise; n.loop = true;

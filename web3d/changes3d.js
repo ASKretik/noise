@@ -8,6 +8,23 @@
 
 export const CHANGES = [
   {
+    build: 16,
+    date: '2026-11-19',
+    phase: 'N3',
+    changed: [
+      'You can no longer run through an alien. An awake alien is solid now: you bump into it, and it gets you. (A stunned one can still be walked through.)',
+      'Getting caught is a short game-over cutscene: the alien lunges in with its arms out, grabs you (the view jolts toward it), drags you face to face, its jaw unhinges and it screams while the picture shakes and tears, then a hard cut to black and silence before the end card.',
+      'It lasts about 2.6 seconds. Any key or click still skips it, and Settings -> Jumpscares still offers mild and off.',
+    ],
+    tryThis: [
+      'Walk straight at an alien and try to slip past it.',
+      'Get caught with headphones on, full screen, in a dark room.',
+    ],
+    unverified: [
+      'Checked frame by frame in screenshots, never watched at full speed or heard. Say if it still does not land.',
+    ],
+  },
+  {
     build: 15,
     date: '2026-11-19',
     phase: 'N3',

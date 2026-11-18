@@ -35,7 +35,7 @@ Three markers throughout:
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    17 passed · 0 not demonstrated · 0 failed  (3D build 15)
+npm run test3d    18 passed · 0 not demonstrated · 0 failed  (3D build 16)
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -2040,10 +2040,47 @@ filling the view, mouth open, frame torn), the ascension at 1.0, 1.4 and 2.3 s (
 whiteout at 77%), the end card waiting for each sequence, any key skipping each variant,
 reduce motion playing mild. **Not heard, and not watched at full speed.**
 
+## R46 · N3 reworked: you cannot run past them, and the capture is a cutscene
+
+**Asked** (with a screen recording): "the ending jumpscare is not like what you said it
+would be, it hardly is like a jumpscare. And the human is able to run past the alien and
+then only the game stops. Ideally, the alien should catch you and end you, like a
+cutscene kinda for the game over."
+
+**The recording could not be opened** -- macOS denies apps access to the screen-capture
+app's private folder, and there is no video tool here -- so this round works from the
+description. It was precise enough.
+
+**Why you could run past them.** Three lags stacked: the body may lead the sim by up to
+two cells (R39), the sim only decides a capture on a tick (every 250 ms), and an alien is
+drawn gliding slightly behind its own cell. So the body visibly passed through an alien
+and out the other side before the capture registered -- and the old jumpscare then turned
+the camera *back* toward an alien that was now behind you. **Fixed:** awake aliens are
+solid circles to the body (`resolveCircles` in `sim3d/body.js`, fed by
+`Entities.solids()`); stunned aliens are not, exactly as in 2D. You bump into one, and it
+takes you on its next step. The sim is unchanged and still decides every capture; parity
+(3D-3) and determinism (3D-4) still pass. New criterion **3D-27**: walking straight at
+an alien in ten districts, the body never entered it and every run ended in a capture.
+
+**Why it was not a jumpscare.** About a second long, half of it a fade, and aimed at
+wherever the alien had been. **Now a 2.6 s cutscene:** the alien lunges from where it
+really is to arm's length with both arms reaching up at you; grabs (a thud, a flash, the
+view jolted toward it); drags you face to face; its jaw unhinges and it shrieks for a full
+second while the frame shakes, zooms in and tears; then a hard cut to black and silence
+before the end card. Two flashes, well inside WCAG 2.3.1 (3D-15's length bound is now 3 s).
+
+**What looking caught:** the first framing put the camera practically inside the face
+(0.36 m, plus the 0.14 m grab pull, plus a 22° zoom): a cheek and the edge of one eye.
+Now 0.58 m, a 10° zoom, and the camera tilted down to the face: eyes, the screaming
+mouth and both hands in frame. Arms reaching at chest height were below the view; they
+now reach up toward your face.
+
+**Not verified:** never watched at full speed or heard. Whether it lands is the user's call.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    17 passed · 0 not demonstrated · 0 failed  (3D build 15)
+npm run test3d    18 passed · 0 not demonstrated · 0 failed  (3D build 16)
 ```

@@ -506,11 +506,13 @@ export class AlienKit {
     const armSegs = [];
     for (const s of [-1, 1]) {
       const ph = s < 0 ? -swing : swing;
-      const aU = 0.14 + 0.32 * ph + jit(10 + s);
-      const aF = aU + 0.55 + jit(12 + s) * 0.5;
+      // st.reach (0..1, the capture cutscene): both arms come up and forward, for you
+      const reach = st.reach || 0;
+      const aU = (0.14 + 0.32 * ph + jit(10 + s)) * (1 - reach) + 1.72 * reach;   // up, toward your face
+      const aF = (aU + 0.55 + jit(12 + s) * 0.5) * (1 - reach) + (aU + 0.05) * reach;
       const shoulder = new THREE.Vector3(s * sp.shoulderX + sway * 0.6, chest.y - 0.05, chest.z + 0.02);
-      const elbow = shoulder.clone().addScaledVector(limbDir(this._d, aU, s * 0.16), sp.upperArm.len);
-      const wrist = elbow.clone().addScaledVector(limbDir(this._d, aF, s * 0.1), sp.forearm.len);
+      const elbow = shoulder.clone().addScaledVector(limbDir(this._d, aU, s * (0.16 - 0.1 * reach)), sp.upperArm.len);
+      const wrist = elbow.clone().addScaledVector(limbDir(this._d, aF, s * (0.1 + 0.32 * reach)), sp.forearm.len);
       this._bone(base, shoulder, elbow, sp.upperArm.r, sp.upperArm.r, tint, glow);
       this._bone(base, elbow, wrist, sp.forearm.r, sp.forearm.r, tint, glow);
       this._joint(base, shoulder, sp.upperArm.r * 1.25, tint, glow);

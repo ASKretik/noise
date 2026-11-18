@@ -50,12 +50,16 @@ export class Session3D {
    * @param {{moveX:number, moveY:number, sprint:boolean}} controls grid-space intent
    * @returns {number} sim ticks run this frame
    */
-  update(dt, controls) {
+  /**
+   * @param {Array<{x:number, y:number, r:number}>} [solids] circles (cell units) the body
+   *   cannot enter: the awake aliens, as drawn. Presentation-side; the sim never sees it.
+   */
+  update(dt, controls, solids = null) {
     const g = this.game;
     if (g.over) return 0;
     const sprintHeld = this.sprintHeld(controls);
     if (!this.leash.prepare(g, this.body, sprintHeld)) this.snapped++;
-    moveBody(this.body, controls.moveX || 0, controls.moveY || 0, this.speed(controls), dt, this.leash.blocked, this.response, { sprint: sprintHeld });
+    moveBody(this.body, controls.moveX || 0, controls.moveY || 0, this.speed(controls), dt, this.leash.blocked, this.response, { sprint: sprintHeld, solids });
 
     this.acc += dt;
     const step = 1 / this.tickHz;
