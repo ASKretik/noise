@@ -224,8 +224,11 @@ function scatterBuildings(map, rng, count, rooms, protectedCells, mustReach, poo
 /**
  * Pass 3c: lightning bolts. Three seconds at double speed, one or two per district, so
  * every part of the map holds one answer to being cornered.
+ *
+ * Exported, with scatterCoins, for the 3D city builder (sim3d/next/city.js), so both games
+ * place bolts and coins by the same rule. Exporting changes no 2D output (criterion 3D-20).
  */
-function scatterBolts(map, rng, regions, perDistrict, taken) {
+export function scatterBolts(map, rng, regions, perDistrict, taken) {
   const bolts = [];
   for (let r = 0; r < regions.count; r++) {
     const want = rng.range(perDistrict[0], perDistrict[1]);
@@ -303,7 +306,7 @@ export const COIN_VALUES = Object.freeze([1, 2, 5, 10]);
  * number); denominations are drawn to fill it, so a deep district is not merely a bigger
  * pile of pennies -- it has tens in it.
  */
-function scatterCoins(map, rng, regions, budget, taken) {
+export function scatterCoins(map, rng, regions, budget, taken) {
   const target = rng.range(budget[0], budget[1]);
   const open = [];
   for (let r = 0; r < regions.count; r++) {

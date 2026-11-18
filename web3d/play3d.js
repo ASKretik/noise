@@ -45,6 +45,8 @@ export class Play3D {
     this.district = Math.max(1, Math.min(100, Number(q.get('d')) || 1));
     this.tier = ['easy', 'medium', 'hard', 'ultra'].includes(q.get('t')) ? q.get('t') : 'medium';
     this.profileId = q.get('p') || 'sandbox';
+    /** ?rules=classic plays today's 32 x 20 districts in the sandbox, for comparison. */
+    this.ruleset = q.get('rules') === 'classic' ? 'classic' : 'next';
     /** A real save file, or an unsaved sandbox (?kit=1 and a tier in the URL). */
     this.careerMode = this.profileId === 'main' || this.profileId === 'guest';
     this.career = null;
@@ -161,6 +163,7 @@ export class Play3D {
         seedKey: `${this.profileId}#${n}#${this.attempt}`,
         tickHz: this.tune.tickHz,
         loadout: this.loadout(),
+        ruleset: this.ruleset,
       });
     this.runner.session.response = this.tune.response;
     this.dossier = this.runner.dossier;
@@ -534,7 +537,7 @@ export class Play3D {
 
     if (this.killcam) {
       this.killcamFrame(dt);
-      this.world.animate(this.t);
+      this.world.animate(this.t, this.view.camera.position);
       this.view.render();
       if (!once) requestAnimationFrame(this.frame);
       return;
@@ -633,7 +636,7 @@ export class Play3D {
     }
     this.entities.sync(g, r.session.alpha, this.t, { dt, tickHz: r.session.tickHz, camera: cam });
     this.audio.update(g, { x: cam.position.x, y: EYE_M, z: cam.position.z, yaw: this.controls.yaw }, this.entities.alienVoices());
-    this.world.animate(this.t);
+    this.world.animate(this.t, this.view.camera.position);
     // Inside a black box the world goes dark and quiet: nothing can see in, and you know it.
     const inBox = r.map.tiles[Math.floor(b.y) * r.map.w + Math.floor(b.x)] === TILE.SAFE;
     document.body.classList.toggle('g3-in-box', inBox);

@@ -49,7 +49,9 @@ working loop) and `decisions.md`.
 ## Architecture
 
 ```
-sim/        UNCHANGED. The authoritative rules for both games.
+sim/        The authoritative rules for both games, unchanged in behaviour. Since N8.1,
+            gen.js exports scatterBolts and scatterCoins for the city builder; 3D-20
+            proves 2D levels are byte-identical.
 sim3d/      pure, Node-runnable, imports only sim/ and sim3d/
   units.js      CELL_M 1.5, TICK_HZ_3D 4, conversions (realSeconds, simSecondsToReal)
   body.js       continuous body: circle (r 0.2 cell) sliding against blocked tiles
@@ -58,6 +60,10 @@ sim3d/      pure, Node-runnable, imports only sim/ and sim3d/
   game3d.js     class Game3D extends Game -- overrides step() and fireStun() only
   record.js     per-tick input record { dir, sprint, stunTarget } and replay()
   session.js    one district in real time: body every frame, sim every 1/TICK_HZ_3D s
+  next/         the `next` ruleset (N8 onward): what districts play from 3D build 21
+    size.js       the size curve, x5 (district 1) to x60 (district 100) the 2D area
+    city.js       the city builder: avenues, streets, lots, neighbourhoods, places
+    rules.js      ruleset ids, generateDistrict(), the run time limit
 web3d/      browser leaves, plus two DOM-free modules
   runner.js     DOM-free: level, predictor system, Game3D, Session3D for one district
   career3d.js   DOM-free: difficulty, attempts, scoring, payout, unlocks from /sim
@@ -67,7 +73,7 @@ web3d/      browser leaves, plus two DOM-free modules
   beltcheck.js  dev page: all ten belts side by side
 3d/         index.html (hub), play.html (district), belts.html (dev)
 vendor/three/0.185.1/   three.js, unmodified, hash-checked (VERSION.md)
-bench3d/    acceptance3d.js, criteria/{core,meta,measured}.js, fakeidb.js, measured.json
+bench3d/    acceptance3d.js, criteria/*.js, hash2d.js, fakeidb.js, measured.json
 tools/stamp3d.mjs
 ```
 
@@ -88,9 +94,11 @@ an import map from the repository, never a CDN; criterion 3D-0 checks the hashes
 | `TICK_HZ_3D` | 4 | Sim ticks per real second (2D runs at 8) |
 | Walls / eye / body | 3.2 m / 1.65 m / 0.3 m radius | |
 
-Walking is 6 m/s and sprinting 12 m/s; a district is 48 × 30 m. Everything is unchanged
-**in ticks** — chase periods, alert length, stun length, division, par, the score — so
-the 3D city is the 2D city at half speed. The 3D HUD converts ticks with `TICK_HZ_3D` and
+Walking is 6 m/s and sprinting 12 m/s. A district is a city from 108 × 67 m (district 1)
+to 372 × 232 m (district 100); see "Districts are cities" below. The `classic` ruleset
+keeps the 2D game's 48 × 30 m. Everything is unchanged **in ticks** — chase periods, alert
+length, stun length, division, par, the score — so the 3D game runs the 2D rules at half
+speed. The 3D HUD converts ticks with `TICK_HZ_3D` and
 never shows a sim-computed "seconds". One visible consequence: a bought second of
 lightning (8 ticks) lasts two real seconds in 3D, and the 3D shop says so.
 
@@ -157,6 +165,78 @@ next tick (up to 250 ms), so replays stay exact; the beam and the sound are imme
 On touch only, a 0.14 rad cone locks the valid alien nearest the centre of the screen.
 
 ## The world
+
+### Districts are cities (N8.1, 3D build 21)
+
+Every district plays the `next` ruleset (`sim3d/next/rules.js`). Its map comes from
+`sim3d/next/city.js`, not the 2D generator. The area is the user's curve: a multiple of
+the 2D board's 640 cells, along straight lines through ×5 (district 1), ×10 (10), ×30
+(50), ×45 (75) and ×60 (100). The 8 : 5 shape is kept, so the map is
+`round(32·√A) × round(20·√A)` cells:
+
+| District | Cells | Metres |
+|---|---|---|
+| 1 | 72 × 45 | 108 × 67 |
+| 10 | 101 × 63 | 152 × 95 |
+| 50 | 175 × 110 | 263 × 164 |
+| 100 | 248 × 155 | 372 × 232 |
+
+**How a city is built:**
+
+1. **Avenues.** One to five vertical and one to four horizontal avenues, 3 cells wide,
+   are placed evenly with jitter.
+2. **Streets and alleys.** Each block between the avenues is split by streets (2 wide)
+   or alleys (1 wide, 30 % of cuts) until no lot is larger than 22 × 16.
+3. **Neighbourhoods.** Each lot gets a type by seed:
+
+   | Type | Weight | What it is |
+   |---|---|---|
+   | Tenements | 28 | Solid blocks threaded with edge-to-edge alleys and a courtyard |
+   | Yards | 14 | Fenced, with gates, stacked with wrecks (rubble) |
+   | Market | 12 | Walled arcade with many gates and rows of stalls (wall or rubble) |
+   | Plaza | 10 | Open, with a fountain (plinth in a ring of water) or a monument, and wrecks |
+   | Park | 10 | Railed garden with gates, a pond and single-cell trees |
+   | Depot | 10 | Walled hall with two or three doors and a grid of columns |
+   | Ruins | 10 | Rubble with standing wall stubs and a cross of cleared paths |
+   | Canal | 6 | A 2–3-wide water channel running through |
+
+4. **Places.** Every lot is a named place (`{id, name, type, x, y, w, h, centre}`, for
+   example "Pike Market" or "Cobble Courts"), and every avenue is named too. They are
+   for the story, the art and the objectives. Nothing displays them yet.
+5. **Spawn and keys.** The spawn is the centre of a random open place. Each key goes in
+   its own place, chosen among the 15 % of places furthest by walking from the spawn and
+   from the keys already placed. The key count is still the 2D curve's 3–5, until N8.3.
+6. **Black boxes and water.** There are `round(3·√A)` black boxes, in open places. Water
+   is topped up to the 2D density with puddles by the walls.
+7. **Regions, bolts and coins.** There are `min(48, max(12, round(12·√(A/5))))` predictor
+   regions. Bolts and coins are placed by the 2D game's own `scatterBolts` and
+   `scatterCoins`. Portal sites are every place's centre, furthest first.
+
+**Connectivity is safe by construction.** Every lot touches a street. Every obstacle
+dropped into open ground must have a ring of open ground all round it, which a later
+obstacle may not touch, so it can always be walked round. A final flood fill walls up any
+pocket the human cannot reach. 3D-21 checks 500 cities. Generation takes 9 ms at
+district 1 and about 90 ms at district 100.
+
+**What else changed with the size:**
+
+- **Time limit.** The run's limit is `180 s × 8 ticks × √A`, about 13 minutes at
+  district 1 and 46 at district 100. The 2D limit would have been six real minutes.
+- **HUD board.** The board the 2D renderer redraws each frame uses
+  `max(6, min(16, floor(2400 / w)))` px per cell, 9 px at district 100.
+- **Sky.** The sky dome follows the camera.
+- **Bots.** They size their path buffers to the map (`bots/policies.js`). Before this,
+  they silently wrote past a 640-cell buffer on a city map and never found a key.
+
+**Measured** (M3, 1080p, High with shadows, whole frame including the HUD):
+
+| | Mean frame | Triangles |
+|---|---|---|
+| District 1 | 11.2 ms | — |
+| District 100 | 12.8 ms (p95 17.3) | 0.94 M |
+
+The worst sim tick at district 100 was 6 ms, with one alien. Culling and staggered
+re-planning come in N8.2 and N8.4.
 
 **Bolts thin out deeper into each belt** (`sim3d/bolts.js`): the generator's bolts are
 kept in full in a belt's first district and cut to `max(1, round(n × (1 − 2k/27)))` at
@@ -285,7 +365,8 @@ minutes; if the banner's number is behind the update note, reload.
 ## Acceptance criteria
 
 `npm run test3d` (CI runs it with `--skip-2d`, the 2D suites having just run).
-**18 passed · 0 not demonstrated · 0 failed** at 3D build 16.
+**20 passed · 0 not demonstrated · 0 failed** at 3D build 21 (3D-1 by the 2D suites run
+alongside: `npm test` 12/1/0, `npm run webcheck` green).
 
 | # | Criterion | Result |
 |---|---|---|
@@ -305,6 +386,8 @@ minutes; if the banner's number is behind the update note, reload.
 | 3D-13 | Movement never stutters: no frame under half its heading's speed, walking and sprinting, 0–45° | PASS |
 | 3D-14 | Bolt thinning matches its formula on all 100 districts, deterministic, reachable, applied by the runner | PASS |
 | 3D-15 | Jumpscare and ascension: at most 3 flashes a second, skippable but not before 0.5 s, within length, full/mild/off, the variant is the Jumpscares setting alone | PASS |
+| 3D-20 | 2D unchanged: 10,000 2D levels hash byte-identical to before N8.1 touched `sim/gen.js` | PASS |
+| 3D-21 | Big maps: the agreed size curve, growing every district; 500 cities reachable for the human and aliens, places distinct; no arrival or division within the minimum distance over 60 episodes | PASS |
 | 3D-26 | Species table: ten distinct species, threat-red glow, known features and markings | PASS |
 | 3D-27 | Contact: the body never enters an awake alien; walking at one ends in a capture; stunned ones are passable | PASS |
 
@@ -337,8 +420,8 @@ date and who measured — in both cases Claude in the browser pane, not a human.
    is the evidence that would settle it.
 5. **Audio unheard; no real phone.** Touch was tested in an emulated 740×360 viewport.
    iPhone Safari allows neither full screen nor an orientation lock for a page.
-6. **Is 48 × 30 m too small?** Larger 3D maps would need the generator parameterised and
-   both generated predictor tables regenerated.
+6. ~~**Is 48 × 30 m too small?**~~ Yes, said the user. Settled by N8.1's cities, ×5 to ×60.
+   The predictor still uses the 2D constants; N8.5 recalibrates them for behaviour.
 7. **Not built:** the foresight overlay (each alien's predicted path on the floor).
 
 ## Integration (a separate decision, plan phase 10)

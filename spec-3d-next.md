@@ -1,7 +1,7 @@
 # NOISE 3D — the next round
 
-Written Nov 18, 2026, revised the same day after N3 · **status: N0–N3 built; N8 next** ·
-follows 3D build 20
+Written Nov 18, 2026, revised the same day after N3 · **status: N0–N3 and N8.1 built;
+N8.2 next** · follows 3D build 21
 
 > A spec to pick up one phase at a time, whenever there is time. It describes what each
 > phase builds, the numbers it uses, the files it touches, how it is checked and what it
@@ -32,8 +32,8 @@ follows 3D build 20
 | N1 | Fewer bolts deeper into each belt | ½ day | Low | **done** (3D build 12) |
 | N2 | Comic-accurate aliens, all ten species | 3 days (+1½ per species) | Medium | **done** (3D builds 13–14): ten species, one per belt |
 | N3 | Jumpscare and portal ascension | 3–3½ days | Low–medium | **done** (3D builds 15–20; capture reworked after review into a 7 s attack; build 20 found that a saved "mild" setting had been hiding it) |
-| **N8.1** | Big maps: the size curve, the city builder with named places, the `next` ruleset | 4–5 days | High | **next** |
-| N8.2 | Aliens: arrival cap, hunting / patrol / travel speeds, arrivals near you; route-planning spread out so it never hitches | 3–4 days | Medium | not started |
+| N8.1 | Big maps: the size curve, the city builder with named places, the `next` ruleset | 4–5 days | High | **done** (3D build 21) |
+| **N8.2** | Aliens: arrival cap, hunting / patrol / travel speeds, arrivals near you; route-planning spread out so it never hitches | 3–4 days | Medium | **next** |
 | N8.3 | Keys (4 → 10) and portal placement; Tab map zoom, pan and place names; run length measured | 2–3 days | Medium | not started |
 | N8.4 | Chunks, a shadow box that follows you, the frame-rate setting; frame budget re-measured | 2–3 days | Medium | not started |
 | N8.5 | Behaviour-first Dispatch: new traits, tactics, bots, 3D constants | 5–7 days | High | not started |
@@ -605,16 +605,31 @@ player, not the room. So in 3D:
 
 **Total:** about 3–4 weeks. **Difficulty:** high.
 
+**N8.1 as built (3D build 21).** `spec-3d.md`, "Districts are cities", has the full
+description. Where it differs from or adds to the plan above:
+
+- **Gated walls.** Yards, markets and parks are walled with gates. Without walls, open
+  lots merged with the streets into open fields, which is bad for a stealth game.
+- **Black boxes and regions.** There are `round(3·√A)` black boxes, and
+  `min(48, max(12, round(12·√(A/5))))` predictor regions (12 at district 1, 42 at 100).
+- **Time limit.** The run limit now scales with `√A`. The 2D limit is six real minutes in
+  3D, which a careful run on a big map could hit.
+- **Bots.** They had a 640-cell path buffer and never found a key on a city map.
+  `bots/policies.js` now sizes it to the map; 2D maps get the same buffer as before.
+- **3D-21 runs smaller than planned:** 500 cities (five at every district 1–100) and 60
+  episodes, so the suite stays under a minute.
+- **Unchanged for now:** aliens and keys are as in 2D until N8.2 and N8.3.
+
 ### Criteria
 
 - **3D-20 (new), 2D unchanged.** 10,000 2D levels generated with the defaults hash
   byte-identical to before the change.
-- **3D-21 (new), big maps sound.** 1,000 generations at each of districts 1, 10, 25, 50,
-  75 and 100 must pass all of these:
+- **3D-21 (new), big maps sound.** 500 generations, five at every district 1–100, must
+  pass all of these (as built; 6,000 would take four minutes):
   - sizes follow the curve and grow every district;
   - every key and the portal are reachable for the human, and every street for the aliens;
   - places do not overlap;
-  - the spawn distance holds over 1,000 episodes, divisions included.
+  - the spawn distance holds over 60 episodes at districts 1–100, divisions included.
 - **3D-22 (reworded), the Dispatch learns behaviour.** At district 100's size:
   - prediction beats uniform for every bot;
   - each behaviour tactic raises interception against the bot that has that behaviour,

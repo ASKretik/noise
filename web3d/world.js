@@ -315,8 +315,14 @@ export function buildWorld(level, { cellM, shadows = false }) {
   return {
     group,
     palette: pal,
-    /** Per-frame animation: the water drifts. */
-    animate(t) { waterNorm.offset.set(t * 0.03, t * 0.017); },
+    /**
+     * Per-frame animation: the water drifts, and the sky dome stays centred on you. On a
+     * city map you can walk 200 m from the middle, outside a dome fixed there.
+     */
+    animate(t, eye = null) {
+      waterNorm.offset.set(t * 0.03, t * 0.017);
+      if (eye) sky.position.set(eye.x, 0, eye.z);
+    },
     dispose() { for (const d of disposables) d.dispose?.(); },
   };
 }

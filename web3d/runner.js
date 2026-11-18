@@ -5,7 +5,6 @@
 // page owns the frame loop, the camera and the HUD; this owns everything that decides
 // what happens. Keeping it DOM-free is what lets the whole loop run under Node.
 
-import { generateLevel } from '../sim/gen.js';
 import { createSystem, resolveDifficulty } from '../sim/system.js';
 import { levelParams } from '../sim/difficulty.js';
 import { regionAdjacency } from '../sim/regions.js';
@@ -16,8 +15,15 @@ import { Game3D } from '../sim3d/game3d.js';
 import { Session3D } from '../sim3d/session.js';
 import { TICK_HZ_3D } from '../sim3d/units.js';
 import { thinBolts } from '../sim3d/bolts.js';
+import { generateDistrict, rulesetOf, maxTicksFor } from '../sim3d/next/rules.js';
+import { sizeFor } from '../sim3d/next/size.js';
 
-const pool = new FieldPool(32 * 20);
+/** One field pool per map size, shared by every runner: a district reuses its buffers. */
+const pools = new Map();
+function poolFor(n) {
+  if (!pools.has(n)) pools.set(n, new FieldPool(n));
+  return pools.get(n);
+}
 
 export class DistrictRunner {
   /**
@@ -33,12 +39,17 @@ export class DistrictRunner {
    * @param {number}  [o.tickHz]
    * @param {string}  [o.mode]
    * @param {boolean} [o.thinBolts]   default true: fewer bolts deeper into each belt
+   * @param {string}  [o.ruleset]     'next' (default: N8's city maps) or 'classic' (32 x 20,
+   *                                  the parity reference)
    */
   constructor(o) {
     this.o = o;
     this.district = o.district;
     this.params = levelParams(o.district, o.tier);
-    this.level = generateLevel(o.profileId, o.district, { pool, params: this.params });
+    this.ruleset = rulesetOf(o.ruleset);
+    const size = this.ruleset === 'classic' ? 32 * 20 : sizeFor(o.district).w * sizeFor(o.district).h;
+    const pool = poolFor(size);
+    this.level = generateDistrict(this.ruleset, o.profileId, o.district, { pool, params: this.params });
     this.level.regions.adjacency ||= regionAdjacency(this.level.map, this.level.regions);
     // Fewer bolts deeper into each belt (spec-3d-next.md, N1). The runner's own copy of the
     // level; nothing generated for the 2D game is touched. `thinBolts: false` disables it.
@@ -57,6 +68,7 @@ export class DistrictRunner {
       spawnPolicy: this.system.spawnPolicy, observer: this.system.observer,
       tau: this.difficulty.tau, lambdaScale: this.difficulty.lambdaScale,
       logLevel: 'player', freezeUntilFirstMove: true,
+      maxTicks: maxTicksFor(this.ruleset, o.district),
       loadout: o.loadout,
     });
     this.prediction = this.system.predictNow(this.game.view);

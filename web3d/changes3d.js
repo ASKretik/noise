@@ -8,6 +8,26 @@
 
 export const CHANGES = [
   {
+    build: 21,
+    date: '2026-11-18',
+    phase: 'N8.1',
+    changed: [
+      'Districts are big now, and every one is bigger than the last. District 1 is 5 times the old area (108 x 67 m), district 10 is 10 times, 50 is 30 times, 75 is 45 times and district 100 is 60 times (372 x 232 m).',
+      'Each district is a city built for the 3D game. Avenues cross it, and streets and alleys cut it into blocks. Every block is a neighbourhood: tenements threaded with alleys, walled yards and gardens with gates, arcades full of stalls, plazas with fountains, canals, depots full of columns, and ruins you have to walk round (they walk straight through).',
+      'Every block and avenue has a name (Pike Market, Cobble Courts, Slate Works...). Nothing shows them yet; they are there for the story and the Tab map.',
+      'Keys are spread across the city, far from where you start and from each other. There are still 3 to 5 keys, and the aliens are unchanged; those are the next steps (N8.2 aliens, N8.3 keys and the Tab map).',
+      'The time limit grows with the map (13 minutes at district 1, 46 at district 100), so a careful run never times out.',
+    ],
+    tryThis: [
+      'Hard-reload once (Cmd+Shift+R). Play district 1, then open play.html?d=50 and play.html?d=100 to walk the bigger cities.',
+      'Hold Tab: the whole city fits on screen, but at district 100 it is small. Zoom and pan come in N8.3.',
+    ],
+    unverified: [
+      'The aliens are as few and as slow as before, on maps up to 60 times bigger, so deep districts may feel empty until N8.2.',
+      'Measured on an M3 Mac only: district 100 runs at about 78 fps at 1080p on High. Not tested on a weaker laptop.',
+    ],
+  },
+  {
     build: 20,
     date: '2026-11-19',
     phase: 'N3',

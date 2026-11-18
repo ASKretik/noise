@@ -2286,10 +2286,67 @@ void and no wall can stand between you and it. New sounds: beat, buzz, breath. s
 **Not verified:** nothing is built yet. The run-length figures are a geometric estimate
 (nearest-key route, ×1.35 for streets, 6 m/s), not play.
 
+---
+
+## R52 · N8.1: districts are cities
+
+**Asked:** "okay implement N8.1 now and updqte it in github".
+
+**Built (3D build 21):**
+
+- **The size curve.** `sim3d/next/size.js` holds the user's five points, piecewise linear
+  between them. Every district is larger than the one before; 3D-21 checks all 100.
+- **The city builder.** `sim3d/next/city.js` lays out avenues, streets and alleys, cutting
+  the map into lots no larger than 22 × 16. Each lot gets one of eight neighbourhood
+  types and becomes a named place.
+- **The ruleset switch** (decision D1). `sim3d/next/rules.js` defines it: districts play
+  `next`, while `classic` keeps 32 × 20 for parity. `?rules=classic` plays it in the
+  sandbox.
+
+**Measured:**
+
+- **Generation:** 9 ms at district 1, about 90 ms at district 100.
+- **Frame time** (whole frame, M3, 1080p, High with shadows): 11.2 ms at district 1 and
+  12.8 ms at district 100, with 0.94 M triangles and nothing culled yet.
+- **Sim:** the worst tick at district 100 is 6 ms with one alien.
+- **Bots:** at district 1 (EASY) they won 7 of 8 runs on the city, against 5 of 8 on the
+  classic map.
+
+**Found on the way:**
+
+1. **Open lots read as fields.** Plazas, yards, markets and parks were carved fully open,
+   merged with the streets and became huge empty fields, the worst shape for a stealth
+   game. The ASCII dump showed it before any rendering did. Yards, markets and parks are
+   now walled with gates; plazas stay open.
+2. **The bots never found a key on a city map.** `bots/policies.js` sized its path buffer
+   for 32 × 20, and a typed array silently drops writes past its end, so every route a bot
+   computed was garbage. Criterion 3D-9 caught it ("no win at district 1 EASY in 8
+   attempts"). The buffer is now sized to the map; on a 2D map it is the same 640-cell
+   buffer as before.
+3. **Runs would time out.** The 2D time limit is 180 s of 8 ticks, which is six real
+   minutes at the 3D tick rate. On `next` it now scales with the map's side: about
+   13 minutes at district 1 and 46 at district 100.
+
+**The 2D game.** Two 2D files changed, neither in behaviour:
+
+- `sim/gen.js` exports `scatterBolts` and `scatterCoins`, which the user allowed.
+- `bots/policies.js` sizes its buffer to the map, as above.
+
+The new criterion 3D-20 hashes 10,000 2D levels against a fingerprint recorded before the
+change: identical. The 2D suites still give 12 / 1 / 0, and webcheck is green.
+
+**Not verified:**
+
+- Nobody has played a city yet.
+- The aliens are unchanged, as few and as slow as on a 640-cell board, so deep districts
+  may feel empty until N8.2.
+- Performance was measured on one M3 only.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    18 passed · 0 not demonstrated · 0 failed  (3D build 20)
+npm run test3d    20 passed · 0 not demonstrated · 0 failed  (3D build 21; 3D-1 via the
+                  2D suites above, run alongside)
 ```

@@ -48,7 +48,17 @@ class Navigator {
     this.field = null;
     this.goal = null;
   }
+  /**
+   * The pool, sized to this map. 2D boards are always 32 x 20, so for the 2D game this is
+   * the pool made in the constructor, untouched. The 3D page's city maps (N8) are larger,
+   * and a 640-cell buffer there silently drops every write past its end.
+   */
+  poolFor(map) {
+    if (this.pool.size !== map.tiles.length) { this.pool = new FieldPool(map.tiles.length); this.field = null; this.goal = null; }
+    return this.pool;
+  }
   fieldTo(map, goal) {
+    this.poolFor(map);
     if (!this.field || !this.goal || this.goal.x !== goal.x || this.goal.y !== goal.y) {
       const buf = this.pool.take();
       bfsField(map, goal.x, goal.y, buf);
@@ -68,6 +78,7 @@ class Navigator {
  */
 function threatField(game, nav) {
   if (game.patrols.length === 0) return null;
+  nav.poolFor(game.map);
   const buf = nav.pool.take();
   bfsFrom(game.map, game.patrols.map((p) => p.y * game.map.w + p.x), buf, ALIEN);
   const f = Int16Array.from(buf.dist);

@@ -15,7 +15,13 @@ import { euclid, TILE } from '../sim/grid.js';
 import { buildState, templated } from '../web/dispatch.js';
 import { realSeconds } from '../sim3d/units.js';
 
-const MINI_TILE = 16;            // px per cell in the offscreen board
+const MINI_TILE = 16;            // px per cell in the offscreen board, on a 2D-sized map
+/**
+ * Px per cell for a map: 16 on today's boards, smaller on N8's city maps, so the board
+ * the 2D renderer redraws every frame stays near 2,400 px wide (a district-100 board at
+ * 16 px would be 4,000 x 2,500, redrawn sixty times a second).
+ */
+export const boardTile = (w) => Math.max(6, Math.min(MINI_TILE, Math.floor(2400 / w)));
 const MINI_SIZE = 188;           // css px
 const MINI_CELLS = 13;           // cells across the minimap
 
@@ -36,6 +42,7 @@ export class Hud3D {
     // offscreen 2D board, drawn by the 2D renderer
     this.boardCanvas = document.createElement('canvas');
     this.board = new Renderer(this.boardCanvas);
+    this.tile = MINI_TILE;
     this.board.tile = MINI_TILE;
     this.board.dpr = 1;
 
@@ -81,7 +88,9 @@ export class Hud3D {
 
   setDistrict(level, tier) {
     this.board.setDistrict(level.level);
-    const w = level.map.w * MINI_TILE, h = level.map.h * MINI_TILE;
+    this.tile = boardTile(level.map.w);
+    this.board.tile = this.tile;
+    const w = level.map.w * this.tile, h = level.map.h * this.tile;
     this.boardCanvas.width = w; this.boardCanvas.height = h;
     this.board.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.board._mapKey = null;
@@ -141,11 +150,12 @@ export class Hud3D {
     m.save();
     m.beginPath(); m.arc(S / 2, S / 2, S / 2 - 4, 0, Math.PI * 2); m.clip();
     m.fillStyle = '#07080c'; m.fillRect(0, 0, S, S);
-    const scale = S / (MINI_CELLS * MINI_TILE);
+    const T = this.tile;
+    const scale = S / (MINI_CELLS * T);
     m.translate(S / 2, S / 2);
     m.rotate(yaw);
     m.scale(scale, scale);
-    m.translate(-body.x * MINI_TILE, -body.y * MINI_TILE);
+    m.translate(-body.x * T, -body.y * T);
     m.drawImage(this.boardCanvas, 0, 0);
     m.restore();
     // you
@@ -169,7 +179,7 @@ export class Hud3D {
       const c = mc.getContext('2d');
       c.setTransform(dpr * k, 0, 0, dpr * k, 0, 0);
       c.drawImage(this.boardCanvas, 0, 0);
-      c.translate(body.x * MINI_TILE, body.y * MINI_TILE);
+      c.translate(body.x * T, body.y * T);
       c.rotate(-yaw);
       c.fillStyle = COLORS.beacon; c.strokeStyle = '#041014'; c.lineWidth = 2;
       c.beginPath(); c.moveTo(0, -11); c.lineTo(7, 8); c.lineTo(0, 4); c.lineTo(-7, 8); c.closePath(); c.stroke(); c.fill();
