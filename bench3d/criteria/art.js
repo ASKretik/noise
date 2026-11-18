@@ -47,8 +47,8 @@ export const criteria = [{
         const l = hexToHsl(art.sky.horizon).l;
         if (l > lastL + 1e-9) problems.push(`district ${d} horizon brighter than district ${d - 1}`);
         lastL = l;
-        if (art.sky.body.kind === 'moon' && k < 5) problems.push(`district ${d}: moon up before mid-belt`);
-        if (art.sky.body.kind === 'sun' && k >= 5) problems.push(`district ${d}: sun still up after mid-belt`);
+        if (!art.allNight && art.sky.body.kind === 'moon' && k < 5) problems.push(`district ${d}: moon up before mid-belt`);
+        if (art.sky.body.kind === 'sun' && (k >= 5 || art.allNight)) problems.push(`district ${d}: sun still up after mid-belt`);
       }
     }
     if (!styled.length) problems.push('no belt is art-directed');
@@ -63,6 +63,6 @@ export const criteria = [{
 
     return problems.length
       ? [FAIL, problems.slice(0, 6).join('; ')]
-      : [PASS, `${styled.length} belts art-directed (${styled.join(', ')}): ${checked} large-area colours over ${styled.length * 10} districts, none within 25°/0.25 of ${Object.keys(ENTITY_COLOURS).length} entity colours; horizons darken dusk to midnight; sign and wall-art colours clear too. On 2D palettes until N4.3: ${fallback.join(', ')}`];
+      : [PASS, `${styled.length} belts art-directed (${styled.join(', ')}): ${checked} large-area colours over ${styled.length * 10} districts, none within 25°/0.25 of ${Object.keys(ENTITY_COLOURS).length} entity colours; horizons darken dusk to midnight; sign and wall-art colours clear too${fallback.length ? `. On 2D palettes: ${fallback.join(', ')}` : ''}`];
   },
 }];

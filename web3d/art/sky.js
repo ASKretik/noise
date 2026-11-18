@@ -19,8 +19,8 @@ void main() {
 }`;
 
 const FRAG = `
-uniform vec3 zenith, horizon, cloudCol, bodyCol, beamCol, bodyDir;
-uniform float bodySize, bodyGlow, clouds, stars, canopy, beam, beamAz, beamSpeed, time;
+uniform vec3 zenith, horizon, cloudCol, bodyCol, beamCol, bodyDir, body2Col, body2Dir, auroraA, auroraB;
+uniform float bodySize, bodyGlow, clouds, stars, canopy, beam, beamAz, beamSpeed, time, body2Size, body2Glow, aurora, ship;
 varying vec3 vDir;
 
 float hash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
@@ -44,6 +44,13 @@ void main() {
   float above = smoothstep(-0.03, 0.03, up);
   col += bodyCol * (disc + glow) * above;
 
+  // a second moon (JADE)
+  if (body2Size > 0.0) {
+    float c2 = dot(d, normalize(body2Dir));
+    float disc2 = smoothstep(cos(body2Size), cos(body2Size * 0.75), c2);
+    col += body2Col * (disc2 + pow(max(c2, 0.0), 40.0) * body2Glow) * above;
+  }
+
   // stars, once it is dark
   if (stars > 0.0) {
     vec3 cell = floor(d * 260.0);
@@ -57,6 +64,32 @@ void main() {
     float n = fbm(vec3(uv, time * 0.01));
     float cover = smoothstep(1.0 - clouds * 0.9, 1.15 - clouds * 0.75, n) * smoothstep(0.0, 0.25, up);
     col = mix(col, cloudCol, cover * 0.9);
+  }
+
+  // aurora (VIOLET): curtains hanging from high in the sky, rippling slowly
+  if (aurora > 0.0) {
+    float az = atan(d.x, -d.z);
+    float band = smoothstep(0.12, 0.3, up) * (1.0 - smoothstep(0.55, 0.85, up));
+    float curtain = 0.5 + 0.5 * sin(az * 7.0 + time * 0.08 + 2.0 * sin(az * 3.0 - time * 0.05));
+    float n = fbm(vec3(az * 3.0, up * 6.0 - time * 0.04, time * 0.02));
+    float a = band * pow(curtain, 2.0) * smoothstep(0.3, 0.65, n) * aurora;
+    col += mix(auroraA, auroraB, smoothstep(0.2, 0.6, up)) * a * 1.1;
+  }
+
+  // the mothership (COBALT): a vast dark hull overhead, ringed with running lights
+  if (ship > 0.0) {
+    vec2 q = d.xz / max(up, 0.05);                       // a plane far overhead
+    vec2 sq = vec2(q.x * 0.55, (q.y - 0.15) * 1.0);
+    float r = length(sq);
+    float hull = (1.0 - smoothstep(0.85, 0.9, r)) * smoothstep(0.1, 0.3, up);
+    float plates = 0.85 + 0.15 * step(0.5, fract(q.x * 6.0)) * step(0.5, fract(q.y * 6.0 + 0.25));
+    // its underside catches the city's glow: a dull slate shape, plated, against the stars
+    vec3 under = vec3(0.075, 0.085, 0.11) * plates * (0.75 + 0.25 * smoothstep(0.9, 0.2, r));
+    col = mix(col, under, hull * ship);
+    float rim = smoothstep(0.05, 0.0, abs(r - 0.86)) * smoothstep(0.1, 0.3, up);
+    float lights = step(0.8, fract(atan(sq.y, sq.x) * 9.549 + time * 0.03));
+    float core = (1.0 - smoothstep(0.0, 0.14, r)) * (0.6 + 0.4 * sin(time * 0.7));
+    col += vec3(0.55, 0.7, 1.0) * (rim * (0.25 + lights * 1.6) + core * 0.6 * hull) * ship;
   }
 
   // canopy: leaves overhead, dark against the light
@@ -104,6 +137,12 @@ export function makeSky(sky, radius, track = (x) => x) {
       beam: { value: beam ? beam.strength : 0 }, beamCol: { value: C(beam ? beam.color : '#000000') },
       beamAz: { value: beam ? (beam.az * Math.PI) / 180 : 0 }, beamSpeed: { value: beam ? beam.speed : 0 },
       time: { value: 0 },
+      body2Col: { value: C(sky.body2 ? sky.body2.color : '#000000') },
+      body2Dir: { value: sky.body2 ? skyDir(sky.body2.az, sky.body2.elev) : new THREE.Vector3(0, 1, 0) },
+      body2Size: { value: sky.body2 ? sky.body2.size : 0 }, body2Glow: { value: sky.body2 ? sky.body2.glow : 0 },
+      aurora: { value: sky.aurora ? sky.aurora.strength : 0 },
+      auroraA: { value: C(sky.aurora ? sky.aurora.a : '#000000') }, auroraB: { value: C(sky.aurora ? sky.aurora.b : '#000000') },
+      ship: { value: sky.ship || 0 },
     },
     vertexShader: VERT, fragmentShader: FRAG,
   }));

@@ -6,8 +6,8 @@
 // light cools and the weather thickens. artFor(district) resolves a belt's dusk and
 // midnight ends to the concrete values for one district.
 //
-// N4.1 art-directs RUST, TIDE and MOSS. The other seven keep their 2D palettes (world.js
-// derives them) with the same sky, light and depth progression, until N4.2.
+// N4.1 art-directed RUST, TIDE and MOSS; N4.3 the other seven. world.js's fallback (the
+// 2D palette with the same sky and light) is now only for a district outside 1-100.
 //
 // THE LEGIBILITY RULE: red aliens, gold keys, coins by value and the teal portal are the
 // game's vocabulary. No large-area colour here -- walls, floors, sky, fog, props -- may sit
@@ -77,6 +77,132 @@ const ART = {
       hemiSky: '#55675a', hemiGround: '#080b09', hemi: 1.05, key: '#9bb2a2', keyI: 0.6,
     },
   },
+  EMBER: {
+    wall: { style: 'scorchedBrick', base: '#3a2420', detail: '#6e2a12', roughness: 0.9, metalness: 0 },
+    floor: { style: 'cinders', base: '#2a2422', detail: '#4a2a1c', roughness: 0.95 },
+    rubble: '#33282a', water: '#2b2a2c',
+    props: { kind: 'beams', base: '#2a2220', accent: '#5a3a28', density: 0.16 },
+    weather: { kind: 'embers', color: '#d8692a', rate: [0.35, 0.8], size: 0.06, speed: 0.5, slant: 0.4 },
+    dusk: {
+      zenith: '#1c1418', horizon: '#4a2a26', clouds: 0.6, cloud: '#3a2626', stars: 0,
+      body: { kind: 'sun', az: 250, elev: 6, color: '#ff9a5a', size: 0.07, glow: 0.5 },
+      hemiSky: '#c09080', hemiGround: '#24140e', hemi: 1.9, key: '#ffa070', keyI: 2.0,
+    },
+    night: {
+      zenith: '#0a0708', horizon: '#24161a', clouds: 0.7, cloud: '#1e1416', stars: 0.15,
+      body: { kind: 'moon', az: 115, elev: 30, color: '#d8b8a8', size: 0.024, glow: 0.1 },
+      hemiSky: '#6a5a6a', hemiGround: '#0c0808', hemi: 1.15, key: '#b0a0b8', keyI: 0.6,
+    },
+  },
+  VIOLET: {
+    allNight: true,
+    wall: { style: 'darkTile', base: '#2a2733', detail: '#4a4560', roughness: 0.4, metalness: 0.1 },
+    floor: { style: 'darkTile', base: '#24222b', detail: '#38344a', roughness: 0.35 },
+    rubble: '#2e2b36', water: '#1e2433',
+    props: { kind: 'neon', base: '#3a3a44', accent: '#4a7dff', second: '#ff5ad2', density: 0.1 },
+    weather: { kind: 'drizzle', color: '#a8b4d8', rate: [0.4, 0.85], size: 0.26, speed: 7, slant: 0.12 },
+    dusk: {
+      zenith: '#14132a', horizon: '#353a5c', clouds: 0.4, cloud: '#2a2a44', stars: 0.3,
+      body: { kind: 'moon', az: 120, elev: 18, color: '#c8ccee', size: 0.026, glow: 0.2 },
+      aurora: { a: '#5a8cff', b: '#7a6cff', strength: 0.45 },
+      hemiSky: '#7a80b8', hemiGround: '#100e18', hemi: 1.55, key: '#a8b0ff', keyI: 0.95,
+    },
+    night: {
+      zenith: '#07061a', horizon: '#1c1a33', clouds: 0.35, cloud: '#151428', stars: 0.7,
+      body: { kind: 'moon', az: 135, elev: 40, color: '#c8ccee', size: 0.026, glow: 0.15 },
+      aurora: { a: '#5a8cff', b: '#7a6cff', strength: 1.0 },
+      hemiSky: '#5a6090', hemiGround: '#08070e', hemi: 1.1, key: '#9aa4e8', keyI: 0.55,
+    },
+  },
+  ASH: {
+    wall: { style: 'brutalist', base: '#4a4a48', detail: '#2f2f2e', roughness: 0.92, metalness: 0 },
+    floor: { style: 'concrete', base: '#3c3c3a', detail: '#2a2a29', roughness: 0.9 },
+    rubble: '#3e3e3c', water: '#2c3236',
+    props: { kind: 'lamps', base: '#3a3c40', accent: '#d8dde6', density: 0.08 },
+    weather: { kind: 'ash', color: '#b8b8b4', rate: [0.5, 1.0], size: 0.09, speed: 0.6, slant: 0.25 },
+    dusk: {
+      zenith: '#8a8c90', horizon: '#b4b6b8', clouds: 0.9, cloud: '#9a9c9e', stars: 0,
+      body: { kind: 'sun', az: 240, elev: 12, color: '#f0f0ea', size: 0.05, glow: 0.15 },
+      hemiSky: '#d8dade', hemiGround: '#262626', hemi: 2.1, key: '#f2f2ee', keyI: 1.3,
+    },
+    night: {
+      zenith: '#101112', horizon: '#2a2b2c', clouds: 0.9, cloud: '#1e1f20', stars: 0,
+      body: { kind: 'moon', az: 125, elev: 30, color: '#c8ccd2', size: 0.022, glow: 0.06 },
+      hemiSky: '#70747c', hemiGround: '#0a0a0a', hemi: 1.15, key: '#a8aeb8', keyI: 0.45,
+    },
+  },
+  CORAL: {
+    wall: { style: 'deco', base: '#5c4752', detail: '#7a5f6e', roughness: 0.75, metalness: 0 },
+    floor: { style: 'terrazzo', base: '#4a4248', detail: '#6a5a64', roughness: 0.6 },
+    rubble: '#4a3f45', water: '#2f3a48',
+    props: { kind: 'railings', base: '#2a2a2e', accent: '#8a8f9a', density: 0.14 },
+    weather: null,
+    dusk: {
+      zenith: '#2a2440', horizon: '#8a5a7a', clouds: 0.35, cloud: '#6a4a64', stars: 0,
+      body: { kind: 'sun', az: 255, elev: 4, color: '#ffb0a0', size: 0.07, glow: 0.6 },
+      hemiSky: '#d8b0c8', hemiGround: '#1e1418', hemi: 1.9, key: '#ffc0b0', keyI: 1.9,
+    },
+    night: {
+      zenith: '#0c0a14', horizon: '#2a1e2c', clouds: 0.3, cloud: '#1e1622', stars: 0.5,
+      body: { kind: 'moon', az: 120, elev: 34, color: '#d8c8e0', size: 0.024, glow: 0.12 },
+      hemiSky: '#6a6080', hemiGround: '#0a080c', hemi: 1.1, key: '#b0a8c8', keyI: 0.55,
+    },
+  },
+  JADE: {
+    wall: { style: 'carved', base: '#3e4a44', detail: '#2e5a40', roughness: 0.88, metalness: 0 },
+    floor: { style: 'flagstones', base: '#36403a', detail: '#2a4a38', roughness: 0.85 },
+    rubble: '#38413c', water: '#24342e',
+    props: { kind: 'lanterns', base: '#2a2a26', accent: '#dfe8d4', density: 0.1 },
+    weather: { kind: 'mist', color: '#c8d4cc', rate: [0.4, 0.9], size: 1.8, speed: 0.05, slant: 0.1 },
+    dusk: {
+      zenith: '#1a2620', horizon: '#3e4a44', clouds: 0.3, cloud: '#2e3a34', stars: 0,
+      body: { kind: 'sun', az: 230, elev: 10, color: '#e0f0d8', size: 0.045, glow: 0.35 },
+      hemiSky: '#a8c0b0', hemiGround: '#141a16', hemi: 1.8, key: '#e0ecd8', keyI: 1.6,
+    },
+    night: {
+      zenith: '#050a08', horizon: '#141e1a', clouds: 0.25, cloud: '#101814', stars: 0.5,
+      body: { kind: 'moon', az: 110, elev: 32, color: '#d0e0d8', size: 0.055, glow: 0.2 },
+      body2: { az: 140, elev: 22, color: '#c8d0e8', size: 0.035, glow: 0.14 },
+      hemiSky: '#5a6a64', hemiGround: '#060908', hemi: 1.1, key: '#a0b8b0', keyI: 0.6,
+    },
+  },
+  SOLAR: {
+    wall: { style: 'sandstone', base: '#5a5249', detail: '#7a6a54', roughness: 0.9, metalness: 0 },
+    floor: { style: 'paving', base: '#4f4840', detail: '#6a5c48', roughness: 0.85 },
+    rubble: '#504840', water: '#2a3a40',
+    props: { kind: 'awnings', base: '#3a3530', accent: '#3d6a9a', second: '#d8d4c8', density: 0.14 },
+    weather: { kind: 'haze', color: '#e8dcc0', rate: [0.3, 0.6], size: 0.08, speed: 0.25, slant: 0.5 },
+    dusk: {
+      zenith: '#3a4660', horizon: '#9a9488', clouds: 0.15, cloud: '#8a8478', stars: 0,
+      body: { kind: 'sun', az: 245, elev: 14, color: '#fff0d0', size: 0.22, glow: 0.9 },
+      hemiSky: '#e8dcc8', hemiGround: '#2a241c', hemi: 2.2, key: '#fff0d8', keyI: 2.6,
+    },
+    night: {
+      zenith: '#080a14', horizon: '#1e1c1a', clouds: 0.1, cloud: '#141310', stars: 0.8,
+      body: { kind: 'moon', az: 120, elev: 36, color: '#e0d8c8', size: 0.03, glow: 0.12 },
+      hemiSky: '#6a6a74', hemiGround: '#0a0908', hemi: 1.1, key: '#b8b0a0', keyI: 0.55,
+    },
+  },
+  COBALT: {
+    allNight: true,
+    wall: { style: 'alloy', base: '#3a4250', detail: '#5a6a80', roughness: 0.45, metalness: 0.6 },
+    floor: { style: 'plates', base: '#30353e', detail: '#22262c', roughness: 0.6 },
+    rubble: '#363c46', water: '#1e2836',
+    props: { kind: 'antennas', base: '#4a505a', accent: '#9ab0d0', density: 0.12 },
+    weather: null,
+    dusk: {
+      zenith: '#0c1020', horizon: '#26304a', clouds: 0.2, cloud: '#1a2236', stars: 0.5,
+      body: { kind: 'moon', az: 115, elev: 25, color: '#c8d4f0', size: 0.025, glow: 0.15 },
+      ship: 0.6,
+      hemiSky: '#7a8ab0', hemiGround: '#0c0e14', hemi: 1.5, key: '#a8b8e0', keyI: 0.9,
+    },
+    night: {
+      zenith: '#04060c', horizon: '#121828', clouds: 0.15, cloud: '#0c1220', stars: 0.75,
+      body: { kind: 'moon', az: 140, elev: 40, color: '#c8d4f0', size: 0.025, glow: 0.12 },
+      ship: 1.0,
+      hemiSky: '#5a6890', hemiGround: '#05060a', hemi: 1.05, key: '#98a8d8', keyI: 0.5,
+    },
+  },
 };
 
 export const BELT_NAMES = Object.freeze(['RUST', 'TIDE', 'MOSS', 'EMBER', 'VIOLET', 'ASH', 'CORAL', 'JADE', 'SOLAR', 'COBALT']);
@@ -119,20 +245,27 @@ export function artFor(district) {
   const def = ART[BELT_NAMES[belt]];
   if (!def) return null;
   const a = def.dusk, b = def.night;
-  // the sun sets over the first half of the belt; the moon has risen by the second
-  const body = t < 0.5
-    ? { ...a.body, elev: lerp(a.body.elev, -2, t * 2), glow: a.body.glow * (1 - t) }
-    : { ...b.body, elev: lerp(b.body.elev * 0.6, b.body.elev, (t - 0.5) * 2) };
+  // the sun sets over the first half of the belt; the moon has risen by the second. A
+  // belt that is always night (VIOLET, COBALT) keeps one moon climbing all the way.
+  const body = def.allNight
+    ? { ...a.body, az: lerp(a.body.az, b.body.az, t), elev: lerp(a.body.elev, b.body.elev, t), glow: lerp(a.body.glow, b.body.glow, t) }
+    : t < 0.5
+      ? { ...a.body, elev: lerp(a.body.elev, -2, t * 2), glow: a.body.glow * (1 - t) }
+      : { ...b.body, elev: lerp(b.body.elev * 0.6, b.body.elev, (t - 0.5) * 2) };
   const beam = a.beam ? { ...a.beam, strength: lerp(0.35, 1, t) } : null;
+  // JADE's second moon rises with the first; VIOLET's aurora and COBALT's ship grow by midnight
+  const body2 = b.body2 && t >= 0.5 ? { ...b.body2, elev: lerp(b.body2.elev * 0.5, b.body2.elev, (t - 0.5) * 2) } : null;
+  const aurora = a.aurora ? { a: a.aurora.a, b: a.aurora.b, strength: lerp(a.aurora.strength, b.aurora.strength, t) } : null;
+  const ship = a.ship != null ? lerp(a.ship, b.ship, t) : 0;
   return {
-    belt, name: BELT_NAMES[belt], k, t, styled: true,
+    belt, name: BELT_NAMES[belt], k, t, styled: true, allNight: !!def.allNight,
     wall: def.wall, floor: def.floor, rubble: def.rubble, water: def.water, props: def.props,
     weather: def.weather ? { ...def.weather, rate: lerp(def.weather.rate[0], def.weather.rate[1], t) } : null,
     sky: {
       zenith: mixHex(a.zenith, b.zenith, t), horizon: mixHex(a.horizon, b.horizon, t),
       clouds: lerp(a.clouds, b.clouds, t), cloud: mixHex(a.cloud, b.cloud, t),
       stars: lerp(a.stars, b.stars, t), canopy: lerp(a.canopy || 0, b.canopy || 0, t),
-      body, beam,
+      body, beam, body2, aurora, ship,
     },
     light: {
       hemiSky: mixHex(a.hemiSky, b.hemiSky, t), hemiGround: mixHex(a.hemiGround, b.hemiGround, t),
@@ -160,7 +293,7 @@ export const PLACE_TYPE_ORDER = Object.freeze(['tenements', 'plaza', 'market', '
  *   goods     colours of what fills it (crates, containers, stalls), small areas
  */
 const PLACE_LOOKS = {
-  tenements: { walls: ['brick', 'brickDoor'], floor: 'cobbles', height: 5.4, wallTint: '#4f3128', floorTint: '#38332f', mix: 0.55, rough: [0.9, 0.85] },
+  tenements: { walls: ['brick', 'brickDoor'], floor: 'cobbles', height: 5.4, wallTint: '#3f2720', floorTint: '#38332f', mix: 0.55, rough: [0.9, 0.85] },
   plaza: { walls: ['ashlar'], floor: 'paving', height: 3.2, wallTint: '#62615c', floorTint: '#4e4b45', mix: 0.7, rough: [0.8, 0.75] },
   market: { walls: ['shutters'], floor: 'chequer', height: 3.2, wallTint: '#3f4650', floorTint: '#47433d', mix: 0.5, rough: [0.6, 0.7], metal: 0.3, goods: ['#3c5468', '#55623a', '#504048', '#6a6a62'] },
   yards: { walls: ['corrugated'], floor: 'gravel', height: 3.2, wallTint: '#43494d', floorTint: '#3a3833', mix: 0.5, rough: [0.65, 0.95], metal: 0.45, goods: ['#2f4a5c', '#3f5233', '#4f3d2e', '#4a4f55'] },
@@ -205,6 +338,7 @@ export function largeAreaColours(art) {
     ['props', art.props.base], ['sky zenith', art.sky.zenith], ['sky horizon', art.sky.horizon],
     ['clouds', art.sky.cloud], ['fog', art.fog.color],
   ];
+  if (art.sky.aurora) out.push(['aurora', art.sky.aurora.a], ['aurora', art.sky.aurora.b]);
   // N4.2: every kind of place's walls, floor and goods -- a yard full of containers is a lot of screen
   for (const type of PLACE_TYPE_ORDER) {
     const L = placeLook(art, type);

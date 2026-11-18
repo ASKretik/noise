@@ -442,6 +442,17 @@ point away from it.
 | RUST (1–10) | Riveted steel panels, rust running from the rivets | Tread plates, oil stains | Pipe runs along whole wall lines, drops, valve wheels | Dust drifting on the wind | Low orange sun, thin cloud; moon and stars by midnight |
 | TIDE (11–20) | Wet concrete, form-work seams, a wet foot | The same, with puddles (a roughness map: wet shines) | Mooring bollards at wall feet, buoys in open water | Slanted rain | Overcast; a lighthouse beam sweeping the horizon, stronger by night |
 | MOSS (21–30) | Coursed stone, moss in the joints | Uneven flagstones | Vines hanging from wall tops | Pale spores floating up (additive) | A canopy of leaves overhead; green-grey light |
+| EMBER (31–40) | Soot-black brick, smouldering cracks (emission) | Cinders, clinker | Burnt beams leaning on walls | Sparks rising | Smoky maroon; moon by midnight |
+| VIOLET (41–50) | Dark glossy tile (roughness map) | The same | Neon frames and bars, blue and magenta | Drizzle | Always night; an aurora growing to midnight |
+| ASH (51–60) | Board-marked concrete, tie holes | Concrete | Street lamps, most dead | Falling ash | Pale white overcast |
+| CORAL (61–70) | Art-deco plaster, fluted pilasters, stepped frieze | Terrazzo | Small balconies with balusters | — | Rose sunset |
+| JADE (71–80) | Carved stone, roundels and key bands | Flagstones | Hanging lanterns | Low mist | Two moons by midnight |
+| SOLAR (81–90) | Bedded sandstone, sand at the foot | Paving | Canvas awnings | Warm haze | A giant sun |
+| COBALT (91–100) | Alloy panels, vents, hatches | Deck plates | Masts and dishes, a light at each tip | — | Always night; the mothership overhead |
+
+(Belts 4–10: N4.3, 3D build 32. A red sky would sit on the aliens' red, so EMBER's is a
+dark maroon and CORAL's sunset a rose-magenta; 3D-16 checks all 100 districts. Prop
+layers are drawn whole, one call each, which kept COBALT at 134 calls rather than 167.)
 
 - **Surfaces** (`textures.js`) are canvas-drawn from the seed, as before: a colour canvas
   and a height canvas, the normal map being the height's Sobel gradient. Floor and water

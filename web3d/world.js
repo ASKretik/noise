@@ -21,6 +21,7 @@ import { worldSeed, rubbleRng, rubblePeak } from '../sim3d/solid.js';
 import { artFor, depthOf, beltOf, placeLook, PLACE_TYPE_ORDER, mixHex } from './art/belts.js';
 import { surfaceTextures, styleCanvases } from './art/textures.js';
 import { PLACE_PATTERNS } from './art/places.js';
+import './art/beltstyles.js';   // registers belts 4-10's surfaces (N4.3)
 import { layerTextures, layeredMaterial, setLayers } from './art/layered.js';
 import { buildSigns } from './art/signs.js';
 import { buildProps } from './art/props.js';

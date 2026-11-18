@@ -8,6 +8,25 @@
 
 export const CHANGES = [
   {
+    build: 32,
+    date: '2026-11-18',
+    phase: 'N4.3 (1 of 3)',
+    changed: [
+      'The other seven belts have their own art, each running from dusk to midnight, with every kind of place built in from the start:',
+      'EMBER (31-40): soot-black brick with smouldering cracks, burnt beams against the walls, sparks rising, a smoky maroon sky. VIOLET (41-50): always night; dark glossy tile, blue and magenta neon, drizzle, and an aurora that grows towards midnight.',
+      'ASH (51-60): board-marked concrete, dead street lamps with a few still burning, falling ash, a pale white overcast. CORAL (61-70): art-deco plaster with fluted pilasters, terrazzo floors, small balconies, a rose sunset.',
+      'JADE (71-80): carved stone, hanging lanterns, low mist, and two moons by midnight. SOLAR (81-90): bedded sandstone, canvas awnings, warm haze, and a giant sun. COBALT (91-100): always night; alloy panels, masts and dishes on the roofs, and the mothership overhead, ringed with lights.',
+      'None of the new colours shares a hue and lightness with the aliens, keys, coins or portal: EMBER\'s sky is a dark maroon and CORAL\'s sunset a rose-magenta for that reason (3D-16 checks all 100 districts).',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R). In dev mode, visit the first and last district of each belt (31, 40, 41, 50 ... 91, 100) and look up: the aurora in 48-50, the two moons in 76-80, the giant sun in 81-84, the mothership in 91-100.',
+    ],
+    unverified: [
+      'Measured at 1080p Medium in districts 40, 50, 60, 90 and 100: 5-11 ms a frame, worst p95 15.7 ms (EMBER), 123-136 draw calls. COBALT is the slowest at about 10.5 ms. Not tried on a weaker laptop.',
+      'Still to come in N4.3: landmarks, district and avenue signs and building fronts (build 33), then bloom and a colour grade per belt (build 34).',
+    ],
+  },
+  {
     build: 31,
     date: '2026-11-18',
     phase: 'N4.2',

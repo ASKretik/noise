@@ -232,7 +232,7 @@ function flagstones(rng, s) {
   return { c, h, strength: 1.8 };
 }
 
-const STYLES = {
+export const STYLES = {
   riveted: (rng, s) => riveted(rng, s),
   plates: (rng, s) => plates(rng, s),
   wetConcrete: (rng, s, wall) => wetConcrete(rng, s, wall),

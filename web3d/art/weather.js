@@ -8,14 +8,24 @@
 //   dust    RUST: slow warm motes drifting on the wind
 //   rain    TIDE: fast slanted streaks
 //   spores  MOSS: pale glowing specks floating and bobbing
+//   embers  EMBER: dim sparks rising (the spores' motion, glowing)
+//   drizzle VIOLET: lighter, thinner rain
+//   ash     ASH: grey flakes falling slowly, swaying
+//   mist    JADE: big faint soft patches drifting low
+//   haze    SOLAR: warm motes in the heat (the dust's motion)
 
 import * as THREE from 'three';
 import { Rng } from '../../sim/prng.js';
 
 const KINDS = {
-  dust: { count: 1800, box: [36, 9, 36], floor: 0.2, kind: 0 },
-  rain: { count: 5200, box: [34, 14, 34], floor: 0.0, kind: 1 },
-  spores: { count: 1100, box: [30, 7, 30], floor: 0.3, kind: 2 },
+  dust: { count: 1800, box: [36, 9, 36], floor: 0.2, kind: 0, alpha: 0.7 },
+  rain: { count: 5200, box: [34, 14, 34], floor: 0.0, kind: 1, alpha: 0.5 },
+  spores: { count: 1100, box: [30, 7, 30], floor: 0.3, kind: 2, alpha: 0.85, glow: true },
+  embers: { count: 900, box: [32, 10, 32], floor: 0.2, kind: 2, alpha: 0.75, glow: true },
+  drizzle: { count: 2600, box: [34, 14, 34], floor: 0.0, kind: 1, alpha: 0.35 },
+  ash: { count: 2400, box: [34, 12, 34], floor: 0.0, kind: 3, alpha: 0.75 },
+  mist: { count: 420, box: [40, 3, 40], floor: 0.1, kind: 2, alpha: 0.07, glow: true },
+  haze: { count: 900, box: [36, 8, 36], floor: 0.3, kind: 0, alpha: 0.35 },
 };
 
 const VERT = `
@@ -32,8 +42,11 @@ void main() {
     p.y += 0.25 * sin(time * 0.4 + rnd * 12.0);
   } else if (kind < 1.5) {     // rain: falling, slanted
     p += vec3(slant, -1.0, slant * 0.5) * speed * time * (0.85 + 0.3 * rnd);
-  } else {                     // spores: floating up, bobbing
+  } else if (kind < 2.5) {     // spores: floating up, bobbing
     p += vec3(0.3 * sin(time * 0.5 + rnd * 9.0), 0.4 + 0.6 * rnd, 0.3 * cos(time * 0.43 + rnd * 7.0)) * speed * time;
+  } else {                     // ash: falling slowly, swaying
+    p += vec3(slant, -1.0, slant * 0.3) * speed * time * (0.7 + 0.6 * rnd);
+    p.x += 0.4 * sin(time * 0.9 + rnd * 11.0); p.z += 0.4 * cos(time * 0.7 + rnd * 5.0);
   }
   vec3 hb = box * 0.5;          // ('half' is a reserved word in GLSL)
   vec3 rel = mod(p - vec3(eye.x, 0.0, eye.z) + vec3(hb.x, 0.0, hb.z), box) - vec3(hb.x, 0.0, hb.z);
@@ -83,13 +96,13 @@ export function makeWeather(weather, seed, track = (x) => x) {
   geo.setAttribute('rnd', new THREE.BufferAttribute(rnd, 1));
   const mat = track(new THREE.ShaderMaterial({
     transparent: true, depthWrite: false,
-    blending: weather.kind === 'spores' ? THREE.AdditiveBlending : THREE.NormalBlending,
+    blending: K.glow ? THREE.AdditiveBlending : THREE.NormalBlending,
     uniforms: {
       time: { value: 0 }, eye: { value: new THREE.Vector3() }, box: { value: new THREE.Vector3(...K.box) },
       floorY: { value: K.floor }, size: { value: weather.size }, speed: { value: weather.speed },
       slant: { value: weather.slant }, kind: { value: K.kind }, scale: { value: 600 },
       colour: { value: new THREE.Color(weather.color) },
-      alpha: { value: weather.kind === 'rain' ? 0.5 : weather.kind === 'dust' ? 0.7 : 0.85 },
+      alpha: { value: K.alpha },
     },
     vertexShader: VERT, fragmentShader: FRAG,
   }));
