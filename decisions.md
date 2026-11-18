@@ -35,7 +35,7 @@ Three markers throughout:
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    16 passed · 0 not demonstrated · 0 failed  (3D build 14)
+npm run test3d    17 passed · 0 not demonstrated · 0 failed  (3D build 15)
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -2006,10 +2006,44 @@ for all ten species at in-game distance.
 **Not verified:** motion. The sway, the jerks, the flicker and the shimmer were checked as
 numbers and in still frames, never watched moving at full frame rate.
 
+## R45 · N3: the jumpscare and the portal ascension
+
+**Asked:** "start N3, finish it and update it in github" -- the capture "should look
+scarier, like a jumpscare", and at the portal the character should be pulled to the sky.
+
+**Built:** `web3d/sequences.js` -- both sequences as pure data (flashes, keyframed tracks,
+full / mild / off), so criterion **3D-15** checks them in Node: at most three flashes in
+any second (WCAG 2.3.1), skippable, within length, and reduce motion never plays the full
+one. `web3d/fx3d.js` plays them: flash, fade and glitch layers (the glitch redraws the
+frame torn into displaced slices with red and cyan ghosts, read straight after the WebGL
+render), and the ascension's motes. `audio3d.js` gains the heartbeat and ducking under
+tension (a hunting alien within two cells), the shriek (detuned saws 220 → 1400 Hz through
+a waveshaper, over a noise burst) and the rise (rumble and a climbing tone). The alien
+rig gains a dark maw that opens with the jaw. Settings → Jumpscares. 3D build **15**.
+
+**What looking caught:**
+
+1. *A camera spinning to 41,000 radians.* The frame loop capped the time step above but
+   not below; timestamps fed out of order between scripts made it negative, the camera
+   turn's easing ran backwards, and the view filled with sky. Real browsers never send
+   time backwards, but the loop now clamps the step to 0–100 ms anyway.
+2. *A zero-sized canvas.* With the pane hidden the WebGL canvas had no size and the glitch
+   layer threw; it now skips quietly. A frame must never die over an effect.
+3. *A jaw that opened upward*, into the skull, and *a maw that sat behind the face* (a
+   sign error), then *below the chin*, then *a red clown nose*. It is now placed by
+   measuring the face's surface, as the third eye and the gills are: a dark, tall,
+   screaming oval with a little red inside.
+4. *Square motes*, some huge against the lens: now soft round points kept 1.2 m away.
+
+**Checked in the browser pane**, stepping frames by hand: the jumpscare at 0.3–0.5 s (face
+filling the view, mouth open, frame torn), the ascension at 1.0, 1.4 and 2.3 s (39.6 m up,
+whiteout at 77%), the end card waiting for each sequence, any key skipping each variant,
+reduce motion playing mild. **Not heard, and not watched at full speed.**
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    16 passed · 0 not demonstrated · 0 failed  (3D build 14)
+npm run test3d    17 passed · 0 not demonstrated · 0 failed  (3D build 15)
 ```

@@ -151,6 +151,92 @@ export class Audio3D {
     n.connect(bp).connect(g).connect(this.bus); n.start(t); n.stop(t + 0.04);
   }
 
+  /**
+   * Tension, 0..1: a hunting alien within two cells. A heartbeat swells and the ambience
+   * ducks toward silence, so the jumpscare lands out of quiet rather than over a drone.
+   */
+  setTension(x) {
+    this.tension = Math.max(0, Math.min(1, x));
+    if (!this.ctx || !this.bus) return;
+    const t = this.ctx.currentTime;
+    const m = this.amb._nodes?.master;
+    if (m && this.enabled) m.gain.setTargetAtTime(0.9 * (1 - 0.85 * this.tension), t, 0.12);
+    if (this.tension > 0.05 && !this._beat) this._heartbeat();
+  }
+
+  _heartbeat() {
+    if (!this.ctx || !this.bus || !(this.tension > 0.05)) { this._beat = null; return; }
+    const ctx = this.ctx, t = ctx.currentTime + 0.02;
+    const level = 0.35 * this.tension * (this.enabled ? 1 : 0);
+    for (const [dt, f] of [[0, 58], [0.16, 50]]) {          // lub-dub
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(f, t + dt);
+      o.frequency.exponentialRampToValueAtTime(f * 0.6, t + dt + 0.14);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t + dt);
+      g.gain.exponentialRampToValueAtTime(Math.max(0.0002, level), t + dt + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dt + 0.18);
+      o.connect(g).connect(this.bus);
+      o.start(t + dt); o.stop(t + dt + 0.2);
+    }
+    const bpm = 78 + 50 * this.tension;
+    this._beat = setTimeout(() => this._heartbeat(), 60000 / bpm);
+  }
+
+  /** The jumpscare's shriek: a sawtooth tearing upward over a noise burst, distorted. */
+  shriek(level = 1) {
+    if (!this.ctx || !this.bus || !this.enabled || level <= 0) return;
+    this.setTension(0);
+    const m = this.amb._nodes?.master;
+    const ctx = this.ctx, t = ctx.currentTime;
+    if (m) m.gain.setTargetAtTime(0.9, t, 0.05);
+    const shaper = ctx.createWaveShaper();
+    const curve = new Float32Array(512);
+    for (let i = 0; i < 512; i++) { const x = (i / 255.5) - 1; curve[i] = Math.tanh(x * 4); }
+    shaper.curve = curve;
+    const out = ctx.createGain();
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(0.32 * level, t + 0.025);
+    out.gain.setValueAtTime(0.32 * level, t + 0.35);
+    out.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+    shaper.connect(out).connect(this.bus);
+    for (const det of [0, 37]) {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.detune.value = det;
+      o.frequency.setValueAtTime(220, t);
+      o.frequency.exponentialRampToValueAtTime(1400, t + 0.9);
+      o.connect(shaper); o.start(t); o.stop(t + 0.95);
+    }
+    const n = ctx.createBufferSource();
+    n.buffer = this.noise; n.loop = true;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.9, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    n.connect(ng).connect(shaper); n.start(t); n.stop(t + 0.55);
+  }
+
+  /** The ascension: a low rumble swelling under a tone that rises an octave and a half. */
+  rise(level = 1) {
+    if (!this.ctx || !this.bus || !this.enabled || level <= 0) return;
+    this.setTension(0);
+    const ctx = this.ctx, t = ctx.currentTime;
+    const n = ctx.createBufferSource();
+    n.buffer = this.noise; n.loop = true;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 90;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.0001, t); ng.gain.exponentialRampToValueAtTime(0.5 * level, t + 1.6);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 2.6);
+    n.connect(lp).connect(ng).connect(this.bus); n.start(t); n.stop(t + 2.7);
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(330, t + 2.2);
+    const og = ctx.createGain();
+    og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.12 * level, t + 1.8);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 2.5);
+    o.connect(og).connect(this.bus); o.start(t); o.stop(t + 2.6);
+  }
+
   /** One footstep. kind: 'floor' | 'water' | 'safe'. */
   footstep(kind, sprinting = false) {
     if (!this.ctx || !this.bus || !this.enabled || kind === 'safe') return;

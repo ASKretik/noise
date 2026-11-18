@@ -257,9 +257,16 @@ export class Entities {
       q.multiply(slump);
       const bob = inert ? 0 : Math.abs(Math.sin(a.gait)) * 0.04;
       base.compose(v.set((a.x + 0.5) * c, bob - a.stun * 0.35, (a.y + 0.5) * c), q, s.setScalar(grow));
+      // The jumpscare (web3d/play3d.js) pulls the alien that caught you to just in front of
+      // your eyes, square on, jaw opening. Presentation only: the sim's run is already over.
+      const scare = this.scare && this.scare.id === p.id ? this.scare : null;
+      if (scare) base.compose(scare.pos, q.setFromAxisAngle(UP, scare.heading), s.setScalar(1));
 
       const convulse = a.stunT0 != null && t - a.stunT0 < 0.6 ? 1 - (t - a.stunT0) / 0.6 : 0;
-      kit.pose(base, {
+      kit.pose(base, scare ? {
+        gait: a.gait, t, inert: false, hunting: true, convulse: 0,
+        look: 0, tilt: 0.14, pitch: -0.1, jaw: scare.jaw, seed: p.id, flare: 1,
+      } : {
         gait: a.gait, t, inert, hunting, convulse,
         look: inert ? 0 : a.look + twitchOffset(a, p.id, t, sp),
         tilt: inert ? 0.25 : a.tilt,
@@ -270,7 +277,7 @@ export class Entities {
       });
 
       // the ring: the radius at which this alien detects YOU, red when it does
-      const R = this.radius * c * (1 - a.stun);
+      const R = scare ? 0 : this.radius * c * (1 - a.stun);
       base.compose(v.set((a.x + 0.5) * c, 0.035, (a.y + 0.5) * c), q.identity(), s.set(Math.max(R, 0.001), 1, Math.max(R, 0.001)));
       this.rings.setMatrixAt(n, base);
       this.rings.setColorAt(n, col.set(onYou ? 0xff4d5e : 0x7a1f2a).multiplyScalar(onYou ? 0.9 + Math.sin(t * 9) * 0.1 : 0.55));
@@ -331,7 +338,8 @@ export class Entities {
 
     this.portal.visible = game.portalRevealed;
     if (this.portal.visible) {
-      this.portal.children[0].material.opacity = 0.22 + Math.sin(t * 3) * 0.06;
+      // the ascension brightens the beam (portalBoost 0..1)
+      this.portal.children[0].material.opacity = 0.22 + Math.sin(t * 3) * 0.06 + (this.portalBoost || 0) * 0.55;
       this.portal.children[1].rotation.y = t * 0.8;
     }
   }

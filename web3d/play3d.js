@@ -15,6 +15,8 @@ import { Audio3D } from './audio3d.js';
 import { Controls } from './controls.js';
 import { Hud3D } from './hud3d.js';
 import { StunGun } from './gun.js';
+import { Fx3D } from './fx3d.js';
+import { variantFor } from './sequences.js';
 import { Touch3D, isTouchDevice } from './touch3d.js';
 import { DistrictRunner } from './runner.js';
 import { mountBanner } from './banner.js';
@@ -67,6 +69,8 @@ export class Play3D {
     this.controls = new Controls($('view'));
     this.hud = new Hud3D($('hud'));
     this.gun = new StunGun();
+    this.fx = new Fx3D({ scene: this.view.scene, flash: $('fx-flash'), fade: $('fx-fade'), glitch: $('fx-glitch') });
+    this.tension = 0;
     this.lock = null;
     this.kit = q.get('kit') === '1';
     this.touchMode = isTouchDevice();
@@ -100,6 +104,8 @@ export class Play3D {
     $('ov-primary').addEventListener('click', () => this.primary());
     $('ov-secondary').addEventListener('click', () => { this.start(this.district); this.controls.lock(); });
     $('ov-killcam').addEventListener('click', () => this.playKillcam());
+    // the jumpscare and the ascension can always be skipped with any key or click
+    for (const ev of ['keydown', 'mousedown', 'touchstart']) window.addEventListener(ev, () => { if (this.fx.active) this.fx.skip(); });
     window.addEventListener('resize', () => this.view.resize());
     // A hidden tab is silent, always, and on a phone (no pointer lock to lose) the game
     // pauses too. Coming back resumes the sound only if the game is actually playing.
@@ -157,6 +163,9 @@ export class Play3D {
     this.lastCell = { x: this.runner.game.player.x, y: this.runner.game.player.y };
     this.wasAlert = false;
     this.endAnim = null;
+    this.fx.reset();
+    this.tension = 0;
+    this.audio.setTension(0);
     this.killcam = null;
     this.history = [];
     this.remember();
@@ -236,6 +245,8 @@ export class Play3D {
     $('hud').hidden = true;
     $('killcam').hidden = false;
     document.body.classList.remove('g3-caught');
+    this.fx.reset();
+    this.entities.scare = null;
     this.entities.vis.clear();
     this.killcam = { t0: this.t, frames };
   }
@@ -332,33 +343,52 @@ export class Play3D {
   finish(summary) {
     this.ended = true;
     this.controls.unlock();
-    // The capture is never ambiguous about who did it: the camera turns to face it.
+    this.audio.setTension(0);
+    $('hud').hidden = true;                 // the sequence plays clean; onLock() brings it back
     const g = this.runner.game;
+    const variant = variantFor(this.settings.jumpscares, this.settings.reduceMotion);
+    const cam = this.view.camera.position;
+    let done;
+    const sequenceDone = new Promise((res) => { done = res; });
     if (!summary.won) {
+      // The capture is never ambiguous about who did it: the camera turns to face it --
+      // and, unless jumpscares are off, it is pulled right up to your face.
       let best = null, bestD = Infinity;
       for (const p of g.patrols) {
         const d = Math.hypot(p.x - g.player.x, p.y - g.player.y);
         if (d < bestD) { bestD = d; best = p; }
       }
       const at = best && this.entities.alienPosition(best.id);
+      this.fx.start('jumpscare', variant, { t: this.t, onDone: done });
+      const seq = this.fx.run.def;
       if (at) {
-        const cam = this.view.camera.position;
         const toYaw = Math.atan2(-(at.x - cam.x), -(at.z - cam.z));
         let diff = toYaw - this.controls.yaw;
         diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-        this.endAnim = { t0: this.t, fromYaw: this.controls.yaw, dYaw: diff, fromPitch: this.controls.pitch };
+        this.endAnim = { t0: this.t, fromYaw: this.controls.yaw, dYaw: diff, fromPitch: this.controls.pitch, dur: seq.snap };
+        if (seq.lunge) {
+          // 0.55 m from your eyes to its face; its face is ~0.28 m ahead of its feet
+          const fwd = new this.view.THREE.Vector3(-Math.sin(toYaw), 0, -Math.cos(toYaw));
+          const to = new this.view.THREE.Vector3(cam.x, 0, cam.z).addScaledVector(fwd, 0.83);
+          const from = new this.view.THREE.Vector3(at.x, 0, at.z);
+          this.entities.scare = { id: best.id, from, to, pos: from.clone(), heading: toYaw + Math.PI, jaw: 0 };
+        }
       }
       document.body.classList.add('g3-caught');
     } else {
-      document.body.classList.add('g3-won');
+      const center = new this.view.THREE.Vector3(cam.x, 0, cam.z);
+      this.fx.start('ascension', variant, { t: this.t, center, onDone: done });
+      this.ascend = { fromYaw: this.controls.yaw };
+      if (variant === 'off') document.body.classList.add('g3-won');
     }
     this.narrate();
     clearTimeout(this.overlayTimer);
     const saved = this.career ? this.career.finishRun(this.runner) : Promise.resolve(null);
     if (!this.career) this.dossier.update(this.runner.system.traits || this.runner.system.liveTraits(), { levelCompleted: summary.won });
-    const minWait = new Promise((res) => { this.overlayTimer = setTimeout(res, summary.won ? 650 : 900); });
+    // the end card waits for the sequence; the timer is only a fallback for a hidden tab
+    const fallback = new Promise((res) => { this.overlayTimer = setTimeout(res, (this.fx.run.def.duration + 0.6) * 1000); });
     const runner = this.runner;
-    Promise.all([saved, minWait]).then(([result]) => { if (this.runner === runner) this.showEnd(summary, result); });
+    Promise.all([saved, Promise.race([sequenceDone, fallback])]).then(([result]) => { if (this.runner === runner) this.showEnd(summary, result); });
   }
 
   endStats(summary, result) {
@@ -402,7 +432,8 @@ export class Play3D {
   // ---------------------------------------------------------------- the frame
 
   frame(now, once = false) {
-    const dt = Math.min(((now - (this.last ?? now)) / 1000), 0.1);
+    // clamped both ways: a timestamp that runs backwards must never run the clock backwards
+    const dt = Math.max(0, Math.min(((now - (this.last ?? now)) / 1000), 0.1));
     this.last = now;
     this.t += dt;
     const r = this.runner;
@@ -435,11 +466,46 @@ export class Play3D {
     this.view.setHFov(this.settings.fov + this.fovKick);
 
     if (this.endAnim) {
-      const k = Math.min(1, (this.t - this.endAnim.t0) / 0.45);
+      const k = Math.min(1, (this.t - this.endAnim.t0) / (this.endAnim.dur || 0.45));
       const e = 1 - (1 - k) * (1 - k);
       this.controls.yaw = this.endAnim.fromYaw + this.endAnim.dYaw * e;
       this.controls.pitch = this.endAnim.fromPitch * (1 - e) - 0.06 * e;
       cam.rotation.set(this.controls.pitch, this.controls.yaw, 0);
+    }
+    // ---- the capture jumpscare and the portal ascension (web3d/sequences.js)
+    if (this.fx.run) {
+      const st = this.fx.update(this.t);
+      const fx = this.fx, def = fx.run.def;
+      if (fx.kind === 'jumpscare') {
+        const sc = this.entities.scare;
+        if (sc) {
+          sc.pos.lerpVectors(sc.from, sc.to, Math.min(1, st / 0.12));
+          sc.jaw = fx.track('jaw', this.t) * 0.95;
+        }
+        const amp = fx.track('shake', this.t);
+        if (amp > 0) {
+          cam.position.x += amp * Math.sin(this.t * 91);
+          cam.position.y += amp * Math.sin(this.t * 73 + 1);
+        }
+        if (def.shriek && fx.once('shriek', def.shriek.at, this.t)) this.audio.shriek(def.shriek.level);
+      } else {
+        cam.position.y += fx.track('lift', this.t) * 38;
+        this.controls.yaw = this.ascend.fromYaw + fx.track('spin', this.t);
+        this.controls.pitch = fx.track('pitch', this.t);
+        cam.rotation.set(this.controls.pitch, this.controls.yaw, 0);
+        this.view.setHFov(this.settings.fov + fx.track('fov', this.t));
+        this.entities.portalBoost = fx.track('beam', this.t);
+        if (def.rise && fx.once('rise', 0, this.t)) this.audio.rise(def.rise.level);
+      }
+    } else if (!g.over && !this.paused && variantFor(this.settings.jumpscares, this.settings.reduceMotion) !== 'off') {
+      // tension: a hunting alien within two cells -- the heartbeat swells, the drone ducks
+      let near = Infinity;
+      for (const p of g.patrols) {
+        if ((p.stunnedUntil || 0) > g.tick || !(p.mode === 'hunt' || p.mode === 'cutoff')) continue;
+        near = Math.min(near, Math.hypot(p.x - g.player.x, p.y - g.player.y));
+      }
+      const x = near <= 2.5 ? Math.max(0, Math.min(1, 1 - (near - 1) / 1.5)) : 0;
+      if (Math.abs(x - this.tension) > 0.02) { this.tension = x; this.audio.setTension(x); }
     }
     this.entities.sync(g, r.session.alpha, this.t, { dt, tickHz: r.session.tickHz, camera: cam });
     this.audio.update(g, { x: cam.position.x, y: EYE_M, z: cam.position.z, yaw: this.controls.yaw }, this.entities.alienVoices());
@@ -467,6 +533,7 @@ export class Play3D {
     const info = this.view.renderer.info.render;
     this.worldInfo = { calls: info.calls, tris: info.triangles };
     this.gun.render(this.view.renderer);
+    this.fx.afterRender(this.view.renderer.domElement, this.t);
     if (!once) requestAnimationFrame(this.frame);
   }
 
@@ -551,6 +618,8 @@ export class Play3D {
     let stored = '';
     try { stored = localStorage.getItem('noise3d-quality') || ''; } catch { /* fine */ }
     $('s-quality').value = stored;
+    $('s-jumpscare').value = s.jumpscares || 'full';
+    $('s-jumpscare').addEventListener('change', (e) => { s.jumpscares = e.target.value; saveSettings(s); });
     $('s-quality').addEventListener('change', (e) => setQuality(e.target.value));
   }
 

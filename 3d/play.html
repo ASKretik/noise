@@ -9,8 +9,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../web/style.css?v=14">
-<link rel="stylesheet" href="../web3d/style3d.css?v=14">
+<link rel="stylesheet" href="../web/style.css?v=15">
+<link rel="stylesheet" href="../web3d/style3d.css?v=15">
 <script type="importmap">
 { "imports": { "three": "../vendor/three/0.185.1/three.module.min.js" } }
 </script>
@@ -21,6 +21,9 @@
 
 <div id="hud" class="g3-hud" hidden></div>
 <pre class="g3-debug" id="hud-debug" hidden></pre>
+<div id="fx-flash" class="fx-layer" aria-hidden="true"></div>
+<canvas id="fx-glitch" class="fx-layer" aria-hidden="true"></canvas>
+<div id="fx-fade" class="fx-layer" aria-hidden="true"></div>
 <div id="touch3d" class="t3" hidden></div>
 <div id="killcam" class="g3-killcam" hidden><b>KILLCAM</b><span>the last three seconds, from above</span></div>
 <div id="rotate3d" class="t3-rotate" hidden><p>Turn your phone sideways.<br><span>The district is wider than it is tall.</span></p></div>
@@ -44,6 +47,9 @@
       <label class="g3-check"><input type="checkbox" id="s-invert"> invert mouse Y</label>
       <label class="g3-check"><input type="checkbox" id="s-motion"> reduce motion (no head bob, no sprint FOV kick)</label>
       <label class="g3-check"><input type="checkbox" id="s-sound"> sound</label>
+      <label>Jumpscares <select id="s-jumpscare">
+        <option value="full">full</option><option value="mild">mild (no lunge, quiet)</option><option value="off">off</option>
+      </select></label>
       <label>Quality <select id="s-quality">
         <option value="">automatic</option><option value="high">High · shadows</option>
         <option value="medium">Medium</option><option value="low">Low</option>

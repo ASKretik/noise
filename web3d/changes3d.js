@@ -8,6 +8,26 @@
 
 export const CHANGES = [
   {
+    build: 15,
+    date: '2026-11-19',
+    phase: 'N3',
+    changed: [
+      'Getting caught is a jumpscare now: the alien that got you is pulled right up to your face, its jaw drops into a screaming maw, the picture tears and glitches, and a shriek cuts through, then black.',
+      'Before it happens: when a hunting alien gets within two cells, a heartbeat swells and the background drone fades toward silence.',
+      'Reaching the portal lifts you into the sky: you rise forty metres turning slowly as the district shrinks below, light streams upward round you, and everything goes white.',
+      'Any key or click skips either one. Settings now has Jumpscares: full, mild (no lunge, quiet) or off. Reduce motion always plays the mild one.',
+    ],
+    tryThis: [
+      'Get caught on purpose with headphones on. Then try Jumpscares: mild.',
+      'Clear district 1 and ride the portal up.',
+      'Let a hunting alien close in slowly and listen for the heartbeat.',
+    ],
+    unverified: [
+      'Every frame was checked in screenshots; nothing has been watched at full speed or heard.',
+      'Whether it is actually scary is your call.',
+    ],
+  },
+  {
     build: 14,
     date: '2026-11-18',
     phase: 'N2',

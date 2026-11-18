@@ -1,7 +1,7 @@
 # NOISE 3D — build spec
 
 Written Nov 17, 2026 as a plan · **rewritten the same day to describe the system as built**
-(3D build 14: plan phases 0–9, the R39 movement fix, and next-round phases N0–N2)
+(3D build 15: plan phases 0–9, the R39 movement fix, and next-round phases N0–N3)
 
 > This is the description, not the plan. The plan-stage version is in git history
 > (`git log --follow spec-3d.md`); the phased build order and its progress table are in
@@ -197,8 +197,17 @@ is a 0.6 s convulsion, then a collapse with the eyes dark. They glide toward the
 cell at the speed their move period implies. A floor ring per alien shows the radius at which it hears you — red when it does, easing
 smaller when you step into water. Keys glow; coins are coloured and sized by value and
 instanced by value; bolts are extruded glyphs; the open portal is a beam visible over
-every wall. Pickups fly to the camera. When you are caught the camera turns to the alien
-that did it, and a **killcam** can replay the last three seconds from above and behind.
+every wall. Pickups fly to the camera. **Capture is a jumpscare** (`web3d/sequences.js` data, `web3d/fx3d.js` playback):
+when a hunting alien comes within two cells a heartbeat swells and the drone ducks; on
+capture the camera snaps to the alien (0.12 s), the alien is pulled to 0.55 m from your
+eyes, its jaw drops open into a dark maw, the frame shakes and tears into displaced,
+colour-split slices, a distorted shriek sweeps 220 → 1400 Hz, and it fades to black
+(1.1 s). **The portal is an ascension:** you rise from eye height to 40 m on an ease-in,
+turning 90°, the view widening 15° and tilting down over the district, motes streaming
+upward and the beam brightening, into a teal-white whiteout (2.4 s). Both are skippable;
+Settings → Jumpscares picks full, mild or off, and reduce motion turns full into mild.
+Criterion 3D-15 holds both to WCAG 2.3.1 (at most three flashes a second). A **killcam**
+can replay the last three seconds of a capture from above and behind.
 
 ## The HUD
 
@@ -256,7 +265,7 @@ minutes; if the banner's number is behind the update note, reload.
 ## Acceptance criteria
 
 `npm run test3d` (CI runs it with `--skip-2d`, the 2D suites having just run).
-**16 passed · 0 not demonstrated · 0 failed** at 3D build 14.
+**17 passed · 0 not demonstrated · 0 failed** at 3D build 15.
 
 | # | Criterion | Result |
 |---|---|---|
@@ -275,6 +284,7 @@ minutes; if the banner's number is behind the update note, reload.
 | 3D-12 | All ten belts legible (recorded screenshot review) | PASS, by hand |
 | 3D-13 | Movement never stutters: no frame under half its heading's speed, walking and sprinting, 0–45° | PASS |
 | 3D-14 | Bolt thinning matches its formula on all 100 districts, deterministic, reachable, applied by the runner | PASS |
+| 3D-15 | Jumpscare and ascension: at most 3 flashes a second, skippable, within length, full/mild/off, reduce motion never full | PASS |
 | 3D-26 | Species table: ten distinct species, threat-red glow, known features and markings | PASS |
 
 3D-11 and 3D-12 pass only on an entry in `bench3d/measured.json` naming the build, the

@@ -289,6 +289,8 @@ export class AlienKit {
       joint: mk(joint, this.skin, joints, true),
       eye: mk(almondGeometry(), eyeMat, eyes, false),
       slit: mk(new THREE.SphereGeometry(1, 10, 8), slitMat, eyes, false),
+      // the mouth: a dark gap that only opens when the jaw drops (the jumpscare)
+      maw: mk(new THREE.SphereGeometry(1, 14, 10), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), 1, false),
     };
 
     // ---- feature parts, only the ones this species has
@@ -341,6 +343,15 @@ export class AlienKit {
         if (Math.abs(p.getX(i)) < 0.04 && Math.abs(p.getY(i) - species.thirdEye.y) < 0.04) front = Math.min(front, p.getZ(i));
       }
       this.thirdEyeZ = front + species.eye.d * species.thirdEye.scale * 0.35;
+    }
+    // The mouth opens in the face just above the jaw hinge: measure where the face is there.
+    {
+      const p = cranium.attributes.position;
+      let front = 0;
+      for (let i = 0; i < p.count; i++) {
+        if (Math.abs(p.getX(i)) < 0.03 && Math.abs(p.getY(i) + 0.02) < 0.03) front = Math.min(front, p.getZ(i));
+      }
+      this.mouthZ = front;
     }
     // The crest's horns run along the crown: the topmost points of the midline.
     if (this.features.has('crest')) {
@@ -525,10 +536,16 @@ export class AlienKit {
     const headW = new THREE.Matrix4().multiplyMatrices(base, head);
     this._put('cranium', headW, tint, glow);
 
-    const jawM = new THREE.Matrix4().makeTranslation(0, -0.07, -0.1)
-      .multiply(new THREE.Matrix4().makeRotationX(st.jaw))
-      .multiply(new THREE.Matrix4().compose(this._v.set(0, -0.015, -0.045), this._q.identity(), this._s.set(0.07, 0.05, 0.085)));
+    // hinged at the front of the chin; a negative turn about X drops it down and forward
+    const jawM = new THREE.Matrix4().makeTranslation(0, -0.07, this.mouthZ + 0.03)
+      .multiply(new THREE.Matrix4().makeRotationX(-st.jaw))
+      .multiply(new THREE.Matrix4().compose(this._v.set(0, -0.015, -0.05), this._q.identity(), this._s.set(0.085, 0.06, 0.1)));
     this._put('jaw', this._m.multiplyMatrices(headW, jawM), tint, glow);
+    const open = Math.max(0, st.jaw);
+    // a dark, tall, screaming oval with only a hint of red deep inside
+    const mawM = new THREE.Matrix4().compose(this._v.set(0, -0.005 - 0.022 * open, this.mouthZ - 0.006), this._q.identity(),
+      this._s.set(0.026 + 0.012 * open, 0.0005 + 0.062 * open, 0.016));
+    this._put('maw', this._m.multiplyMatrices(headW, mawM), new THREE.Color(0x050002).lerp(new THREE.Color(sp.glowColor), 0.025 * open), 0);
 
     const e = sp.eye, sl = sp.slit;
     const slitColor = new THREE.Color(st.inert ? 0x1a0508 : sp.glowColor);
