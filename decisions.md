@@ -35,7 +35,7 @@ Three markers throughout:
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    18 passed · 0 not demonstrated · 0 failed  (3D build 16)
+npm run test3d    18 passed · 0 not demonstrated · 0 failed  (3D build 17)
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -365,6 +365,47 @@ optimises. The shipped 5-coupling table is genuinely the better choice.
 My recommendation is **1**, with the finding written up.
 
 ---
+
+## R47 · N3 again: the scare was being skipped, and was not scary
+
+**Asked** (with a second recording, also unreadable here): "still, look at this, it does
+not work, make the jumpscene extremely photogenic and very very scary (your levels of
+scariness is extremely extremely low). also, the jaws opening up and gruesome scene is not
+even showing up when caught like in the video i attached."
+
+**Why the jaw never showed: you were skipping it without knowing.** "Any key skips" (R45)
+meant any keydown -- and a movement key held down auto-repeats about 30 times a second.
+You are almost always holding W when you are caught, so the first repeat, a few
+milliseconds into the sequence, skipped straight to the end card. Every frame I had
+checked was real; you never got to see one. **Fixed:** only a fresh press (not a repeat)
+of Space, Enter or Escape, or a click, skips; and a sequence now has a `skipAfter` floor
+(jumpscare 1.0 s, ascension 0.8 s) before which nothing skips it. 3D-15 now fails any
+full or mild sequence with a floor under 0.5 s. Checked in the browser: eight W repeats
+and a repeated Space at 0 s did nothing; Space at 0.9 s did nothing; Space at 1.05 s
+skipped.
+
+**Why it was not scary.** It was a cutscene: the camera turned, the alien walked in, the
+mouth opened 0.5 s later, in a bright, evenly lit street. A jumpscare is the opposite --
+no wind-up. **Now (2.2 s):** on the frame you are caught it is already there, 0.7 m in
+front of wherever you were looking, and pushes in to 0.54 m; in that same frame the
+district goes dark (lights to 6%, fog to a red-black wall 5.5 m out), a guttering red light
+comes on under its chin, the jaw tears open over a ring of 18 needle teeth (new instanced
+part, only drawn while the jaw is open), its slits pinch to burning needles and turn to
+stare at you, and a sub-bass hit, a white flash, the scream, violent shake, zoom punch
+and tearing all land at once. Second spasm at 0.62 s; hard cut to black and silence at
+1.42 s. The scream is new: the ambience is cut under it, and it is a distorted formant
+choir climbing two octaves with a vibrato screech on top.
+
+**What looking caught** (each by screenshot): the red under-light at full strength plus
+the glitch's red ghost turned the whole face one flat salmon -- light cut to 1.6 and the
+ghost halved, skin glow dimmed to 45% close up; "dilated" slits blown wide read as cartoon
+eyes -- they pinch instead; the slits sat on the outer edge of the wrapped-round eyes --
+they now turn to face you; framing went from eyes cropped to mouth cropped before landing
+on eyes, teeth and chin all in shot (0.7 to 0.54 m, pitch -0.24); the reaching forearms,
+caught by the cold fill light, read as two blue pipes -- lowered.
+
+**Not verified:** still never watched at full speed or heard; whether it scares is yours
+to judge.
 
 ## Current state
 
@@ -2082,5 +2123,5 @@ now reach up toward your face.
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    18 passed · 0 not demonstrated · 0 failed  (3D build 16)
+npm run test3d    18 passed · 0 not demonstrated · 0 failed  (3D build 17)
 ```

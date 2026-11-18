@@ -265,7 +265,7 @@ export class Entities {
       const convulse = a.stunT0 != null && t - a.stunT0 < 0.6 ? 1 - (t - a.stunT0) / 0.6 : 0;
       kit.pose(base, scare ? {
         gait: a.gait, t, inert: false, hunting: true, convulse: 0,
-        look: 0, tilt: 0.14, pitch: -0.1, jaw: scare.jaw, reach: scare.reach || 0, seed: p.id, flare: 1,
+        look: 0, tilt: 0.14, pitch: -0.1, jaw: scare.jaw, reach: scare.reach || 0, dilate: scare.dilate || 0, glowK: 0.45, seed: p.id, flare: 1,
       } : {
         gait: a.gait, t, inert, hunting, convulse,
         look: inert ? 0 : a.look + twitchOffset(a, p.id, t, sp),

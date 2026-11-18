@@ -30,9 +30,16 @@ import { Rng, hashString } from '../sim/prng.js';
 
 export const MAX_ALIENS = 48;
 const BONES = 17;
+const TEETH = 18;
 const JOINTS = 12;
 
 const DOWN = new THREE.Vector3(0, -1, 0);
+/** A tooth: a thin cone, base at the origin, tip up +Y at 1. */
+function teethGeometry() {
+  const g = new THREE.ConeGeometry(1, 1, 6, 1);
+  g.translate(0, 0.5, 0);
+  return g;
+}
 const AX = new THREE.Vector3(1, 0, 0);
 const AY = new THREE.Vector3(0, 1, 0);
 const AZ = new THREE.Vector3(0, 0, 1);
@@ -291,6 +298,8 @@ export class AlienKit {
       slit: mk(new THREE.SphereGeometry(1, 10, 8), slitMat, eyes, false),
       // the mouth: a dark gap that only opens when the jaw drops (the jumpscare)
       maw: mk(new THREE.SphereGeometry(1, 14, 10), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), 1, false),
+      // a ring of needle teeth round the maw, drawn only while it is open
+      teeth: mk(teethGeometry(), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.05, emissive: 0x4a4034 }), TEETH, false),
     };
 
     // ---- feature parts, only the ones this species has
@@ -447,6 +456,8 @@ export class AlienKit {
     let glow = st.inert ? sp.glow.stunned : st.hunting ? sp.glow.hunting * (0.85 + 0.15 * Math.sin(st.t * 6)) : sp.glow.calm;
     if (mo.flicker && !st.inert) glow *= 1 - mo.flicker * (0.5 + 0.5 * Math.sin(st.t * 23 + seed) * Math.sin(st.t * 7.1 + seed * 2));
     if (mo.shimmer && !st.inert) glow *= 1 + mo.shimmer * Math.sin(st.t * 4 + seed);
+    // close up (the jumpscare) a full-strength glow and rim flatten the face to one red; dim them
+    if (st.glowK != null) glow *= st.glowK;
     const P = this._p;
     // Husks move in jerks: the gait advances in steps instead of smoothly.
     const gait = mo.jerk ? Math.round(st.gait * 2.2) / 2.2 : st.gait;
@@ -544,25 +555,45 @@ export class AlienKit {
       .multiply(new THREE.Matrix4().compose(this._v.set(0, -0.015, -0.05), this._q.identity(), this._s.set(0.085, 0.06, 0.1)));
     this._put('jaw', this._m.multiplyMatrices(headW, jawM), tint, glow);
     const open = Math.max(0, st.jaw);
-    // a dark, tall, screaming oval with only a hint of red deep inside
-    const mawM = new THREE.Matrix4().compose(this._v.set(0, -0.005 - 0.022 * open, this.mouthZ - 0.006), this._q.identity(),
-      this._s.set(0.026 + 0.012 * open, 0.0005 + 0.062 * open, 0.016));
-    this._put('maw', this._m.multiplyMatrices(headW, mawM), new THREE.Color(0x050002).lerp(new THREE.Color(sp.glowColor), 0.025 * open), 0);
+    // A dark, tall, screaming oval -- a gullet with only a dim red deep inside -- ringed,
+    // once it opens, with needle teeth pointing in and out at you.
+    const mw = 0.026 + 0.022 * open, mh = 0.0005 + 0.07 * open, my = -0.005 - 0.03 * open, mz = this.mouthZ - 0.006;
+    const mawM = new THREE.Matrix4().compose(this._v.set(0, my, mz), this._q.identity(), this._s.set(mw, mh, 0.016));
+    this._put('maw', this._m.multiplyMatrices(headW, mawM), new THREE.Color(0x030001).lerp(new THREE.Color(sp.glowColor), 0.06 * open), 0);
+    if (open > 0.15) {
+      const k = Math.min(1, (open - 0.15) / 0.5);
+      const ivory = new THREE.Color(0xe8dcbc), stain = new THREE.Color(0x8a5a3a);
+      for (let i = 0; i < TEETH; i++) {
+        const a = (i + 0.5) / TEETH * Math.PI * 2;
+        const c = Math.cos(a), sn = Math.sin(a);
+        // longest top and bottom, short at the corners
+        const len = (0.012 + 0.024 * Math.abs(sn) + 0.008 * hash01(i, 5)) * k;
+        const dir = this._d.set(-c * mh, -sn * mw, 0).normalize();          // toward the centre
+        dir.z = -0.45; dir.normalize();                                     // and out, toward you
+        const q = this._q.setFromUnitVectors(AY, dir);
+        const L = new THREE.Matrix4().compose(this._v.set(c * mw * 0.94, my + sn * mh * 0.94, mz - 0.01), q, this._s.set(0.0042 * k + 0.0005, len, 0.0042 * k + 0.0005));
+        this._put('teeth', this._m.multiplyMatrices(headW, L), ivory.clone().lerp(stain, 0.45 * hash01(i, 9)), 0);
+      }
+    }
 
     const e = sp.eye, sl = sp.slit;
-    const slitColor = new THREE.Color(st.inert ? 0x1a0508 : sp.glowColor);
-    const putEye = (frame, slant, k) => {
+    // st.dilate (the jumpscare): the slits pinch to burning needles
+    const dil = st.dilate || 0;
+    const slitColor = new THREE.Color(st.inert ? 0x1a0508 : sp.glowColor).multiplyScalar(1 + 1.5 * dil);
+    const putEye = (frame, slant, k, stare = 0) => {
       const eyeL = frame.clone()
         .multiply(new THREE.Matrix4().makeRotationZ(slant))
         .multiply(new THREE.Matrix4().makeScale(e.w * k, e.h * k, e.d * k));
       this._put('eye', this._m.multiplyMatrices(headW, eyeL), null, 0);
       // just in front of the eye's surface, upright like a cat's pupil
+      // dilate also turns the slits from their wrapped-round rest to stare straight at you
       const slitL = frame.clone()
-        .multiply(new THREE.Matrix4().compose(this._v.set(0, 0, -(e.d * k + 0.004)), this._q.identity(), this._s.set(sl.w * k, sl.h * k, sl.d)));
+        .multiply(new THREE.Matrix4().makeRotationY(stare * 0.9))
+        .multiply(new THREE.Matrix4().compose(this._v.set(0, 0, -(e.d * k + 0.004)), this._q.identity(), this._s.set(sl.w * k * (1 - 0.55 * dil), sl.h * k * (1 + 0.2 * dil), sl.d)));
       this._put('slit', this._m.multiplyMatrices(headW, slitL), slitColor, 0);
     };
     for (const s of [-1, 1]) {
-      putEye(new THREE.Matrix4().compose(this._v.set(s * e.x, e.y, e.z), this._q.setFromAxisAngle(AY, -s * e.wrap), this._s.setScalar(1)), s * e.slant, 1);
+      putEye(new THREE.Matrix4().compose(this._v.set(s * e.x, e.y, e.z), this._q.setFromAxisAngle(AY, -s * e.wrap), this._s.setScalar(1)), s * e.slant, 1, s * e.wrap * dil);
     }
     if (sp.thirdEye) {
       const te = sp.thirdEye;

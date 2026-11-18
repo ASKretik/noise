@@ -28,7 +28,7 @@ Written Nov 18, 2026 · **status: proposed, nothing built** · follows 3D build 
 | N0 | Audio stops when paused | ½ day | Low | **done** (3D build 11) |
 | N1 | Fewer bolts deeper into each belt | ½ day | Low | **done** (3D build 12) |
 | N2 | Comic-accurate aliens, all ten species | 3 days (+1½ per species) | Medium | **done** (3D builds 13–14): ten species, one per belt |
-| N3 | Jumpscare and portal ascension | 3–3½ days | Low–medium | **done** (3D builds 15–16; capture reworked as a cutscene after review) |
+| N3 | Jumpscare and portal ascension | 3–3½ days | Low–medium | **done** (3D builds 15–17; capture reworked twice after review: a cutscene, then an instant in-your-face scare) |
 | N4 | Belt art direction | 8–9 days | Medium | not started |
 | N5 | Story frame | 6–10 days | Medium | not started |
 | N6 | The rules layer and the new shop items | 8–12 days | Medium | not started |
@@ -534,7 +534,7 @@ generalised to three floors and belts 8–10.
 | # | Phase | Criterion |
 |---|---|---|
 | 3D-14 | N1 | Bolt thinning matches the formula, is deterministic, keeps only reachable bolts |
-| 3D-15 | N3 | Sequences: at most 3 flashes per second, skippable, within length, mild/off variants present (built, passing) |
+| 3D-15 | N3 | Sequences: at most 3 flashes per second, skippable but not before 0.5 s, within length, mild/off variants present (built, passing) |
 | 3D-16 | N4 | Belt art palettes keep clear of the entity colours |
 | 3D-17 | N6 | Each item does exactly what its rule says and nothing else |
 | 3D-18 | N7 | Objective completion, determinism, chapter assignment |

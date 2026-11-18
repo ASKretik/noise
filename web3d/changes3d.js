@@ -8,6 +8,23 @@
 
 export const CHANGES = [
   {
+    build: 17,
+    date: '2026-11-19',
+    phase: 'N3',
+    changed: [
+      'Why you never saw the jaw: holding W when you got caught auto-repeated the key, and any key skipped the scene in its first few milliseconds. Now nothing skips it for the first second, and holding a key never skips it. Only a fresh Space, Enter, Escape or click does.',
+      'Getting caught is a real jumpscare now. The alien is instantly in your face, right where you were looking. The world goes dark, and a flickering red light comes on under its chin. Its jaw tears open over a ring of needle teeth, and its pupils pinch to burning slits staring straight at you.',
+      'A bass hit, a flash, a new scream (everything else goes silent under it), violent shake and tearing. Then a hard cut to black and silence at 1.4 s.',
+    ],
+    tryThis: [
+      'Walk into an alien while holding W, with headphones on, full screen, lights off.',
+      'Try it in a few belts. Each species has its own face (district 37 is the Cinders).',
+    ],
+    unverified: [
+      'Checked frame by frame in screenshots. Never watched at full speed or heard.',
+    ],
+  },
+  {
     build: 16,
     date: '2026-11-19',
     phase: 'N3',

@@ -199,15 +199,21 @@ smaller when you step into water. Keys glow; coins are coloured and sized by val
 instanced by value; bolts are extruded glyphs; the open portal is a beam visible over
 every wall. Pickups fly to the camera. **Awake aliens are solid to your body** (stunned ones are not), so the body can no
 longer lead the sim through an alien before the next tick registers the capture. **Capture
-is a game-over cutscene** (`web3d/sequences.js` data, `web3d/fx3d.js` playback, 2.6 s):
-when a hunting alien comes within two cells a heartbeat swells and the drone ducks; on
-capture the camera whips to the alien (0.12 s), it lunges in to arm's length with both
-arms reaching up at you, grabs (a thud, the view jolted 0.14 m toward it), drags you face
-to face, its jaw unhinges into a dark maw and it shrieks while the frame shakes, zooms
-and tears into colour-split slices -- then a hard cut to black and silence, and the end
-card. **The portal is an ascension:** you rise from eye height to 40 m on an ease-in,
+is a jumpscare** (`web3d/sequences.js` data, `web3d/fx3d.js` playback, 2.2 s): when a
+hunting alien comes within two cells a heartbeat swells and the drone ducks; on the frame
+you are caught the alien that got you is simply there, 0.7 m in front of wherever you were
+looking (no turn, no travel), and pushes in to 0.54 m. In the same instant the district's
+light drains to 6%, fog closes to a red-black 0.6-5.5 m, a flickering red light comes on
+under its chin with a cold edge light behind; its jaw tears open over a ring of 18 needle
+teeth, its slits pinch to burning needles and turn to stare straight at you; a sub-bass
+hit, a white-red flash, a scream (a distorted formant choir and a vibrato screech, over
+silence -- the ambience is cut under it), violent shake, a 16-22 degree zoom punch and
+colour-split tearing. A second spasm at 0.62 s; a hard cut to black and silence at 1.42 s,
+held to the end card. Nothing skips it before 1.0 s (the ascension: 0.8 s), and a key
+held down auto-repeating never skips either -- only a fresh press of Space, Enter or
+Escape, or a click. **The portal is an ascension:** you rise from eye height to 40 m on an ease-in,
 turning 90°, the view widening 15° and tilting down over the district, motes streaming
-upward and the beam brightening, into a teal-white whiteout (2.4 s). Both are skippable;
+upward and the beam brightening, into a teal-white whiteout (2.4 s). Both are skippable after that floor;
 Settings → Jumpscares picks full, mild or off, and reduce motion turns full into mild.
 Criterion 3D-15 holds both to WCAG 2.3.1 (at most three flashes a second). A **killcam**
 can replay the last three seconds of a capture from above and behind.
@@ -287,7 +293,7 @@ minutes; if the banner's number is behind the update note, reload.
 | 3D-12 | All ten belts legible (recorded screenshot review) | PASS, by hand |
 | 3D-13 | Movement never stutters: no frame under half its heading's speed, walking and sprinting, 0–45° | PASS |
 | 3D-14 | Bolt thinning matches its formula on all 100 districts, deterministic, reachable, applied by the runner | PASS |
-| 3D-15 | Jumpscare and ascension: at most 3 flashes a second, skippable, within length, full/mild/off, reduce motion never full | PASS |
+| 3D-15 | Jumpscare and ascension: at most 3 flashes a second, skippable but not before 0.5 s, within length, full/mild/off, reduce motion never full | PASS |
 | 3D-26 | Species table: ten distinct species, threat-red glow, known features and markings | PASS |
 | 3D-27 | Contact: the body never enters an awake alien; walking at one ends in a capture; stunned ones are passable | PASS |
 

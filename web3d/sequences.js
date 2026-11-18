@@ -12,51 +12,56 @@
 export const FLASH_MAX_PER_SECOND = 3;
 
 export const SEQUENCES = Object.freeze({
-  // The capture is a short game-over cutscene, not a flash: the alien lunges in with its
-  // arms out, GRABS (the view jolts toward it), drags you face to face, its jaw unhinges
-  // and it screams while the frame shakes and tears -- then a hard cut to black and
-  // silence before the end card. Distances are metres from your eyes to its face.
+  // The capture is a JUMPSCARE: no wind-up. On the frame you are caught the alien is
+  // simply there, in your face, dead centre of wherever you were looking -- jaw tearing
+  // open over rows of teeth, eye slits flaring, lit from below by a flickering red light
+  // while everything else drops into darkness -- with a bass hit, a shriek, a flash and a
+  // violent shake all at once. It pushes closer for 1.4 s while the frame tears, then a
+  // hard cut to black and silence. Distances are metres from your eyes to its face.
+  // skipAfter: nothing skips it before then (a held key auto-repeats; see play3d.js).
   jumpscare: Object.freeze({
     full: Object.freeze({
-      duration: 2.6, skippable: true, lunge: true,
-      snap: 0.12,                  // seconds for the camera to whip round to it
+      duration: 2.2, skippable: true, skipAfter: 1.0,
+      lunge: true, instant: true,  // appears in front of your view, no travel, no turn
+      snap: 0.06, pitch: -0.24,
       flashes: [
-        { t: 0.35, dur: 0.08, color: '#ff1a2e', alpha: 0.35 },     // the grab
-        { t: 0.9, dur: 0.12, color: '#ff1a2e', alpha: 0.6 },       // the scream
+        { t: 0, dur: 0.1, color: '#ffe0e4', alpha: 0.75 },        // the hit
+        { t: 0.62, dur: 0.07, color: '#ff1a2e', alpha: 0.45 },     // a second spasm
       ],
       tracks: {
-        approach: [[0, 0], [0.3, 1]],                                // from where it was to arm's length
-        // ends at 0.58 m, minus the grab's 0.1 m pull: eyes and the screaming mouth fill the view
-        dist: [[0, 0.9], [0.35, 0.9], [0.5, 0.72], [0.95, 0.58], [2.6, 0.58]],
-        reach: [[0, 0.2], [0.3, 1], [2.6, 1]],
-        pull: [[0, 0], [0.35, 0], [0.42, 0.14], [0.9, 0.1], [2.6, 0.1]],
-        jaw: [[0, 0], [0.8, 0.1], [1.0, 1], [2.6, 1]],
-        shake: [[0, 0], [0.35, 0.03], [0.6, 0.01], [0.9, 0.07], [1.8, 0.05], [1.85, 0]],
-        glitch: [[0, 0], [0.35, 0.4], [0.5, 0.1], [0.9, 1], [1.7, 0.8], [1.85, 0]],
-        fov: [[0, 0], [0.8, 0], [1.0, -10], [2.6, -10]],
-        fade: [[0, 0], [1.84, 0], [1.86, 1], [2.6, 1]],             // a hard cut, then held black
+        dist: [[0, 0.7], [0.12, 0.6], [1.4, 0.54], [2.2, 0.54]],
+        reach: [[0, 0.3], [2.2, 0.3]],
+        pull: [[0, 0.04], [1.4, 0.08], [2.2, 0.08]],
+        jaw: [[0, 0.35], [0.14, 1.3], [0.62, 1.15], [0.7, 1.35], [2.2, 1.35]],
+        dilate: [[0, 0.5], [0.1, 1], [2.2, 1]],
+        shake: [[0, 0.1], [0.4, 0.05], [0.62, 0.08], [1.0, 0.04], [1.4, 0.05], [1.42, 0]],
+        glitch: [[0, 1], [0.25, 0.45], [0.62, 1], [0.9, 0.5], [1.3, 0.9], [1.42, 0]],
+        fov: [[0, -16], [1.4, -22], [2.2, -22]],
+        dark: [[0, 1], [2.2, 1]],                                  // the world drops away
+        fade: [[0, 0], [1.42, 0], [1.44, 1], [2.2, 1]],            // a hard cut, then held black
       },
-      grab: { at: 0.35, level: 1 },
-      shriek: { at: 0.85, level: 1, dur: 1.0 },
-      cut: { at: 1.85 },
+      grab: { at: 0, level: 1 },
+      shriek: { at: 0, level: 1, dur: 1.42 },
+      cut: { at: 1.42 },
     }),
     mild: Object.freeze({
-      duration: 2.4, skippable: true, lunge: true, snap: 0.3,
-      flashes: [{ t: 0.9, dur: 0.2, color: '#ff1a2e', alpha: 0.2 }],
+      duration: 2.4, skippable: true, skipAfter: 0.6, lunge: true, instant: false, snap: 0.3,
+      flashes: [{ t: 0.4, dur: 0.2, color: '#ff1a2e', alpha: 0.2 }],
       tracks: {
-        approach: [[0, 0], [0.3, 1]],
+        approach: [[0, 0], [0.4, 1]],
         dist: [[0, 0.9], [2.4, 0.9]],
-        reach: [[0, 0.2], [0.3, 1], [2.4, 1]],
-        pull: [[0, 0]], shake: [[0, 0]], glitch: [[0, 0]], fov: [[0, 0]],
-        jaw: [[0, 0], [0.9, 0], [1.2, 0.55], [2.4, 0.55]],
+        reach: [[0, 0.2], [0.4, 1], [2.4, 1]],
+        pull: [[0, 0]], shake: [[0, 0]], glitch: [[0, 0]], fov: [[0, 0]], dilate: [[0, 0], [0.4, 0.6]],
+        jaw: [[0, 0], [0.5, 0], [0.9, 0.6], [2.4, 0.6]],
+        dark: [[0, 0], [0.5, 0.5], [2.4, 0.5]],
         fade: [[0, 0], [1.6, 0], [2.0, 1], [2.4, 1]],
       },
-      grab: { at: 0.35, level: 0.4 },
-      shriek: { at: 0.9, level: 0.3, dur: 0.8 },
+      grab: { at: 0.4, level: 0.4 },
+      shriek: { at: 0.5, level: 0.3, dur: 0.8 },
       cut: null,
     }),
     off: Object.freeze({
-      duration: 0.9, skippable: true, lunge: false, snap: 0.45,
+      duration: 0.9, skippable: true, skipAfter: 0, lunge: false, snap: 0.45,
       flashes: [],
       tracks: { jaw: [[0, 0]], shake: [[0, 0]], glitch: [[0, 0]], fade: [[0, 0]] },
       grab: null, shriek: null, cut: null,
@@ -65,7 +70,7 @@ export const SEQUENCES = Object.freeze({
 
   ascension: Object.freeze({
     full: Object.freeze({
-      duration: 2.4, skippable: true,
+      duration: 2.4, skippable: true, skipAfter: 0.8,
       flashes: [],
       tracks: {
         beam: [[0, 0], [0.4, 1], [2.4, 1]],
@@ -80,7 +85,7 @@ export const SEQUENCES = Object.freeze({
       rise: { level: 1 },
     }),
     mild: Object.freeze({
-      duration: 2.4, skippable: true,
+      duration: 2.4, skippable: true, skipAfter: 0.8,
       flashes: [],
       tracks: {
         beam: [[0, 0], [0.4, 1], [2.4, 1]],
@@ -93,7 +98,7 @@ export const SEQUENCES = Object.freeze({
       rise: { level: 0.5 },
     }),
     off: Object.freeze({
-      duration: 0.65, skippable: true, flashes: [],
+      duration: 0.65, skippable: true, skipAfter: 0, flashes: [],
       tracks: { beam: [[0, 0]], lift: [[0, 0]], spin: [[0, 0]], fov: [[0, 0]], pitch: [[0, 0]], particles: [[0, 0]], whiteout: [[0, 0]] },
       rise: null,
     }),

@@ -6,7 +6,7 @@ const BOUND = { jumpscare: 3.0, ascension: 2.5 };
 
 export const criteria = [{
   n: 15,
-  text: 'Sequences: no more than 3 flashes in any second (WCAG 2.3.1), all skippable, within their length, full/mild/off variants, reduce motion never plays the full one',
+  text: 'Sequences: no more than 3 flashes in any second (WCAG 2.3.1), all skippable but none before 0.5 s, within their length, full/mild/off variants, reduce motion never plays the full one',
   async fn() {
     const problems = [];
     const seen = [];
@@ -23,6 +23,8 @@ export const criteria = [{
           for (let i = 1; i < tr.length; i++) if (tr[i][0] < tr[i - 1][0]) problems.push(`${name}/${v}/${tn}: keys out of order`);
         }
         for (const fl of seq.flashes) if (fl.dur > 0.25) problems.push(`${name}/${v}: a ${fl.dur}s "flash" is a fade, not a flash`);
+        // a held key or the click that was firing must not skip the sequence away (R47)
+        if (v !== 'off' && !(seq.skipAfter >= 0.5)) problems.push(`${name}/${v}: skipAfter ${seq.skipAfter} lets a held key skip it`);
         seen.push(`${name}/${v} ${seq.duration}s, ${f} flash${f === 1 ? '' : 'es'}`);
       }
       if (sample(variants.off.tracks.fade ?? variants.off.tracks.whiteout, 99) !== 0 && name === 'jumpscare') problems.push('jumpscare/off fades to black');

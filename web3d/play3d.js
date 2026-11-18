@@ -105,7 +105,14 @@ export class Play3D {
     $('ov-secondary').addEventListener('click', () => { this.start(this.district); this.controls.lock(); });
     $('ov-killcam').addEventListener('click', () => this.playKillcam());
     // the jumpscare and the ascension can always be skipped with any key or click
-    for (const ev of ['keydown', 'mousedown', 'touchstart']) window.addEventListener(ev, () => { if (this.fx.active) this.fx.skip(); });
+    // ...but only deliberately. A held movement key auto-repeats keydown many times a
+    // second, and in builds 15-16 that skipped the capture the instant it began: you were
+    // holding W when you were caught, so you saw black and the end card, never the face.
+    // Now only a fresh Space / Enter / Esc, a click or a tap skips, and not before
+    // the sequence's skipAfter.
+    const SKIP_KEYS = new Set(['Space', 'Enter', 'NumpadEnter', 'Escape']);
+    window.addEventListener('keydown', (e) => { if (!e.repeat && SKIP_KEYS.has(e.code) && this.fx.active) this.fx.skip(this.t); });
+    for (const ev of ['mousedown', 'touchstart']) window.addEventListener(ev, () => { if (this.fx.active) this.fx.skip(this.t); });
     window.addEventListener('resize', () => this.view.resize());
     // A hidden tab is silent, always, and on a phone (no pointer lock to lose) the game
     // pauses too. Coming back resumes the sound only if the game is actually playing.
@@ -223,6 +230,7 @@ export class Play3D {
     });
     this.entities = new Entities(this.view.scene, { cellM, district: this.runner.district });
     this.entities.reset(this.runner.game);
+    this.horror(0);   // makes the capture's two lights now, so the scare frame never recompiles shaders
   }
 
   /**
@@ -238,6 +246,39 @@ export class Play3D {
     if (this.history.length > 16) this.history.shift();
   }
 
+  /**
+   * Horror lighting for the capture, k in 0..1: the district's own light drains away, the
+   * fog closes in to a red-black a few metres out, and the alien's face is lit from below
+   * by a flickering red light between it and you. horror(0) puts the district back.
+   */
+  horror(k, sc = null, cam = null) {
+    const T = this.view.THREE, scene = this.view.scene;
+    const lights = scene.getObjectByName('district-lights');
+    if (lights) lights.traverse((o) => { if (o.isLight) { o.userData.i0 ??= o.intensity; o.intensity = o.userData.i0 * (1 - 0.94 * k); } });
+    const f = scene.fog;
+    if (f) {
+      f.userData ??= {};
+      f.userData.base ??= { color: f.color.clone(), near: f.near, far: f.far, bg: scene.background?.isColor ? scene.background.clone() : null };
+      const b = f.userData.base, dark = new T.Color(0x070102);
+      f.color.copy(b.color).lerp(dark, k);
+      f.near = b.near + (0.6 - b.near) * k;
+      f.far = b.far + (5.5 - b.far) * k;
+      if (b.bg) scene.background = b.bg.clone().lerp(dark, k);
+    }
+    if (!this.scareLight) {
+      this.scareLight = new T.PointLight(0xff1a10, 0, 2.6, 1.6);
+      this.scareFill = new T.PointLight(0x6a86ff, 0, 3, 2);   // a cold edge from above and behind it
+      scene.add(this.scareLight, this.scareFill);
+    }
+    if (k <= 0 || !sc) { this.scareLight.intensity = 0; this.scareFill.intensity = 0; return; }
+    // under the chin, a little toward you; it gutters like a failing tube
+    const flick = 0.72 + 0.28 * Math.sin(this.t * 47) * Math.sin(this.t * 13 + 2);
+    this.scareLight.position.copy(sc.pos).addScaledVector(sc.fwd, -0.4).setY(1.0);
+    this.scareLight.intensity = 1.6 * k * flick;
+    this.scareFill.position.copy(sc.pos).addScaledVector(sc.fwd, 0.6).setY(2.4);
+    this.scareFill.intensity = 1.2 * k;
+  }
+
   playKillcam() {
     const frames = this.history.slice(-13);
     if (frames.length < 2) return;
@@ -246,6 +287,7 @@ export class Play3D {
     $('killcam').hidden = false;
     document.body.classList.remove('g3-caught');
     this.fx.reset();
+    this.horror(0);
     this.entities.scare = null;
     this.entities.vis.clear();
     this.killcam = { t0: this.t, frames };
@@ -362,11 +404,13 @@ export class Play3D {
       this.fx.start('jumpscare', variant, { t: this.t, onDone: done });
       const seq = this.fx.run.def;
       if (at) {
-        const toYaw = Math.atan2(-(at.x - cam.x), -(at.z - cam.z));
+        // An instant scare does not turn you round to find it: it is already there, dead
+        // centre of wherever you were looking, on the frame you are caught.
+        const toYaw = seq.instant ? this.controls.yaw : Math.atan2(-(at.x - cam.x), -(at.z - cam.z));
         let diff = toYaw - this.controls.yaw;
         diff = Math.atan2(Math.sin(diff), Math.cos(diff));
         // with the lunge, look down a little: its face is below your eyes once it is close
-        this.endAnim = { t0: this.t, fromYaw: this.controls.yaw, dYaw: diff, fromPitch: this.controls.pitch, dur: seq.snap, toPitch: seq.lunge ? -0.3 : -0.06 };
+        this.endAnim = { t0: this.t, fromYaw: this.controls.yaw, dYaw: diff, fromPitch: this.controls.pitch, dur: seq.snap, toPitch: seq.lunge ? (seq.pitch ?? -0.3) : -0.06 };
         if (seq.lunge) {
           // The cutscene moves the alien along the line from your eyes to it; its face is
           // ~0.28 m ahead of its feet. d0 is where it starts: wherever it really was.
@@ -374,7 +418,7 @@ export class Play3D {
           const fwd = new T.Vector3(-Math.sin(toYaw), 0, -Math.cos(toYaw));
           const eye = new T.Vector3(cam.x, 0, cam.z);
           const d0 = Math.max(0.6, Math.hypot(at.x - cam.x, at.z - cam.z) - 0.28);
-          this.entities.scare = { id: best.id, eye, fwd, d0, pos: new T.Vector3(at.x, 0, at.z), heading: toYaw + Math.PI, jaw: 0, reach: 0 };
+          this.entities.scare = { id: best.id, eye, fwd, d0, pos: new T.Vector3(at.x, 0, at.z), heading: toYaw + Math.PI, jaw: 0, reach: 0, dilate: 0 };
         }
       }
       document.body.classList.add('g3-caught');
@@ -483,11 +527,12 @@ export class Play3D {
       if (fx.kind === 'jumpscare') {
         const sc = this.entities.scare;
         if (sc) {
-          const ap = fx.track('approach', this.t);
+          const ap = def.tracks.approach ? fx.track('approach', this.t) : 1;
           const d = ap < 1 ? sc.d0 + (0.9 - sc.d0) * ap : fx.track('dist', this.t);
           sc.pos.copy(sc.eye).addScaledVector(sc.fwd, d + 0.28);
-          sc.jaw = fx.track('jaw', this.t) * 0.95;
+          sc.jaw = fx.track('jaw', this.t);
           sc.reach = fx.track('reach', this.t);
+          sc.dilate = fx.track('dilate', this.t);
           // the grab drags you toward it
           cam.position.addScaledVector(sc.fwd, fx.track('pull', this.t));
         }
@@ -498,6 +543,7 @@ export class Play3D {
           cam.rotation.z = amp * 1.5 * Math.sin(this.t * 61);
         }
         this.view.setHFov(this.settings.fov + fx.track('fov', this.t));
+        this.horror(def.tracks.dark ? fx.track('dark', this.t) : 0, sc, cam);
         if (def.grab && fx.once('grab', def.grab.at, this.t)) this.audio.grab(def.grab.level);
         if (def.shriek && fx.once('shriek', def.shriek.at, this.t)) this.audio.shriek(def.shriek.level, def.shriek.dur);
         if (def.cut && fx.once('cut', def.cut.at, this.t)) this.audio.cut();

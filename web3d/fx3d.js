@@ -56,7 +56,12 @@ export class Fx3D {
     if (kind === 'ascension' && sample(def.tracks.particles, def.duration) > 0) this.points.visible = true;
   }
 
-  skip() { if (this.active && this.run.def.skippable) this.run.skip = true; }
+  /** Skip to the end -- but never before the sequence's skipAfter seconds have played. */
+  skip(t) {
+    if (!this.active || !this.run.def.skippable) return;
+    if (t != null && this.time(t) < (this.run.def.skipAfter ?? 0)) return;
+    this.run.skip = true;
+  }
 
   /** Seconds into the sequence, and the value of a track there. */
   time(t) { return this.run ? (this.run.skip ? this.run.def.duration : t - this.run.t0) : 0; }
@@ -135,7 +140,7 @@ export class Fx3D {
       tg.globalCompositeOperation = 'multiply';
       tg.fillStyle = color; tg.fillRect(0, 0, W, H);
       g.globalCompositeOperation = 'lighter';
-      g.globalAlpha = 0.45 * a;
+      g.globalAlpha = 0.22 * a;
       g.drawImage(this.tint, dir * W * 0.012 * a, 0);
     }
     g.globalCompositeOperation = 'source-over';

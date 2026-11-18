@@ -186,20 +186,23 @@ export class Audio3D {
 
   /** The jumpscare's shriek: a sawtooth tearing upward over a noise burst, distorted. */
   /** The grab: a heavy, close thud, and the heartbeat stops. */
+  /** The hit: a sub-bass impact that drops through the floor, a body slam of low noise. */
   grab(level = 1) {
     if (!this.ctx || !this.bus || !this.enabled || level <= 0) return;
     this.setTension(0);
     const ctx = this.ctx, t = ctx.currentTime;
-    const o = ctx.createOscillator();
-    o.type = 'sine';
-    o.frequency.setValueAtTime(90, t); o.frequency.exponentialRampToValueAtTime(38, t + 0.25);
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.6 * level, t + 0.01);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
-    o.connect(g).connect(this.bus); o.start(t); o.stop(t + 0.35);
+    for (const [f0, f1, a, len] of [[120, 28, 0.9, 0.9], [62, 22, 0.7, 1.2]]) {
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + len * 0.7);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(a * level, t + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      o.connect(g).connect(this.bus); o.start(t); o.stop(t + len + 0.05);
+    }
     const n = ctx.createBufferSource(); n.buffer = this.noise;
-    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 600;
-    const ng = ctx.createGain(); ng.gain.setValueAtTime(0.35 * level, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
+    const ng = ctx.createGain(); ng.gain.setValueAtTime(0.7 * level, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
     n.connect(lp).connect(ng).connect(this.bus); n.start(t);
   }
 
@@ -211,35 +214,56 @@ export class Audio3D {
     if (this.bus) { this.bus.gain.setTargetAtTime(0.0001, t, 0.01); this.bus.gain.setTargetAtTime(this.enabled ? 0.9 : 0, t + 0.9, 0.05); }
   }
 
+  /**
+   * The scream. The world goes silent under it -- nothing but this -- and it is three
+   * voices: a distorted, detuned saw choir climbing two octaves through a vocal formant,
+   * a thin screech on top with a sick vibrato, and a burst of torn noise at the front.
+   */
   shriek(level = 1, dur = 0.9) {
     if (!this.ctx || !this.bus || !this.enabled || level <= 0) return;
     this.setTension(0);
-    const m = this.amb._nodes?.master;
     const ctx = this.ctx, t = ctx.currentTime;
-    if (m) m.gain.setTargetAtTime(0.9, t, 0.05);
+    this.amb._nodes?.master?.gain.setTargetAtTime(0.0001, t, 0.015);
     const shaper = ctx.createWaveShaper();
-    const curve = new Float32Array(512);
-    for (let i = 0; i < 512; i++) { const x = (i / 255.5) - 1; curve[i] = Math.tanh(x * 4); }
+    const curve = new Float32Array(1024);
+    for (let i = 0; i < 1024; i++) { const x = (i / 511.5) - 1; curve[i] = Math.tanh(x * 6); }
     shaper.curve = curve;
     const out = ctx.createGain();
     out.gain.setValueAtTime(0.0001, t);
-    out.gain.exponentialRampToValueAtTime(0.32 * level, t + 0.025);
-    out.gain.setValueAtTime(0.32 * level, t + dur * 0.6);
+    out.gain.exponentialRampToValueAtTime(0.5 * level, t + 0.012);
+    out.gain.setValueAtTime(0.5 * level, t + dur * 0.85);
     out.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     shaper.connect(out).connect(this.bus);
-    for (const det of [0, 37]) {
+    // the choir through a formant: an "aah" that is not quite a voice
+    const formant = ctx.createBiquadFilter();
+    formant.type = 'bandpass'; formant.Q.value = 2.2;
+    formant.frequency.setValueAtTime(900, t); formant.frequency.exponentialRampToValueAtTime(2600, t + dur);
+    formant.connect(shaper);
+    const dry = ctx.createGain(); dry.gain.value = 0.35; dry.connect(shaper);
+    for (const det of [-40, 0, 31, 1210]) {
       const o = ctx.createOscillator();
       o.type = 'sawtooth';
       o.detune.value = det;
-      o.frequency.setValueAtTime(220, t);
-      o.frequency.exponentialRampToValueAtTime(1400, t + dur);
-      o.connect(shaper); o.start(t); o.stop(t + dur + 0.05);
+      o.frequency.setValueAtTime(180, t);
+      o.frequency.exponentialRampToValueAtTime(760, t + dur * 0.8);
+      o.connect(formant); o.connect(dry); o.start(t); o.stop(t + dur + 0.05);
     }
+    // the screech, with a fast, uneven vibrato
+    const sc = ctx.createOscillator();
+    sc.type = 'square';
+    sc.frequency.setValueAtTime(1900, t); sc.frequency.exponentialRampToValueAtTime(3300, t + dur);
+    const vib = ctx.createOscillator(); vib.frequency.value = 23;
+    const vg = ctx.createGain(); vg.gain.value = 140;
+    vib.connect(vg).connect(sc.frequency);
+    const sg = ctx.createGain(); sg.gain.value = 0.12;
+    sc.connect(sg).connect(shaper); sc.start(t); vib.start(t); sc.stop(t + dur + 0.05); vib.stop(t + dur + 0.05);
+    // the tear at the front
     const n = ctx.createBufferSource();
     n.buffer = this.noise; n.loop = true;
     const ng = ctx.createGain();
-    ng.gain.setValueAtTime(0.9, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
-    n.connect(ng).connect(shaper); n.start(t); n.stop(t + 0.55);
+    ng.gain.setValueAtTime(1.2, t); ng.gain.exponentialRampToValueAtTime(0.05, t + 0.35); ng.gain.setValueAtTime(0.05, t + dur * 0.9);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    n.connect(ng).connect(shaper); n.start(t); n.stop(t + dur + 0.05);
   }
 
   /** The ascension: a low rumble swelling under a tone that rises an octave and a half. */
