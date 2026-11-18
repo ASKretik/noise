@@ -9,8 +9,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../web/style.css?v=25">
-<link rel="stylesheet" href="../web3d/style3d.css?v=25">
+<link rel="stylesheet" href="../web/style.css?v=26">
+<link rel="stylesheet" href="../web3d/style3d.css?v=26">
 <script type="importmap">
 { "imports": { "three": "../vendor/three/0.185.1/three.module.min.js" } }
 </script>
@@ -49,6 +49,9 @@
       <label class="g3-check"><input type="checkbox" id="s-sound"> sound</label>
       <label>Jumpscares <select id="s-jumpscare">
         <option value="full">full</option><option value="mild">mild (no lunge, quiet)</option><option value="off">off</option>
+      </select></label>
+      <label>Frame rate <select id="s-fps">
+        <option value="auto">automatic (the display's rate)</option><option value="60">60 fps</option><option value="30">30 fps (steadier on a weak laptop)</option>
       </select></label>
       <label>Quality <select id="s-quality">
         <option value="">automatic</option><option value="high">High · shadows</option>

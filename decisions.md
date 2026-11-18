@@ -2516,11 +2516,65 @@ once; the keyup is cancelled too.
 - A real held key cannot be pressed from here; synthetic events do not perform the
   browser's default actions.
 
+---
+
+## R57 · N8.4: drawing a city without drawing all of it (3D build 26)
+
+**Asked:** "start N8.4, everything works fine so far".
+
+**Measured first** (district 100, Medium, 1080p, M3): mean 12.4 ms, p95 17.0 ms, 109 draw
+calls, 609k triangles. By layer:
+
+| Layer | Triangles |
+|---|---|
+| Rubble (19,600 blocks) | 235k |
+| Wall bodies | 120k |
+| Wall caps | 120k |
+| Floor | 57k |
+
+All of it was drawn every frame, because each tile type was one mesh with one bounding
+sphere covering the whole city.
+
+**Built:**
+
+- **Chunks.** Every instanced layer is cut into 48 m chunks (218 at district 100).
+- **Far plane = fog.** The far plane sits at 100 m, just past the fog's solid end at
+  90 m. Both are by view depth, so culling is invisible.
+- **Buried walls.** A wall cell walled in on all four sides gets a cap but no body.
+- **Shadows** follow you in a 90 m box, snapped to texels.
+- **Frame-rate setting:** automatic, 60 or 30.
+
+**What the measurements said:**
+
+1. **Chunking alone** cut triangles to 272k at most and p95 to about 13.5 ms, but the mean
+   only to about 11 ms. Something besides the 3D world was expensive.
+2. **The HUD cost 7.4 ms** a frame (10.4 ms with it, 3.0 without). Removing *either* the
+   2D board's redraw *or* the minimap's copy of it removed the whole cost, so it was the
+   pair. Every frame the HUD redrew a 2232 × 1395 offscreen board, then copied that
+   just-changed canvas into the minimap, which shows about 13 cells of it.
+   - **Fix:** a second 2D renderer draws only a 16-cell window round you (a 13-cell
+     circle fits in it at any rotation), offset by its context transform. The whole board
+     is drawn only while the Tab map is open. `web/render.js` is untouched.
+3. **Two guesses were tested and dropped.** Holding the background as an ImageBitmap
+   made it slower. Replacing it with a 1×1 canvas changed nothing.
+4. **Result** (three runs): mean 5.3–8.4 ms, p95 10.7–12.2 ms, worst 16.1 ms. High: mean
+   5.3 ms, p95 7.8 ms. Recorded for 3D-11 at build 26.
+5. **The frame cap's first version** drew "long enough since the last frame". That gave
+   48 fps for a 60 cap on a 144 Hz display. Frames are now due on a fixed schedule, and
+   simulated 60, 75, 120 and 144 Hz displays give exactly 60 and 30.
+
+**Not verified:**
+
+- The pane was hidden throughout, and GPU timings vary by about a third between runs.
+- Nothing was measured on a weaker laptop.
+- The frame cap was checked with simulated timestamps; a hidden pane runs no animation
+  frames.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    23 passed · 0 not demonstrated · 0 failed  (3D build 24; 3D-1 via the
+npm run test3d    23 passed · 0 not demonstrated · 0 failed  (3D build 26; 3D-1 via the
                   2D suites above, run alongside)
 ```

@@ -24,6 +24,13 @@ const MINI_TILE = 16;            // px per cell in the offscreen board, on a 2D-
 export const boardTile = (w) => Math.max(6, Math.min(MINI_TILE, Math.floor(2400 / w)));
 const MINI_SIZE = 188;           // css px
 const MINI_CELLS = 13;           // cells across the minimap
+/**
+ * The minimap's own board: a window this many cells square around you, drawn by a second
+ * 2D renderer offset to it (N8.4). The minimap is a circle MINI_CELLS across, which fits
+ * in this square at any rotation. Copying the whole district board into the minimap every
+ * frame cost 7 ms at district 100 -- more than the entire 3D world.
+ */
+const MINI_WIN = MINI_CELLS + 3;
 
 function el(tag, cls, parent, html) {
   const e = document.createElement(tag);
@@ -45,6 +52,10 @@ export class Hud3D {
     this.tile = MINI_TILE;
     this.board.tile = MINI_TILE;
     this.board.dpr = 1;
+    this.miniCanvas = document.createElement('canvas');
+    this.miniBoard = new Renderer(this.miniCanvas);
+    this.miniBoard.tile = MINI_TILE;
+    this.miniBoard.dpr = 1;
 
     this.overlay = el('canvas', 'h3-overlay', root);       // waypoints + threat arcs
     this.octx = this.overlay.getContext('2d');
@@ -97,6 +108,10 @@ export class Hud3D {
     this.boardCanvas.width = w; this.boardCanvas.height = h;
     this.board.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.board._mapKey = null;
+    this.miniBoard.setDistrict(level.level);
+    this.miniBoard.tile = this.tile;
+    this.miniCanvas.width = this.miniCanvas.height = MINI_WIN * this.tile;
+    this.miniBoard._mapKey = null;
     this.districtEl.textContent = `DISTRICT ${level.level}`;
     this.tierEl.textContent = `${String(tier).toUpperCase()} · ${this.board.theme.name}`;
     this.dispatchEl.classList.remove('on');
@@ -104,9 +119,11 @@ export class Hud3D {
 
   toggleLayer(what) {
     this.layers[what] = !this.layers[what];
-    this.board.showHeatmap = this.layers.heatmap;
-    this.board.showVisited = this.layers.visited;
-    this.board.showIntercepts = this.layers.intercepts;
+    for (const b of [this.board, this.miniBoard]) {
+      b.showHeatmap = this.layers.heatmap;
+      b.showVisited = this.layers.visited;
+      b.showIntercepts = this.layers.intercepts;
+    }
     return this.layers[what];
   }
 
@@ -161,8 +178,14 @@ export class Hud3D {
     o.setTransform(dpr, 0, 0, dpr, 0, 0);
     o.clearRect(0, 0, W, H);
 
-    // ---- the 2D board, offscreen
-    this.board.draw({ game, level, alpha: 1, prev: null, prediction: f.prediction?.dist ?? null });
+    // ---- the 2D boards, offscreen: the minimap's window every frame, the whole district
+    // only while the Tab map is open
+    const T = this.tile;
+    const wx = Math.floor(body.x - MINI_WIN / 2), wy = Math.floor(body.y - MINI_WIN / 2);
+    const boardFrame = { game, level, alpha: 1, prev: null, prediction: f.prediction?.dist ?? null };
+    this.miniBoard.ctx.setTransform(1, 0, 0, 1, -wx * T, -wy * T);
+    this.miniBoard.draw(boardFrame);
+    if (!this.map.hidden) this.board.draw(boardFrame);
 
     // ---- minimap: centred on you, rotated so forward is up
     const m = this.mctx, S = this.mini.width;
@@ -171,13 +194,12 @@ export class Hud3D {
     m.save();
     m.beginPath(); m.arc(S / 2, S / 2, S / 2 - 4, 0, Math.PI * 2); m.clip();
     m.fillStyle = '#07080c'; m.fillRect(0, 0, S, S);
-    const T = this.tile;
     const scale = S / (MINI_CELLS * T);
     m.translate(S / 2, S / 2);
     m.rotate(yaw);
     m.scale(scale, scale);
-    m.translate(-body.x * T, -body.y * T);
-    m.drawImage(this.boardCanvas, 0, 0);
+    m.translate((wx - body.x) * T, (wy - body.y) * T);
+    m.drawImage(this.miniCanvas, 0, 0);
     m.restore();
     // you
     m.save();

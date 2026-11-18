@@ -18,6 +18,57 @@ import { Rng, hashString } from '../sim/prng.js';
 import { themeFor } from '../web/themes.js';
 import { WALL_M } from '../sim3d/units.js';
 
+/**
+ * Fog: clear to FOG_NEAR, solid colour from FOG_FAR on. The camera's far plane sits just
+ * past FOG_FAR (scene.js), so nothing that could still be seen is ever clipped: three's
+ * fog is by view depth, and so is the far plane.
+ */
+export const FOG_NEAR = 26;
+export const FOG_FAR = 90;
+
+/**
+ * Render chunks (N8.4): every instanced layer is cut into squares of CHUNK_CELLS cells
+ * (48 m), each its own InstancedMesh with its own bounds, so three's frustum culling --
+ * which tests one bounding sphere per mesh -- skips whatever is behind you or past the
+ * fog. One mesh per tile type for the whole district is never culled at all.
+ */
+export const CHUNK_CELLS = 32;
+
+/** The shadow box that follows you: half its width in metres (N8.4). */
+export const SHADOW_HALF_M = 45;
+
+/** Split an instanced layer into per-chunk meshes sharing its geometry and material. */
+function chunked(mesh, cellM) {
+  const size = CHUNK_CELLS * cellM;
+  const buckets = new Map();
+  const m = new THREE.Matrix4();
+  for (let i = 0; i < mesh.count; i++) {
+    mesh.getMatrixAt(i, m);
+    const key = Math.floor(m.elements[12] / size) + Math.floor(m.elements[14] / size) * 4096;
+    let b = buckets.get(key);
+    if (!b) buckets.set(key, (b = []));
+    b.push(i);
+  }
+  const out = [];
+  const c = new THREE.Color();
+  for (const idx of buckets.values()) {
+    const part = new THREE.InstancedMesh(mesh.geometry, mesh.material, idx.length);
+    idx.forEach((src, j) => {
+      mesh.getMatrixAt(src, m);
+      part.setMatrixAt(j, m);
+      if (mesh.instanceColor) { mesh.getColorAt(src, c); part.setColorAt(j, c); }
+    });
+    part.castShadow = mesh.castShadow;
+    part.receiveShadow = mesh.receiveShadow;
+    part.renderOrder = mesh.renderOrder;
+    part.name = mesh.name;
+    part.computeBoundingSphere();
+    out.push(part);
+  }
+  mesh.dispose();
+  return out;
+}
+
 /** Keep the hue, lift the lightness to at least `minL`, optionally saturate. */
 export function lift(hex, minL, satMul = 1) {
   // In sRGB terms, the space the palettes were picked in. three.js's default for HSL is
@@ -190,20 +241,27 @@ export function buildWorld(level, { cellM, shadows = false }) {
   floor.receiveShadow = shadows;
   group.add(floor);
 
-  // ---- walls: body + a lighter cap, per-instance wear
+  // ---- walls: body + a lighter cap, per-instance wear. A wall cell with wall on all four
+  // sides shows no face to anyone at street level, so it gets a cap (the killcam looks
+  // down on the roofs) but no body: on a city map that is about a third of all walls.
+  const isWall = (x, y) => x < 0 || y < 0 || x >= map.w || y >= map.h || map.tiles[y * map.w + x] === TILE.WALL;
   const walls = cellsOf(TILE.WALL);
+  const faced = walls.filter(([x, y]) => !isWall(x - 1, y) || !isWall(x + 1, y) || !isWall(x, y - 1) || !isWall(x, y + 1));
   const wallTex = track(wallTexture(seed));
   const wallGeo = track(new THREE.BoxGeometry(cellM, WALL_M, cellM));
   const wallMat = track(new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.88 }));
-  const wallMesh = new THREE.InstancedMesh(wallGeo, wallMat, walls.length);
+  const wallMesh = new THREE.InstancedMesh(wallGeo, wallMat, Math.max(1, faced.length));
+  wallMesh.count = faced.length;
   const capGeo = track(new THREE.BoxGeometry(cellM * 1.02, 0.12, cellM * 1.02));
   const capMat = track(new THREE.MeshStandardMaterial({ color: pal.wallCap, roughness: 0.7 }));
   const capMesh = new THREE.InstancedMesh(capGeo, capMat, walls.length);
-  walls.forEach(([x, y], i) => {
+  faced.forEach(([x, y], i) => {
     const r = cellRng(x, y, 'wall');
     m4.makeTranslation((x + 0.5) * cellM, WALL_M / 2, (y + 0.5) * cellM);
     wallMesh.setMatrixAt(i, m4);
     wallMesh.setColorAt(i, col.copy(pal.wall).multiplyScalar(0.88 + r.float() * 0.24));
+  });
+  walls.forEach(([x, y], i) => {
     m4.makeTranslation((x + 0.5) * cellM, WALL_M + 0.06, (y + 0.5) * cellM);
     capMesh.setMatrixAt(i, m4);
   });
@@ -290,6 +348,17 @@ export function buildWorld(level, { cellM, shadows = false }) {
     group.add(new THREE.LineSegments(eg, track(new THREE.LineBasicMaterial({ color: 0xb4c4d6, transparent: true, opacity: 0.35 }))));
   }
 
+  // ---- cut every instanced layer into chunks (N8.4)
+  const layers = group.children.filter((ch) => ch.isInstancedMesh);
+  let chunkCount = 0;
+  for (const layer of layers) {
+    group.remove(layer);
+    if (layer.count === 0) { layer.dispose(); continue; }
+    const parts = chunked(layer, cellM);
+    chunkCount += parts.length;
+    group.add(...parts);
+  }
+
   // ---- beyond the map: a dark apron, and a sky dome in the belt's colours
   const apron = new THREE.Mesh(
     track(new THREE.PlaneGeometry(W * 8, H * 8).rotateX(-Math.PI / 2)),
@@ -299,7 +368,7 @@ export function buildWorld(level, { cellM, shadows = false }) {
   group.add(apron);
 
   const sky = new THREE.Mesh(
-    track(new THREE.SphereGeometry(180, 24, 12)),
+    track(new THREE.SphereGeometry(FOG_FAR, 24, 12)),       // inside the far plane
     track(new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false, fog: false,
       uniforms: { top: { value: pal.zenith }, bottom: { value: pal.horizon } },
@@ -315,6 +384,7 @@ export function buildWorld(level, { cellM, shadows = false }) {
   return {
     group,
     palette: pal,
+    chunkCount,
     /**
      * Per-frame animation: the water drifts, and the sky dome stays centred on you. On a
      * city map you can walk 200 m from the middle, outside a dome fixed there.
@@ -323,12 +393,20 @@ export function buildWorld(level, { cellM, shadows = false }) {
       waterNorm.offset.set(t * 0.03, t * 0.017);
       if (eye) sky.position.set(eye.x, 0, eye.z);
     },
-    dispose() { for (const d of disposables) d.dispose?.(); },
+    dispose() {
+      for (const ch of group.children) if (ch.isInstancedMesh) ch.dispose();
+      for (const d of disposables) d.dispose?.();
+    },
   };
 }
 
-/** Lights and fog for a district, in its belt's colours. */
-export function lightScene(scene, pal, { cellM, mapW, mapH, shadows = false }) {
+/**
+ * Lights and fog for a district, in its belt's colours. With `follow`, the sun's shadow
+ * box is SHADOW_HALF_M either side of a point just ahead of you, moved every frame by
+ * the returned follow(): one 2048 shadow map stretched over a district-100 city would put
+ * 0.22 m in every texel. Without it (the dev pages) the box covers the whole map.
+ */
+export function lightScene(scene, pal, { cellM, mapW, mapH, shadows = false, follow = false }) {
   const old = scene.getObjectByName('district-lights');
   if (old) scene.remove(old);
   const g = new THREE.Group();
@@ -338,15 +416,32 @@ export function lightScene(scene, pal, { cellM, mapW, mapH, shadows = false }) {
   const cx = (mapW * cellM) / 2, cz = (mapH * cellM) / 2;
   sun.position.set(cx - 25, 45, cz + 18);
   sun.target.position.set(cx, 0, cz);
+  const r = follow ? SHADOW_HALF_M : Math.max(mapW, mapH) * cellM * 0.62;
   if (shadows) {
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
-    const r = Math.max(mapW, mapH) * cellM * 0.62;
     Object.assign(sun.shadow.camera, { left: -r, right: r, top: r, bottom: -r, near: 1, far: 140 });
     sun.shadow.bias = -0.0008;
   }
   g.add(sun, sun.target);
   scene.add(g);
-  scene.fog = new THREE.Fog(pal.horizon, 26, 90);
+  scene.fog = new THREE.Fog(pal.horizon, FOG_NEAR, FOG_FAR);
   scene.background = pal.horizon;
+  const texel = (2 * r) / 2048;
+  const fwd = new THREE.Vector3();
+  return {
+    sun,
+    /** Centre the shadow box a little ahead of the camera, snapped to whole texels. */
+    follow(camera) {
+      if (!follow) return;
+      camera.getWorldDirection(fwd);
+      fwd.y = 0;
+      if (fwd.lengthSq() > 1e-6) fwd.normalize();
+      const x = Math.round((camera.position.x + fwd.x * r * 0.45) / texel) * texel;
+      const z = Math.round((camera.position.z + fwd.z * r * 0.45) / texel) * texel;
+      sun.target.position.set(x, 0, z);
+      sun.position.set(x - 25, 45, z + 18);
+      sun.target.updateMatrixWorld();
+    },
+  };
 }

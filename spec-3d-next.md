@@ -1,7 +1,7 @@
 # NOISE 3D — the next round
 
-Written Nov 18, 2026, revised the same day after N3 · **status: N0–N3 and N8.1–N8.3
-built; N8.4 next** · follows 3D build 24
+Written Nov 18, 2026, revised the same day after N3 · **status: N0–N3 and N8.1–N8.4
+built; N8.5 next** · follows 3D build 26
 
 > A spec to pick up one phase at a time, whenever there is time. It describes what each
 > phase builds, the numbers it uses, the files it touches, how it is checked and what it
@@ -35,8 +35,8 @@ built; N8.4 next** · follows 3D build 24
 | N8.1 | Big maps: the size curve, the city builder with named places, the `next` ruleset | 4–5 days | High | **done** (3D build 21) |
 | N8.2 | Aliens: arrival cap, hunting / patrol / travel speeds, arrivals near you; route-planning spread out so it never hitches | 3–4 days | Medium | **done** (3D build 23; build 22 before it: Tab map key beacons and the user's tier speeds) |
 | N8.3 | Keys (4 → 10) and portal placement; Tab map zoom, pan and place names; run length measured | 2–3 days | Medium | **done** (3D build 24) |
-| **N8.4** | Chunks, a shadow box that follows you, the frame-rate setting; frame budget re-measured | 2–3 days | Medium | **next** |
-| N8.5 | Behaviour-first Dispatch: new traits, tactics, bots, 3D constants | 5–7 days | High | not started |
+| N8.4 | Chunks, a shadow box that follows you, the frame-rate setting; frame budget re-measured | 2–3 days | Medium | **done** (3D build 26; build 25 before it: a held Tab keeps the map up) |
+| **N8.5** | Behaviour-first Dispatch: new traits, tactics, bots, 3D constants | 5–7 days | High | **next** |
 | N4.1 | Art: sky, lighting and weather, and the first three belts (RUST, TIDE, MOSS) | ~3 days | Medium | not started |
 | N4.2 | Art: the other seven belts, a centrepiece per landmark, ruined facades, bloom and colour grade | 5–6 days | Medium | not started |
 | N5.1 | Story system: briefings, debriefs from your dossier, transcripts placed in named places, the story save | 3–5 days | Medium | not started |
@@ -663,6 +663,18 @@ apart, both halves, one per place. The details:
 - **The Tab map** zooms (wheel, closing in on you), pans (drag) and names places and
   avenues. Off-screen keys are pinned to the edge.
 - **New criterion 3D-30** checks the keys, the portal and the time limit.
+
+**N8.4 as built (3D build 26).** As planned, with these differences:
+
+- **Chunks are 32 cells (48 m), not 16.** That keeps draw calls near 130 at district 100.
+- **The minimap was the biggest cost.** It copied the whole 2232 × 1395 board every frame,
+  about 7 ms at district 100, and now draws only a 16-cell window. It was found by timing
+  the HUD separately, after chunking had cut triangles by more than half without moving
+  the mean as much as expected.
+- **Buried wall bodies are skipped**, which wasn't in the plan.
+- **The shadow box is 90 m across, not 60**, so its edge falls well into the fog.
+- **The result:** district 100 on Medium went from a 12.4 ms mean and 17.0 ms p95 to
+  5.3–8.4 ms and about 11 ms. 3D-11 is re-recorded at build 26.
 
 ### Criteria
 

@@ -230,8 +230,8 @@ export class Play3D {
     const cellM = this.tune.cellM;
     this.world = buildWorld(this.runner.level, { cellM, shadows: this.quality.shadows });
     this.view.scene.add(this.world.group);
-    lightScene(this.view.scene, this.world.palette, {
-      cellM, mapW: this.runner.map.w, mapH: this.runner.map.h, shadows: this.quality.shadows,
+    this.lights = lightScene(this.view.scene, this.world.palette, {
+      cellM, mapW: this.runner.map.w, mapH: this.runner.map.h, shadows: this.quality.shadows, follow: true,
     });
     this.entities = new Entities(this.view.scene, { cellM, district: this.runner.district });
     this.entities.reset(this.runner.game);
@@ -526,6 +526,17 @@ export class Play3D {
   // ---------------------------------------------------------------- the frame
 
   frame(now, once = false) {
+    // The frame-rate setting (N8.4): skip display refreshes until a frame is due. A cap
+    // draws nothing sooner; it gives every frame the same, longer, time, which a weak
+    // laptop can turn into a steady 30 instead of an uneven 40-60. Frames are due on a
+    // fixed schedule, not "long enough since the last one", so the average holds on any
+    // display (60 on a 144 Hz screen, not 48).
+    const cap = Number(this.settings.fpsCap) || 0;
+    if (cap && !once) {
+      const every = 1000 / cap;
+      if (this.nextDue != null && now < this.nextDue - 1) { requestAnimationFrame(this.frame); return; }
+      this.nextDue = Math.max((this.nextDue ?? now) + every, now - every);
+    } else this.nextDue = null;
     // clamped both ways: a timestamp that runs backwards must never run the clock backwards
     const dt = Math.max(0, Math.min(((now - (this.last ?? now)) / 1000), 0.1));
     this.last = now;
@@ -540,6 +551,7 @@ export class Play3D {
     if (this.killcam) {
       this.killcamFrame(dt);
       this.world.animate(this.t, this.view.camera.position);
+      this.lights.follow(this.view.camera);
       this.view.render();
       if (!once) requestAnimationFrame(this.frame);
       return;
@@ -657,6 +669,7 @@ export class Play3D {
       lock: this.lock,
     });
     if (this.tune.debug) this.debugReadout();
+    this.lights.follow(this.view.camera);
     this.view.render();
     // Read the world pass's counters before the gun pass resets them.
     const info = this.view.renderer.info.render;
@@ -748,6 +761,8 @@ export class Play3D {
     try { stored = localStorage.getItem('noise3d-quality') || ''; } catch { /* fine */ }
     $('s-quality').value = stored;
     $('s-jumpscare').value = s.jumpscares || 'full';
+    $('s-fps').value = String(s.fpsCap || 'auto');
+    $('s-fps').addEventListener('change', (e) => { s.fpsCap = e.target.value === 'auto' ? 'auto' : Number(e.target.value); saveSettings(s); });
     $('s-jumpscare').addEventListener('change', (e) => { s.jumpscares = e.target.value; saveSettings(s); });
     $('s-quality').addEventListener('change', (e) => setQuality(e.target.value));
   }

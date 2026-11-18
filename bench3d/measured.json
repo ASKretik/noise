@@ -8,9 +8,9 @@
   },
   "11": {
     "status": "pass",
-    "build": 14,
+    "build": 26,
     "date": "2026-11-18",
-    "by": "Claude, play.html benchmark() in the Claude desktop browser pane on an Apple M3 laptop (integrated GPU), not a human-observed frame counter",
-    "note": "Two cases on an Apple M3 in the browser pane, 1920x1080 at pixel ratio 1, Medium, GPU forced to finish every frame, camera turning a full circle, 4 aliens mid-hunt. District 10 (Greys, build 13): mean 4.2-4.5 ms, p95 5.2-7.5 ms, 50 draw calls, ~41k triangles. District 91 (Architects, the most expensive species, and the richest coin floor of any belt; build 14): mean 11.9-13.3 ms (75-84 fps), p95 16.1-17.7 ms, 89 draw calls, ~69k triangles -- most of the extra calls are halo sprites on high-value coins, not aliens. The mean clears 60 fps in both; the p95 of the heaviest case sits at the 16.7 ms line, as it did at build 8. Phones: not measured."
+    "by": "Claude, play.html benchmark() in the Claude desktop browser pane on an Apple M3 laptop (integrated GPU), pane hidden; not a human-observed frame counter",
+    "note": "N8.4 re-measure on the heaviest map there now is: district 100 (372 x 232 m city, COBALT, Architects), Medium, 1920x1080 at pixel ratio 1, GPU forced to finish every frame, camera turning a full circle. Three runs: mean 5.3 / 7.3 / 8.4 ms (119-189 fps), p95 10.7-12.2 ms, worst 16.1 ms, 132 draw calls, 272k triangles at most (218 render chunks). Before N8.4 (build 23) the same case was mean 12.4 ms, p95 17.0 ms, 609k triangles. High (shadows, following box): mean 5.3 ms, p95 7.8 ms, 157 calls. Timings in a hidden pane vary by about a third between runs. Weaker laptops and phones: not measured. Build 14's measurement (districts 10 and 91 on 32 x 20 maps, mean 4.2-13.3 ms) is in decisions.md R44."
   }
 }

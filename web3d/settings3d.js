@@ -16,7 +16,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   fov: 90,
   reduceMotion: typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches,
   sound: true,
-  jumpscares: 'full',        // full | mild | off; reduce motion turns full into mild
+  jumpscares: 'full',        // full | mild | off
+  fpsCap: 'auto',            // 'auto' (the display's own rate) | 60 | 30 -- N8.4
 });
 
 export function loadSettings() {

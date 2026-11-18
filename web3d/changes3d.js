@@ -8,6 +8,27 @@
 
 export const CHANGES = [
   {
+    build: 26,
+    date: '2026-11-18',
+    phase: 'N8.4',
+    changed: [
+      'Big cities run much lighter. At district 100 a frame now costs about 8 ms on Medium (was 12.4) and 5 ms on High (was 10.8), and the slowest frames dropped from 17 ms to about 10 ms on Medium and 8 ms on High.',
+      'The city is now drawn in 48 m chunks, and anything behind you or past the fog is skipped. The fog is solid there, so you never see the difference. Nothing is built or loaded while you play, so nothing can pop in.',
+      'The biggest single saving was the minimap: every frame it was copying the whole district\'s map image to show the few metres around you, which cost more than drawing the entire 3D city. It now draws only the window it shows.',
+      'Shadows (High quality) now follow you: a sharp 90 m box just ahead of where you look, instead of one blurry map stretched over the whole district.',
+      'Walls buried inside solid blocks are no longer drawn, since no face of them can be seen. Their roofs stay, so the killcam\'s view from above looks the same.',
+      'New setting: Frame rate, automatic (your display\'s rate), 60, or 30. A cap draws nothing sooner, it just makes every frame take the same time; on a weak laptop a steady 30 can feel smoother than an uneven 40-60.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R) and play district 100. Turn on High in Settings (it applies on the next load) and look at the shadows.',
+      'If any frame stutters, try Frame rate: 60 or 30 in Settings and tell me which feels better.',
+    ],
+    unverified: [
+      'Measured on an M3 Mac in a hidden browser pane, where GPU timings swing by about a third between runs. Not measured on a weaker laptop.',
+      'The frame-rate cap was checked by feeding the frame loop timestamps from a 60, 75, 120 and 144 Hz display, not by watching a real one.',
+    ],
+  },
+  {
     build: 25,
     date: '2026-11-18',
     phase: 'N8.3',

@@ -8,7 +8,9 @@ export function createScene(canvas, { pixelRatio = Math.min(window.devicePixelRa
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(70, 16 / 9, 0.05, 220);
+  // Far plane just past the fog's end (world.js FOG_FAR = 90): beyond it everything is
+  // the fog colour anyway, and the frustum test then drops whole chunks there (N8.4).
+  const camera = new THREE.PerspectiveCamera(70, 16 / 9, 0.05, 100);
   camera.rotation.order = 'YXZ';
   scene.add(camera);
 

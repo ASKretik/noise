@@ -312,6 +312,37 @@ fixed screen size. It has rings pulsing out about once a second (under the 3-fla
 limit), a breathing marker and its distance. The portal gets a teal one. The player's
 arrow no longer shrinks with the map.
 
+### Drawing a city (N8.4, 3D build 26)
+
+- **Chunks.** Every instanced layer (floor, walls, caps, rubble, water, black boxes) is
+  cut into 32 × 32-cell chunks (48 m), each its own `InstancedMesh` with its own bounding
+  sphere. District 100 has 218 chunks. three.js frustum-culls by one sphere per mesh, so a
+  single mesh per tile type for the whole city was never culled at all.
+- **Far plane = fog.** The camera's far plane is 100 m and the fog is solid from 90 m
+  (`FOG_FAR`). Both work by view depth, so chunks the frustum drops were already
+  invisible. The sky dome has a radius of `FOG_FAR` and follows the camera.
+- **Nothing streams.** The whole district is built during loading. During play,
+  geometry, texture and shader-program counts stay constant.
+- **Buried walls.** A wall cell with wall on all four sides gets a cap but no body: it
+  shows no face at street level, and the killcam looks down on the caps.
+- **Shadows (High).** The shadow box is 45 m either side of a point 20 m ahead of the
+  camera, moved every frame and snapped to whole shadow-map texels so it does not
+  shimmer. Before this, one 2048 map over district 100 put 0.22 m in each texel.
+- **The minimap's own board.** A second 2D renderer draws a 16-cell window around you,
+  offset by its context transform; the whole-district board is drawn only while the Tab
+  map is open. Copying the whole 2232 × 1395 board into the minimap every frame had cost
+  about 7 ms at district 100, more than the entire 3D world.
+- **Frame-rate setting.** Automatic, 60 or 30. Frames are due on a fixed schedule, so
+  the average holds on any display (60 on a 144 Hz screen, not 48).
+
+**Measured** (district 100, Medium, 1080p, M3, hidden pane):
+
+| | Mean | p95 | Triangles |
+|---|---|---|---|
+| Before (build 23) | 12.4 ms | 17.0 ms | 609k |
+| After (build 26) | 5.3–8.4 ms | 10.7–12.2 ms | 272k at most |
+| High, after | 5.3 ms | 7.8 ms | — |
+
 **Bolts thin out deeper into each belt** (`sim3d/bolts.js`): the generator's bolts are
 kept in full in a belt's first district and cut to `max(1, round(n × (1 − 2k/27)))` at
 depth `k` (0–9), about a third by its tenth; the next belt starts full again. The kept set
@@ -327,7 +358,7 @@ cell. Inside a black box the view dims. Entity colours never change with the bel
 
 | Tier | Selected when | Pixel ratio | Shadows |
 |---|---|---|---|
-| High | Fine pointer and ≥ 8 GB | ≤ 2 | Directional shadow map |
+| High | Fine pointer and ≥ 8 GB | ≤ 2 | Directional shadow map: a 90 m box following you since N8.4 |
 | Medium | Default | ≤ 1.5 | Off |
 | Low | Coarse pointer, `saveData`, < 4 GB (forced on phones) | 1 | Off, no antialiasing |
 
@@ -439,7 +470,7 @@ minutes; if the banner's number is behind the update note, reload.
 ## Acceptance criteria
 
 `npm run test3d` (CI runs it with `--skip-2d`, the 2D suites having just run).
-**23 passed · 0 not demonstrated · 0 failed** at 3D build 24 (3D-1 by the 2D suites run
+**23 passed · 0 not demonstrated · 0 failed** at 3D build 26 (3D-1 by the 2D suites run
 alongside: `npm test` 12/1/0, `npm run webcheck` green).
 
 | # | Criterion | Result |
@@ -455,7 +486,7 @@ alongside: `npm test` 12/1/0, `npm run webcheck` green).
 | 3D-8 | Save isolation, both sweeps run against each other, guest leaves MAIN byte-identical | PASS |
 | 3D-9 | Headless career: win, score, payout, dossier, unlock, purchase, kit carried on | PASS |
 | 3D-10 | Nothing optional or off-site loads; templated dispatch narrates live 3D state | PASS |
-| 3D-11 | Frame budget, 1080p Medium (recorded at build 14: M3, heaviest belt mean 11.9–13.3 ms, p95 at the 16.7 ms line) | PASS, by hand |
+| 3D-11 | Frame budget, 1080p Medium (re-recorded at build 26 on district 100, the heaviest city: M3, mean 5.3–8.4 ms, p95 10.7–12.2 ms) | PASS, by hand |
 | 3D-12 | All ten belts legible (recorded screenshot review) | PASS, by hand |
 | 3D-13 | Movement never stutters: no frame under half its heading's speed, walking and sprinting, 0–45° | PASS |
 | 3D-14 | Bolt thinning matches its formula on all 100 districts, deterministic, reachable, applied by the runner | PASS |
