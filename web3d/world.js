@@ -24,6 +24,7 @@ import { PLACE_PATTERNS } from './art/places.js';
 import './art/beltstyles.js';   // registers belts 4-10's surfaces (N4.3)
 import { layerTextures, layeredMaterial, setLayers } from './art/layered.js';
 import { buildSigns } from './art/signs.js';
+import { buildLandmarks } from './art/landmarks.js';
 import { buildProps } from './art/props.js';
 import { makeSky, skyDir } from './art/sky.js';
 import { makeWeather } from './art/weather.js';
@@ -432,7 +433,7 @@ export function buildWorld(level, { cellM, shadows = false }) {
       blocks.push({
         x: (x + 0.5 + (big ? 0 : (r.float() - 0.5) * 0.7)) * cellM,
         z: (y + 0.5 + (big ? 0 : (r.float() - 0.5) * 0.7)) * cellM,
-        sx, sy, sz,
+        sx, sy, sz, big, ruin: scorch,
         ry: r.float() * Math.PI,
         tilt: big ? (r.float() - 0.5) * 0.15 : (r.float() - 0.5) * 0.7,
         top: k === 0 || r.bool(0.4),
@@ -442,7 +443,10 @@ export function buildWorld(level, { cellM, shadows = false }) {
   }
   const rubbleGeo = track(new THREE.BoxGeometry(1, 1, 1));
   const rubbleMat = track(new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.97, flatShading: true }));
-  const heaps = blocks.filter((b) => !b.colour), goods = blocks.filter((b) => b.colour);
+  // N4.3: with places, each heap's biggest block is what is left of a building front --
+  // the ground storey of a tenement, or a burnt shell in the ruins -- still the heap's height
+  const fronts = wallLayers ? blocks.filter((b) => !b.colour && b.big) : [];
+  const heaps = blocks.filter((b) => !b.colour && !(wallLayers && b.big)), goods = blocks.filter((b) => b.colour);
   const rubble = new THREE.InstancedMesh(rubbleGeo, rubbleMat, Math.max(1, heaps.length));
   rubble.count = heaps.length;
   heaps.forEach((b, i) => {
@@ -454,6 +458,24 @@ export function buildWorld(level, { cellM, shadows = false }) {
   });
   rubble.castShadow = rubble.receiveShadow = shadows;
   group.add(rubble);
+  if (fronts.length) {
+    // a unit box showing the lower 42 % and middle 70 % of a wall texture: one storey, a window or a door
+    const fg = track(new THREE.BoxGeometry(1, 1, 1));
+    const uv = fg.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, 0.15 + uv.getX(i) * 0.7, uv.getY(i) * 0.42);
+    const frontMesh = new THREE.InstancedMesh(fg, wallMat, fronts.length);
+    const tl = wallLayers.index.tenements, rl = wallLayers.index.ruins;
+    fronts.forEach((b, i) => {
+      q.setFromEuler(new THREE.Euler(b.tilt, b.ry, b.tilt * 0.5));
+      m4.compose(v.set(b.x, b.sy / 2 - 0.05, b.z), q, sc.set(b.sx, b.sy, b.sz));
+      frontMesh.setMatrixAt(i, m4);
+      frontMesh.setColorAt(i, col.setRGB(1, 1, 1).multiplyScalar(b.shade * (b.ruin ? 0.7 : 0.95)));
+    });
+    setLayers(frontMesh, fronts.map((b, i) => (b.ruin ? rl[0] : tl[i % tl.length])));
+    frontMesh.castShadow = frontMesh.receiveShadow = shadows;
+    frontMesh.userData.whole = true;
+    group.add(frontMesh);
+  }
   // N4.2: containers, crates and stalls, in their own colours over a light ribbed skin
   if (goods.length) {
     const skin = track(canvasTexture(128, (g, n) => {
@@ -548,6 +570,8 @@ export function buildWorld(level, { cellM, shadows = false }) {
   })) group.add(prop);
   // ---- N4.2: every place's name at its gates, and the wall art on the street walls
   if (looks) for (const m of buildSigns(level, { cellM, seed, art, lookAt, heightAt, track })) group.add(m);
+  // ---- N4.3: a centrepiece on every plaza, and one skyline landmark per district
+  if (looks) for (const m of buildLandmarks(level, { cellM, seed, art, looks, heightAt, track })) group.add(m);
 
   // ---- cut every instanced layer into chunks (N8.4)
   // (a few small layers -- containers, tree crowns -- cost less drawn whole: one call each)

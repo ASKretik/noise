@@ -61,27 +61,29 @@ function quadBuffer() {
 
 // ------------------------------------------------------------------ signs
 
-function signAtlas(places) {
-  const rows = Math.ceil((places.length + 1) / SIGN_COLS);
+/** entries: [{ text, plate, sub? }] -- a place's name, or an avenue's with the district below */
+function signAtlas(entries) {
+  const rows = Math.ceil((entries.length + 1) / SIGN_COLS);
   const cv = document.createElement('canvas');
   cv.width = SIGN_W * SIGN_COLS; cv.height = SIGN_H * rows;
   const g = cv.getContext('2d');
   // tile 0: post metal
   g.fillStyle = '#2c2e31'; g.fillRect(0, 0, SIGN_W, SIGN_H);
-  places.forEach((pl, i) => {
+  entries.forEach((en, i) => {
     const k = i + 1, x = (k % SIGN_COLS) * SIGN_W, y = Math.floor(k / SIGN_COLS) * SIGN_H;
-    const plate = SIGN_COLOURS[pl.type] || SIGN_COLOURS.yards;
+    const plate = en.plate;
     g.fillStyle = '#0c0c0d'; g.fillRect(x, y, SIGN_W, SIGN_H);
     g.fillStyle = plate; g.fillRect(x + 4, y + 4, SIGN_W - 8, SIGN_H - 8);
     g.strokeStyle = rgba(SIGN_COLOURS.lettering, 0.8); g.lineWidth = 2; g.strokeRect(x + 9, y + 9, SIGN_W - 18, SIGN_H - 18);
-    const text = pl.name.toUpperCase();
-    let size = 30;
+    const text = en.text;
+    let size = en.sub ? 22 : 30;
     g.font = `bold ${size}px Georgia, 'Times New Roman', serif`;
-    while (g.measureText(text).width > SIGN_W - 34 && size > 14) { size--; g.font = `bold ${size}px Georgia, 'Times New Roman', serif`; }
+    while (g.measureText(text).width > SIGN_W - 34 && size > 12) { size--; g.font = `bold ${size}px Georgia, 'Times New Roman', serif`; }
     g.fillStyle = SIGN_COLOURS.lettering; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(text, x + SIGN_W / 2, y + SIGN_H / 2 + 1);
+    g.fillText(text, x + SIGN_W / 2, y + (en.sub ? SIGN_H * 0.38 : SIGN_H / 2 + 1));
+    if (en.sub) { g.font = 'bold 13px sans-serif'; g.fillText(en.sub, x + SIGN_W / 2, y + SIGN_H * 0.72); }
     // wear: chips in the enamel, rust from the screws
-    const r = new Rng(hashString(`sign:${pl.name}`), 'wear');
+    const r = new Rng(hashString(`sign:${en.text}`), 'wear');
     for (let j = 0; j < 14; j++) { g.fillStyle = rgba('#141210', 0.3 + r.float() * 0.5); g.fillRect(x + 6 + r.int(SIGN_W - 12), y + 6 + r.int(SIGN_H - 12), 1 + r.int(4), 1 + r.int(3)); }
     for (const sx of [x + 14, x + SIGN_W - 18]) { g.fillStyle = '#6b6a66'; g.fillRect(sx, y + SIGN_H / 2 - 2, 4, 4); }
   });
@@ -196,8 +198,12 @@ export function buildSigns(level, { cellM, seed, art, lookAt, heightAt, track })
   });
 
   // ---- signs: at the gates
+  const avenues = level.avenues || [];
   if (places.length) {
-    const atlas = signAtlas(places);
+    const atlas = signAtlas([
+      ...places.map((pl) => ({ text: pl.name.toUpperCase(), plate: SIGN_COLOURS[pl.type] || SIGN_COLOURS.yards })),
+      ...avenues.map((av) => ({ text: av.name.toUpperCase(), sub: `DISTRICT ${level.level}`, plate: SIGN_COLOURS.canal })),
+    ]);
     const q = quadBuffer();
     const post = atlas.tile(0);
     places.forEach((pl, i) => {
@@ -237,6 +243,22 @@ export function buildSigns(level, { cellM, seed, art, lookAt, heightAt, track })
           q.post(px, pz, 0.07, 2.65, [(post[0] + post[2]) / 2, (post[1] + post[3]) / 2]);
           q.add({ x: px + along.x * 0.04, y: 2.3, z: pz + along.z * 0.04 }, along, 1.1, 0.275, uv);
           q.add({ x: px - along.x * 0.04, y: 2.3, z: pz - along.z * 0.04 }, { x: -along.x, z: -along.z }, 1.1, 0.275, uv);
+        }
+      }
+    });
+    // N4.3: every avenue's name, with the district's number, on the walls along it
+    avenues.forEach((av, j) => {
+      const uv = atlas.tile(places.length + 1 + j);
+      const len = av.axis === 'x' ? map.h : map.w;
+      for (let t = 6, side = 0; t < len - 3; t += 18, side ^= 1) {
+        for (const s2 of [side, side ^ 1]) {
+          // vertical avenue: walls just west (facing +x) and east (facing -x); horizontal likewise
+          const wx = av.axis === 'x' ? (s2 ? av.at + av.w : av.at - 1) : t;
+          const wy = av.axis === 'x' ? t : (s2 ? av.at + av.w : av.at - 1);
+          const dx = av.axis === 'x' ? (s2 ? -1 : 1) : 0, dy = av.axis === 'x' ? 0 : (s2 ? -1 : 1);
+          if (tileAt(wx, wy) !== TILE.WALL || !open(wx + dx, wy + dy)) continue;
+          q.add(faceCentre(wx, wy, dx, dy, 0, Math.min(2.95, heightAt(wx, wy) - 0.3)), { x: dx, z: dy }, 1.2, 0.3, uv);
+          break;
         }
       }
     });

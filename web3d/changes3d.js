@@ -8,6 +8,23 @@
 
 export const CHANGES = [
   {
+    build: 33,
+    date: '2026-11-18',
+    phase: 'N4.3 (2 of 3)',
+    changed: [
+      'Every district has one skyline landmark on the roof of its biggest tenement block, taller than everything else, so you can steer by it: a 30 m broadcast mast with a light at the top, or a crashed ship half buried in the roof with its vents still lit.',
+      'Every plaza has a centrepiece on its monument: a statue with one arm raised, an obelisk, or a tiered fountain on the plinth in its pool.',
+      'Every avenue has its name on plates along it, every 27 m or so, with the district number underneath, e.g. QUILL AVENUE / DISTRICT 30.',
+      'Rubble heaps in plazas, streets and ruins now have what is left of a building front in them: a ground storey with its window or door, or a burnt shell in the ruins. Each is exactly as tall as the heap was, so the stun gun still hits exactly what you see.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R). From any open street, look up and around for the mast or the ship. Walk an avenue and read its plates. Find a plaza for its statue, obelisk or fountain.',
+    ],
+    unverified: [
+      'Measured at 1080p Medium: districts 20, 40 and 100 at 4.6-9.7 ms a frame, 123-139 draw calls. The mast is thin and dark at night until bloom lands in build 34.',
+    ],
+  },
+  {
     build: 32,
     date: '2026-11-18',
     phase: 'N4.3 (1 of 3)',

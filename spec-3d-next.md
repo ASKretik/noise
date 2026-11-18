@@ -43,7 +43,7 @@ built; N4.3 next** · follows 3D build 31 (build 30: the stun gun shoots what yo
 | N8.5 | Behaviour-first Dispatch: new traits, tactics, bots, 3D constants | 5–7 days | High | **done** (3D build 28; build 27 before it: developer mode) |
 | N4.1 | Art: sky, lighting and weather, and the first three belts (RUST, TIDE, MOSS) | ~3 days | Medium | **done** (3D build 29) |
 | N4.2 | Art per place (R63): each of the eight kinds of place its own walls, floor, height and fittings, a shade per place, name signs at the gates, wall art without story; on RUST, TIDE and MOSS | 2–3 days | Medium | **done** (3D build 31) |
-| **N4.3** | Art: the other seven belts, places built in from the start; a centrepiece per landmark, bloom and colour grade | 5–6 days | Medium | **in progress**: the seven belts done (3D build 32) |
+| **N4.3** | Art: the other seven belts, places built in from the start; a centrepiece per landmark, bloom and colour grade | 5–6 days | Medium | **in progress**: the seven belts (3D build 32); landmarks, avenue plates and building fronts (build 33) |
 | N6.1 | Items: the 3D inventory, noise maker, dampers, EMP (the rules layer itself is built in N8.1) | 3–4 days | Medium | not started |
 | N6.2 | Items: portable black box, intel chip, noise generator; balance measured | 3–5 days | Medium | not started |
 | N9.1 | Floors prototype: enterable two-floor buildings in belt 4; stairs for you, vents for them; the N4 art and N6 items patched for floors here | ~1½ weeks (+1–2 days of patching) | High | not started |

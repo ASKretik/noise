@@ -521,6 +521,31 @@ outside places keep the belt's plain surfaces, so places stand out against them.
 - **Measured** (Medium, 1080p, M3, same session): districts 20 and 30 mean 6.4–8.5 ms,
   at most 143 calls; the unchanged district 100 5.9–7.5 ms. About 1 ms for the place art.
 
+### Landmarks, avenue signs and building fronts (N4.3, 3D build 33)
+
+- **One skyline landmark per district** (`landmarks.js`), on the roof of its biggest
+  tenement block, at the wall cell nearest the block's middle with walls all round.
+  By seed:
+  - 60 %: a broadcast mast, 24 m above the roof (about 30 m up), with a white light
+    at the top;
+  - 40 %: a crashed ship half buried in the roof, its vents lit pale blue.
+
+  It shows over the roofs from most of a district.
+- **A centrepiece on every plaza.** The plaza's lone monument cell carries a statue (60 %,
+  one arm raised, turned along the plaza) or an obelisk. Its 2 × 2 fountain plinth
+  carries tiered basins and a spout.
+- **Avenue plates.** Every avenue's name, with the district number below ("QUILL
+  AVENUE / DISTRICT 30"), on the walls along it every 18 cells (27 m), alternating sides,
+  in the same sign atlas as the places.
+- **Building fronts in the rubble.** On a city map, each rubble heap's biggest block
+  shows the ground storey of a tenement (a window or a door), or a burnt shell in the
+  ruins, from the wall texture array. It is exactly the heap's height, as `solid.js`
+  knows it.
+- **Shots.** Everything stands on wall cells or keeps the heap's height, so no shot
+  changes.
+- **Draw calls.** Landmarks are two merged meshes (solid and lights); fronts are one
+  layer drawn whole.
+
 **Bolts thin out deeper into each belt** (`sim3d/bolts.js`): the generator's bolts are
 kept in full in a belt's first district and cut to `max(1, round(n × (1 − 2k/27)))` at
 depth `k` (0–9), about a third by its tenth; the next belt starts full again. The kept set
