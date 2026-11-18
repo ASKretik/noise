@@ -13,6 +13,7 @@ import { install as installTheme } from '../web/theme.js';
 import { simSecondsToReal } from '../sim3d/units.js';
 import { createProfileStore3d, ensureGuestSession3d } from './persist3d.js';
 import { mountBanner } from './banner.js';
+import { mountDevPanel } from './dev3d.js'; // DEV-MODE
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -25,6 +26,7 @@ const show = (view) => { for (const v of ['v-slots', 'v-tier', 'v-hub']) $(v).hi
 async function boot() {
   installTheme();
   mountBanner(document.body);
+  mountDevPanel($('dev3d')); // DEV-MODE
   ({ store, degraded } = await createProfileStore3d());
   await ensureGuestSession3d(store);
   const q = new URLSearchParams(location.search);

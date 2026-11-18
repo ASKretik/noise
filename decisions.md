@@ -2570,11 +2570,57 @@ sphere covering the whole city.
 - The frame cap was checked with simulated timestamps; a hidden pane runs no animation
   frames.
 
+---
+
+## R58 · Developer mode, removable (3D build 27)
+
+**Asked:** "if i enter my developer code, I would be able to access all the levels and
+have all weapons unlimited from the shop, so that I can test the levels out. this dev
+mode should be removable after I have completed the game fully".
+
+**Decided, and why:**
+
+- **Dev runs are the unsaved sandbox, not the career.** Unlocking every district in the
+  MAIN file would write test runs into the user's real save: scores, unlocks, and the
+  dossier the aliens learn from. So "all levels" is a separate picker of every district,
+  and "all weapons unlimited" is the dev run's own kit. The stun gun is kept at its 6
+  charges and there are 999 s of lightning, both topped up every tick.
+- **Two switches beyond the ask,** because the stated purpose is seeing how levels
+  render: "they can't catch me" and "empty city". Also `[` and `]` change district.
+- **The code is a salted SHA-256** in the public repository. The plain code went into a
+  git-ignored local file, and was never printed to the terminal or written into this
+  conversation.
+  - Browser tests used a throwaway code, which was then replaced by a freshly invented one.
+  - It is a convenience lock, not security, and the docs say so: a static site cannot
+    hide a check from someone reading its source.
+- **Removal.** Every hook is one line tagged `DEV-MODE`. `npm run remove-devmode` deletes
+  the five dev-mode files and strips the tagged lines and the npm scripts. 3D-31
+  dry-runs that every time, checking that nothing still refers to the deleted files and
+  that every rewritten script parses.
+
+**What the tests caught:** an apostrophe in "can't" inside a single-quoted string in
+`dev3d.js`. It was a syntax error that would have broken the play page; 3D-31's import
+of the module found it before any browser did.
+
+**Checked in the browser:**
+
+- A wrong code was refused. The test code opened the panel with 100 districts.
+- The options carried into the links.
+- A dev run started with the full kit and was topped up after spending.
+- An alien on the player's cell did not catch them.
+- `[` and `]` changed district.
+- The same dev URL in a browser that was not unlocked was an ordinary sandbox: no gun,
+  no strip.
+
+**Not verified:** a career URL with `dev=1` was not exercised end to end. The preview's
+fresh guest save redirected to the hub first. The refusal is the first condition in
+`installDevRun`.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    23 passed · 0 not demonstrated · 0 failed  (3D build 26; 3D-1 via the
+npm run test3d    24 passed · 0 not demonstrated · 0 failed  (3D build 27; 3D-1 via the
                   2D suites above, run alongside)
 ```

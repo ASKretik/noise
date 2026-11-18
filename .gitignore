@@ -16,3 +16,6 @@ docs/play.html
 docs/sim/
 docs/web/
 docs/bots/
+
+# DEV-MODE: the 3D game's developer code, in plain text, local only (npm run devcode)
+DEV-MODE-CODE.txt

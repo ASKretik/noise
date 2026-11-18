@@ -467,10 +467,32 @@ Every 3D page carries a banner with the build number and the latest `changes3d.j
 entry: what changed, what to try, what is not verified. GitHub Pages caches for about ten
 minutes; if the banner's number is behind the update note, reload.
 
+## Developer mode (temporary, 3D build 27)
+
+For testing every district while the game is built, and to be removed when it is done.
+
+- **Unlocking.** On the hub (Dev pages → Developer mode), the developer code unlocks it
+  in that browser. `web3d/devhash.js` holds only `SHA-256(salt + ":" + code)`; the code
+  lives in the git-ignored `DEV-MODE-CODE.txt`. `npm run devcode -- "code"` sets a new
+  one, and `npm run devcode` invents one.
+- **The panel** links every district 1–100 as `play.html?d=N&t=TIER&dev=1`, plus
+  `rules=classic`, `god=1` (they cannot catch you) and `empty=1` (no aliens).
+- **Dev runs** are the unsaved sandbox; a career URL is never a dev run. The kit is the
+  stun gun, kept at 6 charges, and 999 s of lightning, both topped up every tick.
+  `[` and `]` change district. A gold strip at the bottom marks the run.
+- **Not security.** It is a convenience lock: the site is static, so anyone who reads the
+  source can switch it on, for their own browser only.
+- **Removal.** Everything is in `web3d/dev3d.js`, `web3d/devhash.js`,
+  `tools/devcode.mjs`, `tools/remove-devmode.mjs` and `bench3d/criteria/devmode.js`, plus
+  lines tagged `DEV-MODE` in `hub3d.js`, `play3d.js`, `3d/index.html`, `style3d.css` and
+  `.gitignore`. `npm run remove-devmode` deletes and strips all of it, plus the two npm
+  scripts, and 3D-31 dry-runs that on every test run. Remove this section in the same
+  commit.
+
 ## Acceptance criteria
 
 `npm run test3d` (CI runs it with `--skip-2d`, the 2D suites having just run).
-**23 passed · 0 not demonstrated · 0 failed** at 3D build 26 (3D-1 by the 2D suites run
+**24 passed · 0 not demonstrated · 0 failed** at 3D build 27 (3D-1 by the 2D suites run
 alongside: `npm test` 12/1/0, `npm run webcheck` green).
 
 | # | Criterion | Result |
@@ -498,6 +520,7 @@ alongside: `npm test` 12/1/0, `npm run webcheck` green).
 | 3D-28 | Smooth on big maps: at district 100 with the city filling, new routes per tick within twice the budget; tick p99 under 32 and worst under 64 full-map searches (machine-relative) | PASS |
 | 3D-29 | Fair speed: tiers 0.5 : 0.75 : 1 : 1.3 at every district, hunting under its ceiling; no two-step move near you or in sight; no arrival in sight | PASS |
 | 3D-30 | Keys and portal: 4–10 keys by district, own places, ≥ 17 cells apart, both halves; portal from the quarter furthest from the keys; time limit max(6 min, 6 × par) | PASS |
+| 3D-31 | Developer mode removable in one step: a dry run of `npm run remove-devmode` leaves no references, rewritten scripts parse; the code stored only as a salted digest | PASS |
 
 3D-11 and 3D-12 pass only on an entry in `bench3d/measured.json` naming the build, the
 date and who measured — in both cases Claude in the browser pane, not a human.

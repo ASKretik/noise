@@ -8,6 +8,23 @@
 
 export const CHANGES = [
   {
+    build: 27,
+    date: '2026-11-18',
+    phase: 'dev mode',
+    changed: [
+      'Developer mode, for testing: on the 3D hub, open Dev pages, then Developer mode, and enter your developer code. You get every district 1-100 one click away, any tier, city or classic maps, and two switches: they cannot catch you, and an empty city with no aliens.',
+      'Dev runs are unsaved: they never touch the MAIN or GUEST file, scores, unlocks or the file the aliens keep on you. Every shop item comes unlimited: the stun gun stays full of charges and the lightning never runs out. In a district, [ and ] jump to the previous and next one. A gold strip at the bottom says when a run is a dev run.',
+      'Only a scrambled fingerprint (a salted SHA-256) of the code is in the repository; the code itself is in DEV-MODE-CODE.txt on your machine, which git ignores. npm run devcode -- "your code" changes it.',
+      'When the game is finished, npm run remove-devmode takes the whole thing out in one step. A new test (3D-31) rehearses that removal on every run, so it keeps working.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R) the hub, enter the code from DEV-MODE-CODE.txt, tick "they can\'t catch me", and walk through a few belts with ].',
+    ],
+    unverified: [
+      'It is a convenience lock, not security: the site is static, so anyone who reads the source can switch it on, for their own browser only.',
+    ],
+  },
+  {
     build: 26,
     date: '2026-11-18',
     phase: 'N8.4',

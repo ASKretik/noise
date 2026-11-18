@@ -19,6 +19,7 @@ import { Fx3D } from './fx3d.js';
 import { variantFor } from './sequences.js';
 import { Touch3D, isTouchDevice } from './touch3d.js';
 import { DistrictRunner } from './runner.js';
+import { installDevRun } from './dev3d.js'; // DEV-MODE
 import { mountBanner } from './banner.js';
 import { loadSettings, saveSettings } from './settings3d.js';
 import { createProfileStore3d, ensureGuestSession3d } from './persist3d.js';
@@ -79,6 +80,7 @@ export class Play3D {
     this.touch = this.touchMode ? new Touch3D($('touch3d'), this.controls) : null;
     this.fps = 60;
     this.applySettings();
+    this.dev = installDevRun(this); // DEV-MODE
     this.frame = this.frame.bind(this);
   }
 

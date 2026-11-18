@@ -326,6 +326,15 @@ a.l3-d:hover { border-color: var(--belt); box-shadow: 0 0 0 1px var(--belt) inse
 .l3-item .btn { white-space: nowrap; }
 .l3-dev { margin-top: 18px; opacity: 0.8; }
 .l3-dev kbd { font-family: var(--mono); background: var(--bg-3); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; }
+.dev3d { margin-top: 12px; } /* DEV-MODE */
+.dev3d summary { cursor: pointer; font: 600 12px var(--mono); color: var(--fg-dim); } /* DEV-MODE */
+.dev3d-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; } /* DEV-MODE */
+.dev3d-form input { font: 13px var(--mono); padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg-3); color: var(--fg); } /* DEV-MODE */
+.dev3d-msg { font: 12px var(--mono); color: #ff7a6b; } /* DEV-MODE */
+.dev3d-open h2 { display: flex; align-items: center; gap: 8px; } /* DEV-MODE */
+.dev3d-badge { font: 700 10px var(--mono); color: #0b0d12; background: #ffd166; border-radius: 4px; padding: 2px 6px; } /* DEV-MODE */
+.dev3d-opts { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin: 10px 0; font: 12px var(--mono); } /* DEV-MODE */
+.dev3d-grid { margin: 8px 0 12px; } /* DEV-MODE */
 /* a section's own display rule must never beat the hidden attribute */
 #hub3d [hidden] { display: none !important; }
 
