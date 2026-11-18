@@ -32,13 +32,22 @@ follows 3D build 20
 | N1 | Fewer bolts deeper into each belt | ½ day | Low | **done** (3D build 12) |
 | N2 | Comic-accurate aliens, all ten species | 3 days (+1½ per species) | Medium | **done** (3D builds 13–14): ten species, one per belt |
 | N3 | Jumpscare and portal ascension | 3–3½ days | Low–medium | **done** (3D builds 15–20; capture reworked after review into a 7 s attack; build 20 found that a saved "mild" setting had been hiding it) |
-| **N8** | **Big maps, ×5 to ×60 area, growing every district** (five steps, N8.1–N8.5) | 3–4 weeks | High | **next** |
-| N4 | Belt art direction | 8–9 days | Medium | not started |
-| N5 | Story frame | 6–10 days | Medium | not started |
-| N6 | The rules layer and the new shop items | 8–12 days | Medium | not started |
-| N7 | Objective variety | 4–8 days | Medium | not started |
-| N9 | Buildings with floors (re-scoped for big maps after N8) | 3½–5 weeks | High | not started |
-| | **Total remaining** | **~12–17 weeks** | | |
+| **N8.1** | Big maps: the size curve, the city builder with named places, the `next` ruleset | 4–5 days | High | **next** |
+| N8.2 | Aliens: arrival cap, hunting / patrol / travel speeds, arrivals near you; route-planning spread out so it never hitches | 3–4 days | Medium | not started |
+| N8.3 | Keys (4 → 10) and portal placement; Tab map zoom, pan and place names; run length measured | 2–3 days | Medium | not started |
+| N8.4 | Chunks, a shadow box that follows you, the frame-rate setting; frame budget re-measured | 2–3 days | Medium | not started |
+| N8.5 | Behaviour-first Dispatch: new traits, tactics, bots, 3D constants | 5–7 days | High | not started |
+| N4.1 | Art: sky, lighting and weather, and the first three belts (RUST, TIDE, MOSS) | ~3 days | Medium | not started |
+| N4.2 | Art: the other seven belts, a centrepiece per landmark, ruined facades, bloom and colour grade | 5–6 days | Medium | not started |
+| N5.1 | Story system: briefings, debriefs from your dossier, transcripts placed in named places, the story save | 3–5 days | Medium | not started |
+| N5.2 | Story writing: ten chapters, about 30 transcripts, the three endings | 3–5 days | Medium | not started |
+| N6.1 | Items: the 3D inventory, noise maker, dampers, EMP (the rules layer itself is built in N8.1) | 3–4 days | Medium | not started |
+| N6.2 | Items: portable black box, intel chip, noise generator; balance measured | 3–5 days | Medium | not started |
+| N7.1 | Objectives, no new rules: sabotage (relays), silent run, stay noise | 2–4 days | Medium | not started |
+| N7.2 | Objectives with new rules (optional): hold to sabotage, sealed portal, rescue | 2–4 days | Medium | not started |
+| N9.1 | Floors prototype: enterable two-floor buildings in belt 4; stairs for you, vents for them | ~1½ weeks | High | not started |
+| N9.2 | Floors everywhere: three floors from belt 8, belts 4–10 | 2–3½ weeks | High | not started |
+| | **Total remaining** | **~11–16 weeks** | | |
 
 Estimates are focused working days for one developer. With Claude implementing, the
 coding compresses a great deal (the first round, phases 0–9, took about one long
