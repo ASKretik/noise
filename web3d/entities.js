@@ -260,12 +260,24 @@ export class Entities {
       // The jumpscare (web3d/play3d.js) pulls the alien that caught you to just in front of
       // your eyes, square on, jaw opening. Presentation only: the sim's run is already over.
       const scare = this.scare && this.scare.id === p.id ? this.scare : null;
-      if (scare) base.compose(scare.pos, q.setFromAxisAngle(UP, scare.heading), s.setScalar(1));
+      if (scare && scare.target) {
+        // The attack pins its FACE to a point in your view and hangs the body off it,
+        // leaning toward you by scare.lean (positive: over you). faceLocal is where the face
+        // sat in the body's frame on the last pose -- exact, since the body is rigid to it.
+        q.setFromAxisAngle(UP, scare.heading).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -(scare.lean || 0)));
+        const fl = (scare.faceLocal || kit.faceLocal || new THREE.Vector3(0, 1.7, -0.3)).clone().applyQuaternion(q);
+        base.compose(v.copy(scare.target).sub(fl), q, s.setScalar(1));
+      } else if (scare) base.compose(scare.pos, q.setFromAxisAngle(UP, scare.heading), s.setScalar(1));
 
       const convulse = a.stunT0 != null && t - a.stunT0 < 0.6 ? 1 - (t - a.stunT0) / 0.6 : 0;
+      const th = scare ? scare.thrash || 0 : 0;
       kit.pose(base, scare ? {
         gait: a.gait, t, inert: false, hunting: true, convulse: 0,
-        look: 0, tilt: 0.14, pitch: -0.1, jaw: scare.jaw, reach: scare.reach || 0, dilate: scare.dilate || 0, glowK: 0.45, seed: p.id, flare: 1,
+        // thrash: the head whips side to side and cocks as it bites
+        look: th * 0.45 * Math.sin(t * 23) * Math.sin(t * 7 + 1), tilt: 0.14 + th * 0.5 * Math.sin(t * 17 + 2),
+        pitch: -0.1 + th * 0.15 * Math.sin(t * 29),
+        jaw: scare.jaw, reach: scare.reach || 0, claw: scare.claw || 0, swipe: scare.swipe || 0,
+        dilate: scare.dilate || 0, glowK: scare.target ? 0.3 : 0.45, skinK: scare.target ? 0.3 : null, seed: p.id, flare: 1,
       } : {
         gait: a.gait, t, inert, hunting, convulse,
         look: inert ? 0 : a.look + twitchOffset(a, p.id, t, sp),
@@ -275,6 +287,7 @@ export class Entities {
         seed: p.id,
         flare: a.flare,
       });
+      if (scare) scare.faceLocal = (scare.faceLocal || new THREE.Vector3()).copy(kit.faceLocal);
 
       // the ring: the radius at which this alien detects YOU, red when it does
       const R = scare ? 0 : this.radius * c * (1 - a.stun);

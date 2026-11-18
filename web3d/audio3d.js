@@ -266,6 +266,94 @@ export class Audio3D {
     n.connect(ng).connect(shaper); n.start(t); n.stop(t + dur + 0.05);
   }
 
+  /** A noise source, looped, starting now. */
+  _noise(t, dur) {
+    const n = this.ctx.createBufferSource();
+    n.buffer = this.noise; n.loop = true;
+    n.start(t); n.stop(t + dur + 0.05);
+    return n;
+  }
+
+  /** The attack's first beat: a wet hiss over a low, tremoring growl. */
+  hiss(level = 1) {
+    if (!this.ctx || !this.bus || !this.enabled || level <= 0) return;
+    this.setTension(0);
+    const ctx = this.ctx, t = ctx.currentTime;
+    this.amb._nodes?.master?.gain.setTargetAtTime(0.0001, t, 0.02);
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2600;
+    const bp = ctx.createBiquadFilter(); bp.type = 'peaking'; bp.frequency.value = 5200; bp.gain.value = 9;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5 * level, t + 0.05);
+    g.gain.setValueAtTime(0.5 * level, t + 0.2); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
+    this._noise(t, 0.45).connect(hp).connect(bp).connect(g).connect(this.bus);
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320;
+    const trem = ctx.createGain(); trem.gain.value = 0.5;
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 19;
+    const lg = ctx.createGain(); lg.gain.value = 0.45;
+    lfo.connect(lg).connect(trem.gain);
+    const gg = ctx.createGain();
+    gg.gain.setValueAtTime(0.0001, t); gg.gain.exponentialRampToValueAtTime(0.7 * level, t + 0.08);
+    gg.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+    for (const f of [52, 55.5, 104]) {
+      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
+      o.connect(lp); o.start(t); o.stop(t + 0.5);
+    }
+    lp.connect(trem).connect(gg).connect(this.bus);
+    lfo.start(t); lfo.stop(t + 0.5);
+  }
+
+  /** Claws raking the air: a fast band of noise sweeping up. */
+  swipe(level = 1) {
+    if (!this.ctx || !this.bus || !this.enabled || level <= 0) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.4;
+    bp.frequency.setValueAtTime(700, t); bp.frequency.exponentialRampToValueAtTime(5200, t + 0.16);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.75 * level, t + 0.1);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+    this._noise(t, 0.22).connect(bp).connect(g).connect(this.bus);
+  }
+
+  /** A bite snapping shut: a hard clack of teeth and a thud. */
+  snap(level = 1) {
+    if (!this.ctx || !this.bus || !this.enabled || level <= 0) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1800;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(1.0 * level, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.035);
+    this._noise(t, 0.05).connect(hp).connect(g).connect(this.bus);
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+    const og = ctx.createGain();
+    og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.8 * level, t + 0.004);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    o.connect(og).connect(this.bus); o.start(t); o.stop(t + 0.2);
+  }
+
+  /**
+   * In the black, after the cut: bone giving way. Cracks, then a wet crush. It goes
+   * straight to the output, because cut() has just silenced the bus.
+   */
+  crunch(level = 1) {
+    if (!this.ctx || !this.enabled || level <= 0) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const out = ctx.createGain(); out.gain.value = 0.85 * level;
+    out.connect(ctx.destination);
+    for (let i = 0; i < 6; i++) {
+      const at = t + [0, 0.045, 0.07, 0.14, 0.19, 0.27][i];
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 6;
+      bp.frequency.value = [2400, 1500, 3100, 1100, 2000, 900][i];
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(1.6, at); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.03 + 0.01 * (i % 3));
+      this._noise(at, 0.06).connect(bp).connect(g).connect(out);
+    }
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 8;
+    lp.frequency.setValueAtTime(220, t); lp.frequency.exponentialRampToValueAtTime(950, t + 0.18); lp.frequency.exponentialRampToValueAtTime(260, t + 0.5);
+    const wg = ctx.createGain();
+    wg.gain.setValueAtTime(0.0001, t); wg.gain.exponentialRampToValueAtTime(0.9, t + 0.05); wg.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+    this._noise(t, 0.6).connect(lp).connect(wg).connect(out);
+  }
+
   /** The ascension: a low rumble swelling under a tone that rises an octave and a half. */
   rise(level = 1) {
     if (!this.ctx || !this.bus || !this.enabled || level <= 0) return;

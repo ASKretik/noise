@@ -35,7 +35,7 @@ Three markers throughout:
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    18 passed · 0 not demonstrated · 0 failed  (3D build 18)
+npm run test3d    18 passed · 0 not demonstrated · 0 failed  (3D build 19)
 ```
 
 The single not-demonstrated criterion is #8, and it is not demonstrable by this harness:
@@ -425,6 +425,44 @@ un-hid the HUD -- over the face. My browser checks never released a real pointer
 so they never saw it. **Fixed:** `onLock` leaves the HUD alone once the run has ended, and
 `showEnd()` brings it back with the end card. Checked by calling `onLock(false)` straight
 after `finish()`: HUD hidden through the scare, visible with the card.
+
+## R49 · N3, fourth pass: it attacks you
+
+**Asked** (with a film still of a creature lunging out of darkness, jaws wide, claws
+blurred at both edges): "it looks much better now, but then, i want it to be more
+scarier, like the image like I attached (it should look like it tries to attack you, not
+just passively just showing its jaws) ... so that 20 year old college students can play
+this too."
+
+**What the still is doing**, which is what was taken from it (not the creature -- the
+game's own ten species stay): near-total black; one cold light from above catching wet
+teeth; the mouth the brightest thing in frame; claws smeared by motion at the edges; a
+body caught mid-lunge. **Built (2.8 s):** rear up with claws spread and a hiss (0-0.26);
+lunge with claws raking in, motion-smeared (to 0.40); impact -- flash, bass hit, scream,
+three claw gashes torn across the screen, and you are knocked onto your back, the view
+falling, rolling and looking up (to 0.72); it leans over you and bites twice, head
+thrashing (to 1.62); a last lunge into the lens, cut to black and silence, a crunch.
+
+**New machinery.** The face is pinned to a point in the camera's view and the body hung
+off it (`AlienKit.faceLocal`, the face's position in the body frame on the last pose --
+exact, because the body is rigid to it), so the framing holds across species and while
+the body leans 0.62 rad over you. Claw pose (`st.claw`, `st.swipe`) with talons; two rows
+of eleven teeth with fangs and four saliva strands replace the ring; skin darkened and
+wetted (`st.skinK`, roughness) during the attack; a SpotLight key so only the face is lit;
+motion smear (frames laid over the previous ones at part strength); an SVG layer of ragged
+gashes that bleed; a blood vignette on a heartbeat; `def.sounds`, a list of sounds fired
+once each (and not at all on a skip -- a skip jumped to the end and would have fired the
+lot at once). New sounds: hiss, swipe, snap, and a crunch routed past the bus that cut()
+has just silenced. The flash layer now sits above the glitch layer: until now a flash
+during the glitch was drawn underneath the glitch's copy of the frame and never seen.
+
+**What looking caught:** the first pass read as a toy -- grey skin glossy as a balloon,
+the walls and sky still lit (the sky dome ignores fog; it is now hidden during the
+attack), gashes like neon tubes (now ragged filled tears), the pinned face too close, and
+a full-strength glitch making every frame unreadable (now spikes only on impact and
+bites). The point key became a tight spot so the body falls into black.
+
+**Not verified:** never watched at full speed; the new sounds never heard.
 
 ## Current state
 
@@ -2142,5 +2180,5 @@ now reach up toward your face.
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    18 passed · 0 not demonstrated · 0 failed  (3D build 18)
+npm run test3d    18 passed · 0 not demonstrated · 0 failed  (3D build 19)
 ```

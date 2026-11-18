@@ -30,10 +30,18 @@ import { Rng, hashString } from '../sim/prng.js';
 
 export const MAX_ALIENS = 48;
 const BONES = 17;
-const TEETH = 18;
+const TEETH = 22;        // two rows of eleven, upper and lower
+const DROOL = 8;         // four strands of saliva, two segments each
+const TALONS = 6;        // a hooked talon on each finger
 const JOINTS = 12;
 
 const DOWN = new THREE.Vector3(0, -1, 0);
+/** A strand of saliva: a unit cylinder hanging from the origin down -Y to -1. */
+function droolGeometry() {
+  const g = new THREE.CylinderGeometry(1, 1, 1, 5, 1);
+  g.translate(0, -0.5, 0);
+  return g;
+}
 /** A tooth: a thin cone, base at the origin, tip up +Y at 1. */
 function teethGeometry() {
   const g = new THREE.ConeGeometry(1, 1, 6, 1);
@@ -299,7 +307,10 @@ export class AlienKit {
       // the mouth: a dark gap that only opens when the jaw drops (the jumpscare)
       maw: mk(new THREE.SphereGeometry(1, 14, 10), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), 1, false),
       // a ring of needle teeth round the maw, drawn only while it is open
-      teeth: mk(teethGeometry(), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.05, emissive: 0x4a4034 }), TEETH, false),
+      // wet, glassy teeth: the cold key light in the attack catches every one
+      teeth: mk(teethGeometry(), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.12, metalness: 0.15, emissive: 0x2a2620 }), TEETH, false),
+      drool: mk(droolGeometry(), new THREE.MeshStandardMaterial({ color: 0xd6eef2, roughness: 0.04, metalness: 0.1, emissive: 0x18262a, transparent: true, opacity: 0.7, depthWrite: false }), DROOL, false),
+      talon: mk(teethGeometry(), new THREE.MeshStandardMaterial({ color: 0x1c1a18, roughness: 0.2, metalness: 0.3 }), TALONS, false),
     };
 
     // ---- feature parts, only the ones this species has
@@ -453,6 +464,7 @@ export class AlienKit {
     const sp = this.sp, mo = sp.motion;
     const seed = st.seed || 0;
     const tint = this._c.set(st.inert ? sp.skin.stunned : st.hunting ? sp.skin.hunting : sp.skin.calm);
+    if (st.skinK != null) tint.multiplyScalar(st.skinK);   // the attack: near-black skin, lit only where the light hits
     let glow = st.inert ? sp.glow.stunned : st.hunting ? sp.glow.hunting * (0.85 + 0.15 * Math.sin(st.t * 6)) : sp.glow.calm;
     if (mo.flicker && !st.inert) glow *= 1 - mo.flicker * (0.5 + 0.5 * Math.sin(st.t * 23 + seed) * Math.sin(st.t * 7.1 + seed * 2));
     if (mo.shimmer && !st.inert) glow *= 1 + mo.shimmer * Math.sin(st.t * 4 + seed);
@@ -524,6 +536,19 @@ export class AlienKit {
       const shoulder = new THREE.Vector3(s * sp.shoulderX + sway * 0.6, chest.y - 0.05, chest.z + 0.02);
       const elbow = shoulder.clone().addScaledVector(limbDir(this._d, aU, s * (0.16 - 0.1 * reach)), sp.upperArm.len);
       const wrist = elbow.clone().addScaledVector(limbDir(this._d, aF, s * (0.1 + 0.32 * reach)), sp.forearm.len);
+      // st.claw (0..1, the attack): arms flung out and up, forearms and splayed claws
+      // thrust at you; st.swipe (0..1) rakes the forearms in across the face.
+      const claw = st.claw || 0, swipe = st.swipe || 0;
+      let clawFore = null;
+      if (claw > 0) {
+        const up = new THREE.Vector3(s * 0.8, 0.38, -0.45).normalize();
+        const eC = shoulder.clone().addScaledVector(up, sp.upperArm.len);
+        clawFore = new THREE.Vector3(s * 0.2, 0.3, -1).normalize()
+          .lerp(new THREE.Vector3(-s * 0.9, 0.08, -0.45).normalize(), swipe).normalize();
+        const wC = eC.clone().addScaledVector(clawFore, sp.forearm.len);
+        elbow.lerp(eC, claw);
+        wrist.lerp(wC, claw);
+      }
       this._bone(base, shoulder, elbow, sp.upperArm.r, sp.upperArm.r, tint, glow);
       this._bone(base, elbow, wrist, sp.forearm.r, sp.forearm.r, tint, glow);
       this._joint(base, shoulder, sp.upperArm.r * 1.25, tint, glow);
@@ -534,9 +559,21 @@ export class AlienKit {
         this._joint(base, elbow.clone().lerp(wrist, 0.5), sp.forearm.r * 1.12, tint, glow);
       }
       const tips = [];
+      const side = clawFore ? new THREE.Vector3().crossVectors(clawFore, AY).normalize() : null;
+      const curl = clawFore ? new THREE.Vector3().crossVectors(side, clawFore).normalize() : null;
       for (const k of [-1, 0, 1]) {
         const tip = wrist.clone().addScaledVector(limbDir(this._d, aF + 0.22, s * 0.1 + k * sp.finger.spread), sp.finger.len);
+        let fd = null;
+        if (clawFore) {
+          // splayed wide, hooked a little down, a quarter longer: claws, not fingers
+          fd = clawFore.clone().addScaledVector(side, k * 0.55).addScaledVector(curl, -0.3).normalize();
+          tip.lerp(wrist.clone().addScaledVector(fd, sp.finger.len * 1.25), claw);
+        }
         this._bone(base, wrist, tip, sp.finger.r, sp.finger.r, tint, glow);
+        if (fd && claw > 0.3) {
+          const tq = new THREE.Quaternion().setFromUnitVectors(AY, fd.clone().addScaledVector(curl, -0.35).normalize());
+          this._put('talon', this._m.multiplyMatrices(base, new THREE.Matrix4().compose(tip, tq, this._s.set(sp.finger.r * 0.95, 0.075 * claw, sp.finger.r * 0.95))), null, 0);
+        }
         tips.push(tip);
       }
       armSegs.push({ s, upper: this._frame(base, shoulder, elbow), fore: this._frame(base, elbow, wrist), wrist, tips });
@@ -555,26 +592,47 @@ export class AlienKit {
       .multiply(new THREE.Matrix4().compose(this._v.set(0, -0.015, -0.05), this._q.identity(), this._s.set(0.085, 0.06, 0.1)));
     this._put('jaw', this._m.multiplyMatrices(headW, jawM), tint, glow);
     const open = Math.max(0, st.jaw);
-    // A dark, tall, screaming oval -- a gullet with only a dim red deep inside -- ringed,
-    // once it opens, with needle teeth pointing in and out at you.
-    const mw = 0.026 + 0.022 * open, mh = 0.0005 + 0.07 * open, my = -0.005 - 0.03 * open, mz = this.mouthZ - 0.006;
+    // A dark, tall, screaming gullet with only a dim red deep inside. Once it opens: two
+    // rows of long wet teeth, fangs at the corners, angled out at you, and strands of
+    // saliva stretched between them.
+    const mw = 0.026 + 0.03 * open, mh = 0.0005 + 0.07 * open, my = -0.005 - 0.03 * open, mz = this.mouthZ - 0.006;
     const mawM = new THREE.Matrix4().compose(this._v.set(0, my, mz), this._q.identity(), this._s.set(mw, mh, 0.016));
     this._put('maw', this._m.multiplyMatrices(headW, mawM), new THREE.Color(0x030001).lerp(new THREE.Color(sp.glowColor), 0.06 * open), 0);
     if (open > 0.15) {
-      const k = Math.min(1, (open - 0.15) / 0.5);
-      const ivory = new THREE.Color(0xe8dcbc), stain = new THREE.Color(0x8a5a3a);
+      const k = Math.min(1, (open - 0.15) / 0.45);
+      const ivory = new THREE.Color(0xf0e6cc), stain = new THREE.Color(0x9a6a44);
+      const H = TEETH / 2;
       for (let i = 0; i < TEETH; i++) {
-        const a = (i + 0.5) / TEETH * Math.PI * 2;
-        const c = Math.cos(a), sn = Math.sin(a);
-        // longest top and bottom, short at the corners
-        const len = (0.012 + 0.024 * Math.abs(sn) + 0.008 * hash01(i, 5)) * k;
-        const dir = this._d.set(-c * mh, -sn * mw, 0).normalize();          // toward the centre
-        dir.z = -0.45; dir.normalize();                                     // and out, toward you
+        const top = i < H, j = i % H;
+        const u = ((j + 0.5) / H * 2 - 1) * 0.9;                       // -0.9 .. 0.9 across the mouth
+        const edge = Math.sqrt(Math.max(0, 1 - u * u));
+        const fang = Math.exp(-(((Math.abs(u) - 0.55) / 0.12) ** 2));   // the corners
+        const len = (0.016 + 0.014 * edge + 0.03 * fang + 0.006 * hash01(i, 5)) * k * (top ? 1 : 0.85);
+        const dir = this._d.set(-u * 0.12, top ? -1 : 1, -0.38).normalize();
         const q = this._q.setFromUnitVectors(AY, dir);
-        const L = new THREE.Matrix4().compose(this._v.set(c * mw * 0.94, my + sn * mh * 0.94, mz - 0.01), q, this._s.set(0.0042 * k + 0.0005, len, 0.0042 * k + 0.0005));
-        this._put('teeth', this._m.multiplyMatrices(headW, L), ivory.clone().lerp(stain, 0.45 * hash01(i, 9)), 0);
+        const r = (0.0042 + 0.003 * fang) * k + 0.0005;
+        const L = new THREE.Matrix4().compose(this._v.set(u * mw, my + (top ? 1 : -1) * mh * edge * 0.97, mz - 0.008), q, this._s.set(r, len, r));
+        this._put('teeth', this._m.multiplyMatrices(headW, L), ivory.clone().lerp(stain, 0.4 * hash01(i, 9)), 0);
+      }
+      if (open > 0.35) {
+        for (let n = 0; n < 4; n++) {
+          const u = [-0.55, -0.12, 0.3, 0.66][n];
+          const edge = Math.sqrt(1 - u * u);
+          const a = new THREE.Vector3(u * mw, my + mh * edge * 0.8, mz - 0.012);
+          const b = new THREE.Vector3((u + 0.08) * mw, my - mh * edge * 0.75, mz - 0.012);
+          const mid = a.clone().lerp(b, 0.55).add(this._v.set(0.004 * (n - 1.5), -0.012, -0.012));
+          const rr = 0.0013 + 0.0008 * hash01(n, 3);
+          for (const [p, q2] of [[a, mid], [mid, b]]) {
+            const d = q2.clone().sub(p);
+            const len = d.length();
+            const M = new THREE.Matrix4().compose(p, new THREE.Quaternion().setFromUnitVectors(DOWN, d.normalize()), new THREE.Vector3(rr, len, rr));
+            this._put('drool', this._m.multiplyMatrices(headW, M), null, 0);
+          }
+        }
       }
     }
+    // where its face is in the body's frame, so the attack can pin the face to your view
+    this.faceLocal = (this.faceLocal || new THREE.Vector3()).set(0, sp.eye.y * 0.55, this.mouthZ).applyMatrix4(head);
 
     const e = sp.eye, sl = sp.slit;
     // st.dilate (the jumpscare): the slits pinch to burning needles

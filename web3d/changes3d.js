@@ -8,6 +8,24 @@
 
 export const CHANGES = [
   {
+    build: 19,
+    date: '2026-11-19',
+    phase: 'N3',
+    changed: [
+      'Getting caught is now an attack, not a face. It rears up over you in the dark, claws spread, hissing. Then it lunges across a metre in an instant with its claws raking in, and knocks you flat on your back.',
+      'From the floor you look up at it leaning over you. It bites at your face twice, head thrashing, and the screen shakes and smears with every snap. Three claw gashes are torn across the screen and bleed down it.',
+      'It is lit like a horror film: the whole world goes black, and a single cold light from above catches its face and every wet tooth. Two rows of long teeth with fangs, strands of saliva between them, slit pupils burning at you.',
+      'A last lunge into the lens, a hard cut to black and silence, and in the black a crunch. About 1.8 s of attack, held black to 2.8 s.',
+    ],
+    tryThis: [
+      'Get caught with headphones on, full screen, lights off. Then in a few other belts (11, 41) to see other species do it.',
+      'Settings -> Jumpscares: mild is still the gentle version for anyone who needs it.',
+    ],
+    unverified: [
+      'Checked frame by frame in screenshots on three species. Never watched at full speed, and the new hiss, snaps and crunch have never been heard.',
+    ],
+  },
+  {
     build: 18,
     date: '2026-11-19',
     phase: 'N3',

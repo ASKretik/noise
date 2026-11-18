@@ -199,20 +199,25 @@ smaller when you step into water. Keys glow; coins are coloured and sized by val
 instanced by value; bolts are extruded glyphs; the open portal is a beam visible over
 every wall. Pickups fly to the camera. **Awake aliens are solid to your body** (stunned ones are not), so the body can no
 longer lead the sim through an alien before the next tick registers the capture. **Capture
-is a jumpscare** (`web3d/sequences.js` data, `web3d/fx3d.js` playback, 2.2 s): when a
-hunting alien comes within two cells a heartbeat swells and the drone ducks; on the frame
-you are caught the alien that got you is simply there, 0.7 m in front of wherever you were
-looking (no turn, no travel), and pushes in to 0.54 m. In the same instant the district's
-light drains to 6%, fog closes to a red-black 0.6-5.5 m, a flickering red light comes on
-under its chin with a cold edge light behind; its jaw tears open over a ring of 18 needle
-teeth, its slits pinch to burning needles and turn to stare straight at you; a sub-bass
-hit, a white-red flash, a scream (a distorted formant choir and a vibrato screech, over
-silence -- the ambience is cut under it), violent shake, a 16-22 degree zoom punch and
-colour-split tearing. A second spasm at 0.62 s; a hard cut to black and silence at 1.42 s,
-held to the end card. The HUD is off for the whole sequence (the pointer release at
-capture does not bring it back) and returns with the end card. Nothing skips it before 1.0 s (the ascension: 0.8 s), and a key
-held down auto-repeating never skips either -- only a fresh press of Space, Enter or
-Escape, or a click. **The portal is an ascension:** you rise from eye height to 40 m on an ease-in,
+is an attack** (`web3d/sequences.js` data, `web3d/fx3d.js` playback, 2.8 s): when a
+hunting alien comes within two cells a heartbeat swells and the drone ducks. On the frame
+you are caught, the alien that got you is there in front of wherever you were looking,
+rearing over you at 0.95 m, arms flung wide with splayed, taloned claws, jaw dropping, a
+hiss over a growl. The world goes black: district lights to 1.5%, the sky dome hidden, fog
+to a red-black wall 3.4 m out, and a single cold spot from above and in front lights its
+face (skin darkened to 30%, wetter), with a dim red under the jaw. At 0.26 s it lunges
+(claws raking in, a smeared motion trail); at 0.40 s, impact: a flash, a bass hit, the
+scream, three ragged claw gashes torn across the screen (they bleed down it), and you are
+knocked flat: the view falls 1.08 m, back 0.45 m, rolls -0.34 and looks up at it leaning
+0.62 rad over you. It bites at you twice (0.95, 1.32 s), its head thrashing, each bite a
+snap, a shake and a smear; two rows of eleven wet teeth with fangs at the corners and four
+strands of saliva fill its mouth. A last lunge into the lens, then at 1.80 s a hard cut to
+black and silence, and a crunch in the black. Its face is pinned to a point in your view
+(`Entities` hangs the body off the face's position in the body frame, so it frames the
+same on every species). The HUD is off for the whole sequence and returns with the end
+card. Nothing skips it before 1.2 s (the ascension: 0.8 s), and a key held down
+auto-repeating never skips it -- only a fresh press of Space, Enter or Escape, or a
+click. The mild variant keeps the earlier gentle approach. **The portal is an ascension:** you rise from eye height to 40 m on an ease-in,
 turning 90°, the view widening 15° and tilting down over the district, motes streaming
 upward and the beam brightening, into a teal-white whiteout (2.4 s). Both are skippable after that floor;
 Settings → Jumpscares picks full, mild or off, and reduce motion turns full into mild.

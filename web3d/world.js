@@ -309,6 +309,7 @@ export function buildWorld(level, { cellM, shadows = false }) {
   );
   sky.position.set(W / 2, 0, H / 2);
   sky.renderOrder = -1;
+  sky.name = 'sky';                      // the capture hides it: fog does not reach it
   group.add(sky);
 
   return {

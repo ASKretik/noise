@@ -254,7 +254,7 @@ export class Play3D {
   horror(k, sc = null, cam = null) {
     const T = this.view.THREE, scene = this.view.scene;
     const lights = scene.getObjectByName('district-lights');
-    if (lights) lights.traverse((o) => { if (o.isLight) { o.userData.i0 ??= o.intensity; o.intensity = o.userData.i0 * (1 - 0.94 * k); } });
+    if (lights) lights.traverse((o) => { if (o.isLight) { o.userData.i0 ??= o.intensity; o.intensity = o.userData.i0 * (1 - (sc?.target ? 0.985 : 0.94) * k); } });
     const f = scene.fog;
     if (f) {
       f.userData ??= {};
@@ -262,15 +262,40 @@ export class Play3D {
       const b = f.userData.base, dark = new T.Color(0x070102);
       f.color.copy(b.color).lerp(dark, k);
       f.near = b.near + (0.6 - b.near) * k;
-      f.far = b.far + (5.5 - b.far) * k;
+      f.far = b.far + ((sc?.target ? 3.4 : 5.5) - b.far) * k;
       if (b.bg) scene.background = b.bg.clone().lerp(dark, k);
     }
     if (!this.scareLight) {
       this.scareLight = new T.PointLight(0xff1a10, 0, 2.6, 1.6);
-      this.scareFill = new T.PointLight(0x6a86ff, 0, 3, 2);   // a cold edge from above and behind it
-      scene.add(this.scareLight, this.scareFill);
+      this.scareFill = new T.PointLight(0x6a86ff, 0, 3, 2);   // a cold light from above
+      // the attack's key: a tight cold spot on the face alone, so the body falls into black
+      this.scareKey = new T.SpotLight(0xc4d6ff, 0, 4, 0.3, 0.75, 1.2);
+      scene.add(this.scareLight, this.scareFill, this.scareKey, this.scareKey.target);
     }
-    if (k <= 0 || !sc) { this.scareLight.intensity = 0; this.scareFill.intensity = 0; return; }
+    const sky = this.world?.group.getObjectByName('sky');
+    if (sky) sky.visible = !(sc?.target && k > 0.5);
+    // wet skin: the cold light should slide off it, not sink in
+    const skin = this.entities?.kit?.skin;
+    if (skin) { skin.userData.r0 ??= skin.roughness; skin.roughness = skin.userData.r0 + (0.5 - skin.userData.r0) * (sc?.target ? k : 0); }
+    if (k <= 0 || !sc) { this.scareLight.intensity = 0; this.scareFill.intensity = 0; this.scareKey.intensity = 0; return; }
+    if (sc.target) {
+      // the attack: a hard cold key from above and toward you, glinting off the teeth and
+      // the wet skin, and a dim guttering red from under the jaw
+      const toCam = cam.position.clone().sub(sc.target).normalize();
+      const flick = 0.75 + 0.25 * Math.sin(this.t * 47) * Math.sin(this.t * 13 + 2);
+      this.scareKey.position.copy(sc.target).addScaledVector(toCam, 0.75).add(new T.Vector3(0, 0.7, 0));
+      this.scareKey.target.position.copy(sc.target).add(new T.Vector3(0, -0.06, 0));
+      this.scareKey.target.updateMatrixWorld();
+      this.scareKey.intensity = 4.2 * k;
+      this.scareFill.intensity = 0;
+      this.scareLight.position.copy(sc.target).addScaledVector(toCam, 0.2).add(new T.Vector3(0, -0.4, 0));
+      this.scareLight.distance = 1.2;
+      this.scareLight.intensity = 0.45 * k * flick;
+      return;
+    }
+    this.scareFill.color.setHex(0x6a86ff);
+    this.scareLight.distance = 2.6;
+    this.scareKey.intensity = 0;
     // under the chin, a little toward you; it gutters like a failing tube
     const flick = 0.72 + 0.28 * Math.sin(this.t * 47) * Math.sin(this.t * 13 + 2);
     this.scareLight.position.copy(sc.pos).addScaledVector(sc.fwd, -0.4).setY(1.0);
@@ -422,6 +447,11 @@ export class Play3D {
           const eye = new T.Vector3(cam.x, 0, cam.z);
           const d0 = Math.max(0.6, Math.hypot(at.x - cam.x, at.z - cam.z) - 0.28);
           this.entities.scare = { id: best.id, eye, fwd, d0, pos: new T.Vector3(at.x, 0, at.z), heading: toYaw + Math.PI, jaw: 0, reach: 0, dilate: 0 };
+          // the attack drives the camera itself (knocked down, rolled, looking up at it)
+          if (seq.attack) {
+            Object.assign(this.entities.scare, { target: new T.Vector3(at.x, 1.6, at.z), yaw0: this.controls.yaw, pitch0: this.controls.pitch, lean: 0, claw: 0, swipe: 0, thrash: 0 });
+            this.endAnim = null;
+          }
         }
       }
       document.body.classList.add('g3-caught');
@@ -530,7 +560,24 @@ export class Play3D {
       const fx = this.fx, def = fx.run.def;
       if (fx.kind === 'jumpscare') {
         const sc = this.entities.scare;
-        if (sc) {
+        if (sc && def.attack) {
+          // The attack (web3d/sequences.js): the camera is knocked back, down and rolled,
+          // and the alien's face is pinned to a point in that view -- the body hangs off it.
+          const tr = (n) => fx.track(n, this.t);
+          const T = this.view.THREE;
+          const yaw = sc.yaw0 + tr('yawK');
+          const pitch = sc.pitch0 + (tr('pitch') - sc.pitch0) * Math.min(1, st / 0.06);
+          this.controls.yaw = yaw; this.controls.pitch = pitch;
+          cam.position.y = EYE_M + tr('camY');
+          cam.position.addScaledVector(sc.fwd, -tr('back'));
+          cam.rotation.set(pitch, yaw, tr('roll'));
+          const q = cam.quaternion;
+          const dir = new T.Vector3(0, 0, -1).applyQuaternion(q), up = new T.Vector3(0, 1, 0).applyQuaternion(q), right = new T.Vector3(1, 0, 0).applyQuaternion(q);
+          sc.target.copy(cam.position).addScaledVector(dir, tr('dist')).addScaledVector(up, tr('yOff')).addScaledVector(right, tr('xOff'));
+          sc.pos.copy(sc.target);
+          sc.lean = tr('lean'); sc.claw = tr('claw'); sc.swipe = tr('swipe');
+          sc.jaw = tr('jaw'); sc.dilate = tr('dilate'); sc.thrash = tr('thrash');
+        } else if (sc) {
           const ap = def.tracks.approach ? fx.track('approach', this.t) : 1;
           const d = ap < 1 ? sc.d0 + (0.9 - sc.d0) * ap : fx.track('dist', this.t);
           sc.pos.copy(sc.eye).addScaledVector(sc.fwd, d + 0.28);
@@ -544,13 +591,19 @@ export class Play3D {
         if (amp > 0) {
           cam.position.x += amp * Math.sin(this.t * 91);
           cam.position.y += amp * Math.sin(this.t * 73 + 1);
-          cam.rotation.z = amp * 1.5 * Math.sin(this.t * 61);
+          cam.rotation.z += amp * 1.5 * Math.sin(this.t * 61);
         }
         this.view.setHFov(this.settings.fov + fx.track('fov', this.t));
         this.horror(def.tracks.dark ? fx.track('dark', this.t) : 0, sc, cam);
         if (def.grab && fx.once('grab', def.grab.at, this.t)) this.audio.grab(def.grab.level);
         if (def.shriek && fx.once('shriek', def.shriek.at, this.t)) this.audio.shriek(def.shriek.level, def.shriek.dur);
         if (def.cut && fx.once('cut', def.cut.at, this.t)) this.audio.cut();
+        // a skip jumps to the end: it must not fire every remaining sound at once
+        (def.sounds || []).forEach((snd, i) => {
+          if (!fx.once(`snd${i}`, snd.at, this.t) || fx.run.skip) return;
+          if (snd.kind === 'cut') this.audio.cut();
+          else this.audio[snd.kind]?.(snd.level ?? 1, snd.dur);
+        });
       } else {
         cam.position.y += fx.track('lift', this.t) * 38;
         this.controls.yaw = this.ascend.fromYaw + fx.track('spin', this.t);
