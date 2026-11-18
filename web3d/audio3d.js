@@ -141,6 +141,29 @@ export class Audio3D {
     n.connect(ng).connect(this.bus); n.start(t);
   }
 
+  /** N6.1: a decoy landing and starting to rattle -- quick ticks, a little metallic. */
+  rattle() {
+    if (!this.ctx || !this.bus || !this.enabled) return;
+    const ctx = this.ctx, t0 = ctx.currentTime;
+    for (let i = 0; i < 9; i++) {
+      const t = t0 + i * 0.055;
+      const n = ctx.createBufferSource(); n.buffer = this.noise;
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2400 + (i % 3) * 700; bp.Q.value = 6;
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.09, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+      n.connect(bp).connect(g).connect(this.bus); n.start(t); n.stop(t + 0.05);
+    }
+  }
+
+  /** N6.1: dampers on -- a soft low thump. */
+  muffle() {
+    if (!this.ctx || !this.bus || !this.enabled) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(60, t + 0.18);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.18, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+    o.connect(g).connect(this.bus); o.start(t); o.stop(t + 0.3);
+  }
+
   /** Trigger pulled with no lock: a dry mechanical click, nothing spent. */
   click() {
     if (!this.ctx || !this.bus || !this.enabled) return;

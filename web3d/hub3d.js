@@ -8,10 +8,11 @@ import { Dossier } from '../sim/predictor/dossier.js';
 import { DIFFICULTIES, DIFFICULTY_IDS, difficultyOf } from '../sim/difficulty.js';
 import { TIER_SPEED_3D, TIER_BLURB_3D } from '../sim3d/next/rules.js';
 import { SHOP_ITEMS, canBuy, STUN_GUN_CAPACITY } from '../sim/shop.js';
+import { ITEMS3D, ITEM3D_IDS, canBuy3d, itemsOf } from '../sim3d/shop3d.js';
 import { DISTRICT_THEMES, BLOCK_SIZE, TOTAL_DISTRICTS } from '../web/themes.js';
 import { install as installTheme } from '../web/theme.js';
 import { simSecondsToReal } from '../sim3d/units.js';
-import { createProfileStore3d, ensureGuestSession3d } from './persist3d.js';
+import { createProfileStore3d, ensureGuestSession3d, buyItem3d } from './persist3d.js';
 import { mountBanner } from './banner.js';
 import { mountDevPanel } from './dev3d.js'; // DEV-MODE
 
@@ -176,6 +177,26 @@ function renderShop() {
     b.textContent = check.ok ? `${check.cost} coins` : check.reason;
     b.addEventListener('click', () => {
       const res = store.buy(item.id, qty);
+      if (res.ok) { renderStatus(); renderShop(); }
+    });
+    row.append(b);
+    host.append(row);
+  }
+  // N6.1: the 3D game's own items (sim3d/shop3d.js), carried into every district
+  const have = itemsOf(rec.inventory);
+  for (const id of ITEM3D_IDS) {
+    const item = ITEMS3D[id];
+    const check = canBuy3d(rec.wallet, rec.inventory, id);
+    const row = document.createElement('div');
+    row.className = 'l3-item';
+    row.innerHTML = `<div><b>${esc(item.label)}</b> <span class="l3-have">carrying ${have[id]} of ${item.carry}</span><p>${esc(item.blurb)} Use: hold Space, point the mouse at it, let go, click. ${item.perDistrict > 1 ? `Up to ${item.perDistrict}` : 'Once'} per district.</p></div>`;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `btn ${check.ok ? 'primary' : 'ghost'}`;
+    b.disabled = !check.ok;
+    b.textContent = check.ok ? `${check.cost} coins` : check.reason;
+    b.addEventListener('click', () => {
+      const res = buyItem3d(store, id);
       if (res.ok) { renderStatus(); renderShop(); }
     });
     row.append(b);

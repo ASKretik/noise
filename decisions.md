@@ -3035,11 +3035,70 @@ choice saved, no shader errors.
 
 **Not verified:** a weaker laptop.
 
+## R66 · N6.1: the inventory wheel and the first three items (3D build 36)
+
+**Asked:** "implement N6.1. make sure that one can access their inventory by pressing
+spacebar and choosing the weapon to be used with the rotation of their mouse."
+
+**The input changed from the plan.** The plan had an item bar on keys 1–6. The user
+asked for a wheel:
+
+- hold Space, and a wheel opens with the stun gun at the top and the items round it;
+- the mouse steers a pointer, and the view holds still;
+- the slot in the pointer's direction is highlighted, and letting go of Space takes it
+  in hand;
+- clicking uses what is in hand.
+
+Space was free; it now prevents the page's default scroll. Alt-tab cancels the wheel,
+as it does the map.
+
+**Built:**
+
+- `sim3d/shop3d.js`: the item table, `canBuy3d`, `applyPurchase3d`.
+- `Game3DNext`: `canUseItem`, `useItem`, the dampers' radius, and the decoy's hold on
+  the squad re-plan.
+- The input record: `item` in a row, hashed when present.
+- `persist3d.js buyItem3d` and `returnItems3d`: the single write path.
+- The hub shop, career carry-in and write-back, dev mode (unlimited), and the wheel and
+  in-hand line (`hud3d.js`, `controls.js`).
+- `play3d.js`: the target ring, the throws, and the decoy's and EMP's effects.
+
+**Tuned from the plan:**
+
+- The decoy reaches 8 cells, not 6: 9 m was too short to pull a hunt away.
+- It also draws patrols within 14 cells, not only hunters: in a game about being heard,
+  a rattle should draw the curious.
+- Throws pass over rubble; only walls stop them.
+
+**Tests.** 3D-17 checks each rule against a reference written in the test:
+
+- dampers 0.75× once;
+- 160 EMP placements, every stunned set exact, bad targets refused with nothing spent;
+- 40 decoys: the hunt ends on them, the drawn aliens are held through re-plans, and
+  patrols beyond the pull are untouched;
+- nothing used with none carried;
+- three runs with items replay tick for tick.
+
+**Checked in the browser:**
+
+- the wheel opens on Space;
+- each slot can be picked with the mouse;
+- the view holds still;
+- each item is used through the real click path;
+- the decoy's rings and the EMP flash;
+- the shop rows.
+
+**Not done:**
+
+- bot balance runs: no bot policy uses items yet. N6.2's "balance measured" will need
+  one;
+- a wheel for phones.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    26 passed · 0 not demonstrated · 0 failed  (3D build 35; 3D-1 via the
+npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 36; 3D-1 via the
                   2D suites above, run alongside)
 ```

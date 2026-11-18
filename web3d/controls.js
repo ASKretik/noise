@@ -21,6 +21,9 @@ export class Controls {
     this.locked = false;
     /** The Tab map is open: dragging pans it, the wheel zooms it, a click does not fire. */
     this.mapOpen = false;
+    // N6.1: the inventory wheel -- open while Space is held; the mouse steers its pointer
+    this.wheelOpen = false;
+    this.wheelVec = { x: 0, y: 0 };
     this.handlers = {};
     this._onMouse = this._onMouse.bind(this);
   }
@@ -37,7 +40,7 @@ export class Controls {
     document.addEventListener('pointerlockerror', () => this.emit('lockerror'));
     document.addEventListener('mousemove', this._onMouse);
     this.target.addEventListener('mousedown', (e) => {
-      if (!this.locked || this.mapOpen) return;
+      if (!this.locked || this.mapOpen || this.wheelOpen) return;
       if (e.button === 0) this.emit('fire');
     });
     window.addEventListener('wheel', (e) => {
@@ -58,6 +61,12 @@ export class Controls {
         if (!this.mapOpen) { this.mapOpen = true; this.emit('map', true); }
       }
       if (e.repeat) return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (!e.repeat && this.locked && !this.mapOpen && !this.wheelOpen) {
+          this.wheelOpen = true; this.wheelVec = { x: 0, y: 0 }; this.emit('wheel', true);
+        }
+      }
       if (e.code === 'KeyR') this.emit('restart');
       if (e.code === 'KeyL') this.emit('bolt');
       if (e.code === 'KeyH') this.emit('toggle', 'heatmap');
@@ -70,10 +79,12 @@ export class Controls {
       if (MOVE[e.code]) this.held.delete(MOVE[e.code]);
       if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.sprint = false;
       if (e.code === 'Tab' || e.code === 'KeyM') { e.preventDefault(); this.mapOpen = false; this.emit('map', false); }
+      if (e.code === 'Space') { e.preventDefault(); if (this.wheelOpen) { this.wheelOpen = false; this.emit('wheel', false, false); } }
     });
     window.addEventListener('blur', () => {
       this.held.clear(); this.sprint = false;
       if (this.mapOpen) { this.mapOpen = false; this.emit('map', false); }   // Tab's keyup is lost on alt-tab
+      if (this.wheelOpen) { this.wheelOpen = false; this.emit('wheel', false, true); }   // so is Space's: cancel
     });
   }
 
@@ -90,6 +101,15 @@ export class Controls {
     if (!this.locked) return;
     // dragging over the open map pans it instead of turning you
     if (this.mapOpen && (e.buttons & 1)) { this.emit('pan', e.movementX, e.movementY); return; }
+    // the inventory wheel takes the mouse: the view holds still while you choose
+    if (this.wheelOpen) {
+      const v = this.wheelVec, R = 140;
+      v.x += e.movementX; v.y += e.movementY;
+      const l = Math.hypot(v.x, v.y);
+      if (l > R) { v.x *= R / l; v.y *= R / l; }
+      this.emit('wheelmove', v.x, v.y);
+      return;
+    }
     const k = 0.0022 * this.sensitivity;
     this.yaw -= e.movementX * k;
     this.pitch -= e.movementY * k * (this.invertY ? -1 : 1);

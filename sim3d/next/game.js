@@ -25,6 +25,11 @@ import { FastFields } from './field.js';
 import { timeLimitTicks } from './rules.js';
 import { cornerMask } from '../dispatch/habits.js';
 import { tacticTargets, TACTIC_ALIENS } from '../dispatch/tactics.js';
+import { TILE } from '../../sim/grid.js';
+import { ITEMS3D, itemsOf, blankItems3d, DECOY_TICKS, DECOY_PULL, EMP_RADIUS, DAMPERS_FACTOR } from '../shop3d.js';
+
+/** A throw or a blast is stopped by walls only: it goes over rubble. */
+const wallsOnly = (t) => t === TILE.WALL;
 
 /** Target fields kept: enough for every alien's route plus the shared search targets. */
 export const FIELD_CACHE = 80;
@@ -56,6 +61,89 @@ export class Game3DNext extends Game3D {
     // The habit measure reads the map state off the view, like everything else it reads.
     Object.defineProperty(this._view, 'mapOpen', { get: () => this.mapOpen, enumerable: true });
     this.tacticMoves = 0;          // aliens sent by a tactic, for the bench
+    // N6.1: the items carried in (shop3d.js), uses this district, and what each did
+    this.loadout.items = itemsOf({ items3d: o.loadout?.items });
+    this.itemUses = blankItems3d();
+    this.itemCapOff = !!o.loadout?.unlimited;   // dev mode only: no per-district cap
+    this.dampers = false;
+    this.lastItem = null;
+    this.itemLog = [];
+  }
+
+  /** N6.1: dampers -- you are heard at three quarters of the distance. */
+  get effectiveRadius() {
+    const r = super.effectiveRadius;
+    return this.dampers ? r * DAMPERS_FACTOR : r;
+  }
+
+  /**
+   * Could this item be used now, at (x, y)? The page asks this to draw its target ring,
+   * and the sim asks it again when the use arrives with the next tick.
+   */
+  canUseItem(id, x = 0, y = 0) {
+    const item = ITEMS3D[id];
+    if (!item) return { ok: false, reason: 'no such item' };
+    if (!this.started || this.over) return { ok: false, reason: 'not now' };
+    if (!(this.loadout.items[id] > 0)) return { ok: false, reason: 'none left' };
+    if (!this.itemCapOff && this.itemUses[id] >= item.perDistrict) return { ok: false, reason: 'used up here' };
+    if (id === 'dampers') return this.dampers ? { ok: false, reason: 'already on' } : { ok: true, reason: null };
+    const { w, h, tiles } = this.map;
+    if (!(x >= 0 && y >= 0 && x < w && y < h) || tiles[y * w + x] === TILE.WALL) return { ok: false, reason: 'no ground there' };
+    if (euclid(x, y, this.player.x, this.player.y) > item.range) return { ok: false, reason: 'too far' };
+    if (!lineOfSight(this.map, this.player.x + 0.5, this.player.y + 0.5, x + 0.5, y + 0.5, wallsOnly)) return { ok: false, reason: 'blocked' };
+    return { ok: true, reason: null };
+  }
+
+  /** Use an item. Returns { ok, reason, hit } -- the aliens it acted on. */
+  useItem(id, x = 0, y = 0) {
+    const check = this.canUseItem(id, x, y);
+    const res = { tick: this.tick, id, x, y, ok: check.ok, reason: check.reason, hit: [] };
+    if (check.ok) {
+      this.loadout.items[id]--;
+      this.itemUses[id]++;
+      if (id === 'dampers') this.dampers = true;
+      else if (id === 'decoy') res.hit = this._decoy(x, y);
+      else if (id === 'emp') res.hit = this._emp(x, y);
+      this.itemLog.push(res);
+    }
+    this.lastItem = res;
+    return res;
+  }
+
+  /**
+   * The noise maker. Hunting aliens lose you: the alert ends with its last-known cell set
+   * to the decoy, the game's own "alert lapsed, search there" path. Patrolling aliens
+   * within DECOY_PULL go to look. For DECOY_TICKS the squad re-plan leaves them on it.
+   * Being seen again starts the hunt again, as always.
+   */
+  _decoy(x, y) {
+    const at = { x, y, region: this.regions.regionOf[y * this.map.w + x] };
+    const hunting = this.alertTicks > 0;
+    if (hunting) { this.alertTicks = 0; this.lastKnown = { x, y }; }
+    const drawn = [];
+    for (const p of this.patrols) {
+      if (this._isInert(p)) continue;
+      const chasing = hunting && (p.mode === 'hunt' || p.mode === 'cutoff');
+      if (!chasing && euclid(p.x, p.y, x, y) > DECOY_PULL) continue;
+      this._setTarget(p, at, 'search');
+      p.tactic = 'decoy';
+      p.decoyUntil = this.tick + DECOY_TICKS;
+      drawn.push(p.id);
+    }
+    return drawn;
+  }
+
+  /** The EMP: every awake alien within EMP_RADIUS of the blast, walls not in the way, stunned. */
+  _emp(x, y) {
+    const hit = [];
+    for (const p of this.patrols) {
+      if (this._isInert(p) || euclid(p.x, p.y, x, y) > EMP_RADIUS) continue;
+      if (!lineOfSight(this.map, x + 0.5, y + 0.5, p.x + 0.5, p.y + 0.5, wallsOnly)) continue;
+      p.stunnedUntil = this.tick + this.params.stunTicks;
+      hit.push(p.id);
+    }
+    this.stuns += hit.length;
+    return hit;
   }
 
   /**
@@ -64,6 +152,8 @@ export class Game3DNext extends Game3D {
    */
   step(inputDir = -1, actions = null) {
     this.mapOpen = !!actions?.mapOpen;
+    // N6.1: an item use resolves before the move, like the stun gun; it is in the record
+    if (actions?.item && this.started && !this.over) this.useItem(actions.item.id, actions.item.x, actions.item.y);
     const before = this.player.x * 65536 + this.player.y;
     const live = super.step(inputDir, actions);
     if (!live) return live;
@@ -216,6 +306,8 @@ export class Game3DNext extends Game3D {
     if (!plan) return;
     const tactics = this._tacticPlan(plan, this.alertTicks > 0);
     for (const p of this.patrols) {
+      // N6.1: an alien a decoy drew stays on it until it gets there or the decoy runs out
+      if (p.decoyUntil > this.tick && p.target && !(p.x === p.target.x && p.y === p.target.y)) continue;
       // N8.5: an alien a habit tactic takes goes where the tactic says. It keeps its route
       // if it is already on that tactic and the target has moved less than 4 cells.
       const tt = tactics.get(p.id);

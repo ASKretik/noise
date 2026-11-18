@@ -24,6 +24,7 @@
 
 import { DEV_HASH, DEV_SALT } from './devhash.js';
 import { STUN_GUN_CAPACITY } from '../sim/shop.js';
+import { ITEMS3D, ITEM3D_IDS } from '../sim3d/shop3d.js';
 import { TICKS_PER_SECOND } from '../sim/difficulty.js';
 import { DISTRICT_THEMES, BLOCK_SIZE, TOTAL_DISTRICTS } from '../web/themes.js';
 
@@ -184,13 +185,15 @@ export function installDevRun(play) {
   });
   document.body.append(badge);
 
-  play.loadout = () => ({ stunGun: true, bullets: STUN_GUN_CAPACITY, boltSeconds: DEV_BOLT_SECONDS });
+  const allItems = () => Object.fromEntries(ITEM3D_IDS.map((id) => [id, ITEMS3D[id].carry]));   // DEV-MODE
+  play.loadout = () => ({ stunGun: true, bullets: STUN_GUN_CAPACITY, boltSeconds: DEV_BOLT_SECONDS, items: allItems(), unlimited: true });
 
   const topUp = (g) => {
     g.loadout.stunGun = true;
     g.loadout.bullets = STUN_GUN_CAPACITY;
     g.loadout.boltSeconds = DEV_BOLT_SECONDS;
     g.boltBankTicks = DEV_BOLT_SECONDS * TICKS_PER_SECOND;
+    if (g.loadout.items) { g.loadout.items = allItems(); g.itemCapOff = true; }   // N6.1: items too
   };
 
   const start = play.start.bind(play);

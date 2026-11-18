@@ -201,6 +201,38 @@ A pull before your first move does nothing: the opening freeze holds everything.
 On touch only, a 0.14 rad cone locks the visible, shootable alien nearest the centre of
 the screen, aimed at its mid-body.
 
+## Items and the inventory wheel (N6.1, 3D build 36)
+
+On the `next` ruleset (districts), three items, bought in the hub
+(`sim3d/shop3d.js`). They are carried as `inventory.items3d`, written through the
+store's single active-id path (`persist3d.js buyItem3d`, `returnItems3d`). Whatever a
+run does not use comes home.
+
+| Item | Price | Carry | Per district | Rule (`Game3DNext`) |
+|---|---|---|---|---|
+| Noise maker | 60 | 3 | 3 | Thrown to a non-wall cell within 8 cells, no wall between (it goes over rubble). Ends a hunt with its last-known cell on the decoy, the game's own "search there" path. Hunters, and patrols within 14 cells, are sent to it, and for 40 ticks (10 s) the squad re-plan leaves them on it unless they arrive. Being seen again starts the hunt again |
+| Dampers | 120 | 1 | 1 | `effectiveRadius` × 0.75 for the rest of the district; the stun gun's reach is unchanged |
+| EMP | 150 | 2 | 1 | Thrown within 6 cells, no wall between. Stuns every awake alien within 3 cells of the blast with no wall between, for `stunTicks` |
+
+- **A use** is `{ id, x, y }` in the input record, hashed only when present, and resolves
+  at the start of the next tick before movement, like a stun. Replays reproduce it
+  (3D-17).
+- **Dev mode** carries every item, unlimited and with no per-district cap.
+- **The wheel.** Hold Space and a wheel opens round the crosshair: the stun gun at the
+  top, the items clockwise.
+  - While it is open, the mouse moves a pointer, not the view.
+  - The slot nearest the pointer's direction (past a small dead zone) is highlighted,
+    and letting go of Space takes it in hand. Losing focus cancels.
+  - The middle says what the slot does; slots with nothing left are dimmed.
+- **In hand.**
+  - With an item in hand, the gun's viewmodel and lock are hidden.
+  - A ring on the ground shows where a throw would land: pale if it can, grey if not,
+    with the reason in the line under the crosshair. An EMP also shows its blast ring.
+  - Click throws (or puts the dampers on).
+  - A decoy pulses and rattles for 10 seconds; an EMP flashes out to its radius.
+  - When an item runs out, the gun comes back to hand.
+- **Phones** have no wheel yet.
+
 ## The world
 
 ### Districts are cities (N8.1, 3D build 21)
@@ -755,6 +787,7 @@ alongside: `npm test` 12/1/0, `npm run webcheck` green).
 | 3D-13 | Movement never stutters: no frame under half its heading's speed, walking and sprinting, 0–45° | PASS |
 | 3D-14 | Bolt thinning matches its formula on all 100 districts, deterministic, reachable, applied by the runner | PASS |
 | 3D-15 | Jumpscare and ascension: at most 3 flashes a second, skippable but not before 0.5 s, within length, full/mild/off, the variant is the Jumpscares setting alone | PASS |
+| 3D-17 | Items do exactly what their rules say (dampers 0.75×; EMP against a reference on 160 placements; decoy ends the hunt, holds through re-plans, leaves aliens beyond the pull alone; caps; item runs replay) | PASS |
 | 3D-20 | 2D unchanged: 10,000 2D levels hash byte-identical to before N8.1 touched `sim/gen.js` | PASS |
 | 3D-21 | Big maps: the agreed size curve, growing every district; 500 cities reachable for the human and aliens, places distinct; no arrival or division within the minimum distance over 60 episodes | PASS |
 | 3D-22 | The Dispatch learns habits, not rooms: geometry-only prediction ≥ 3× uniform for ten bots; habit bots recognised; habit-free runs unchanged; each tactic helps against its bot; map-open runs replay | PASS |

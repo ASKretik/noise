@@ -1,7 +1,7 @@
 # NOISE 3D — the next round
 
-Written Nov 18, 2026, revised the same day after N3 · **status: N0–N3, N8 and N4 built;
-N6.1 next** · follows 3D build 34
+Written Nov 18, 2026, revised the same day after N3 · **status: N0–N3, N8, N4 and N6.1 built;
+N6.2 next** · follows 3D build 36
 
 > A spec to pick up one phase at a time, whenever there is time. It describes what each
 > phase builds, the numbers it uses, the files it touches, how it is checked and what it
@@ -44,8 +44,8 @@ N6.1 next** · follows 3D build 34
 | N4.1 | Art: sky, lighting and weather, and the first three belts (RUST, TIDE, MOSS) | ~3 days | Medium | **done** (3D build 29) |
 | N4.2 | Art per place (R63): each of the eight kinds of place its own walls, floor, height and fittings, a shade per place, name signs at the gates, wall art without story; on RUST, TIDE and MOSS | 2–3 days | Medium | **done** (3D build 31) |
 | **N4.3** | Art: the other seven belts, places built in from the start; a centrepiece per landmark, bloom and colour grade | 5–6 days | Medium | **done** (3D builds 32-34: the seven belts; landmarks, avenue plates, building fronts; bloom and grade) |
-| **N6.1** | Items: the 3D inventory, noise maker, dampers, EMP (the rules layer itself is built in N8.1) | 3–4 days | Medium | **next** |
-| N6.2 | Items: portable black box, intel chip, noise generator; balance measured | 3–5 days | Medium | not started |
+| N6.1 | Items: the 3D inventory, noise maker, dampers, EMP (the rules layer itself is built in N8.1) | 3–4 days | Medium | **done** (3D build 36; the inventory is a Space wheel picked with the mouse, R66) |
+| **N6.2** | Items: portable black box, intel chip, noise generator; balance measured | 3–5 days | Medium | **next** |
 | N9.1 | Floors prototype: enterable two-floor buildings in belt 4; stairs for you, vents for them; the N4 art and N6 items patched for floors here | ~1½ weeks (+1–2 days of patching) | High | not started |
 | N9.2 | Floors everywhere: three floors from belt 8, belts 4–10 | 2–3½ weeks | High | not started |
 | N7.1 | Objectives, no new rules: sabotage (relays), silent run, stay noise; built on floors, with its own per-district objective table until N5 | 2–4 days | Medium | not started |

@@ -14,6 +14,7 @@
 // guest-is-session-scoped, and "every published update starts every save fresh".
 
 import { ProfileStore, memoryBackend } from '../sim/profile.js';
+import { applyPurchase3d, itemsOf } from '../sim3d/shop3d.js';
 import { BUILD3D } from './build3d.js';
 
 export const DB_NAME_3D = `noise3d-${BUILD3D}`;
@@ -98,6 +99,20 @@ async function sweepOld3dBuilds() {
  * write path -- the same one every other field goes through, so a guest run can never
  * touch the main file. Stored as `habits3d` on the record (migrate() keeps extra fields).
  */
+/** N6.1: buy a 3D item (sim3d/shop3d.js rules), through the store's single write path. */
+export function buyItem3d(store, id) {
+  const rec = store.current();
+  const res = applyPurchase3d(rec.wallet, rec.inventory, id);
+  if (!res.ok) return res;
+  store._commit((r) => { r.wallet = res.wallet; r.inventory = res.inventory; }).catch(() => {});
+  return res;
+}
+
+/** N6.1: write back the items a run did not use. */
+export function returnItems3d(store, items) {
+  return store._commit((rec) => { rec.inventory.items3d = itemsOf({ items3d: items }); });
+}
+
 export function saveHabits3d(store, json) {
   return store._commit((rec) => { rec.habits3d = json; });
 }

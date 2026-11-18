@@ -30,6 +30,7 @@ export class Session3D {
     this.acc = 0;
     this.pendingStun = null;
     this.pendingAim = null;
+    this.pendingItem = null;
     this.snapped = 0;
     /** Body acceleration, per second. Tunable live in the phase-2 graybox. */
     this.response = o.response ?? RESPONSE;
@@ -46,6 +47,8 @@ export class Session3D {
   /** Queue a trigger pull at an alien id; it resolves on the next tick. */
   /** @param {number[]|null} [aim]  game3d.js aimOf(): the line the shot travels */
   fire(targetId, aim = null) { this.pendingStun = targetId; this.pendingAim = aim; }
+  /** N6.1: use an item on the next tick; x, y the target cell (ignored by dampers). */
+  useItem(id, x = 0, y = 0) { this.pendingItem = { id, x, y }; }
 
   /**
    * @param {number} dt seconds since the last frame
@@ -79,11 +82,12 @@ export class Session3D {
   _tick(sprintHeld) {
     const g = this.game;
     const d = this.leash.decide(g, this.body, sprintHeld);
-    const row = { dir: d.dir, sprint: d.sprint, stunTarget: this.pendingStun, stunAim: this.pendingStun != null ? this.pendingAim : null, mapOpen: !!this.mapOpen };
+    const row = { dir: d.dir, sprint: d.sprint, stunTarget: this.pendingStun, stunAim: this.pendingStun != null ? this.pendingAim : null, mapOpen: !!this.mapOpen, item: this.pendingItem };
     this.pendingStun = null;
     this.pendingAim = null;
+    this.pendingItem = null;
     this.record.push(row);
-    g.step(row.dir, { sprint: row.sprint, stunTarget: row.stunTarget, stunAim: row.stunAim, mapOpen: row.mapOpen });
+    g.step(row.dir, { sprint: row.sprint, stunTarget: row.stunTarget, stunAim: row.stunAim, mapOpen: row.mapOpen, item: row.item });
     if (!g.over && !this.leash.prepare(g, this.body, sprintHeld)) this.snapped++;
     this.onTick?.(row, this);
   }

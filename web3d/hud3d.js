@@ -61,6 +61,10 @@ export class Hud3D {
     this.octx = this.overlay.getContext('2d');
 
     this.crosshair = el('div', 'h3-crosshair', root, '<i></i><b class="h3-lock"></b>');
+    // N6.1: the inventory wheel (hold Space) and what is in your hand
+    this.wheel = el('div', 'h3-wheel', root);
+    this.wheel.hidden = true;
+    this.inHand = el('div', 'h3-inhand', root);
     this.compass = el('div', 'h3-compass', root, '<div class="h3-compass-track"></div><div class="h3-compass-mark"></div>');
     this.compassTrack = this.compass.firstChild;
 
@@ -128,6 +132,42 @@ export class Hud3D {
   }
 
   /** Show or hide the Tab map. It opens centred on you, at the zoom it was left at. */
+  /**
+   * N6.1: open or close the inventory wheel. slots: [{ id, label, count, ok, note }],
+   * laid round the circle clockwise from the top; `current` is the one in hand.
+   */
+  showWheel(open, slots = [], current = null) {
+    this.wheel.hidden = !open;
+    if (!open) return;
+    const n = slots.length, R = 128;
+    this.wheel.innerHTML = '<div class="disc"></div><div class="info"></div><div class="ptr"></div>';
+    this.wheelSlots = slots.map((sl, i) => {
+      const a = -Math.PI / 2 + (i * 2 * Math.PI) / n;
+      const d = el('div', `slot${sl.ok ? '' : ' off'}${sl.id === current ? ' cur' : ''}`, this.wheel, `<b>${sl.label}</b><span>${sl.count}</span>`);
+      d.style.left = `${Math.cos(a) * R}px`;
+      d.style.top = `${Math.sin(a) * R}px`;
+      return d;
+    });
+    this.wheelInfo = this.wheel.querySelector('.info');
+    this.wheelPtr = this.wheel.querySelector('.ptr');
+    this.wheelData = slots;
+    this.setWheel(-1, 0, 0);
+  }
+
+  /** The highlighted slot (-1: none) and the pointer's offset from the middle, in px. */
+  setWheel(sel, x, y) {
+    if (!this.wheelSlots) return;
+    this.wheelSlots.forEach((d, i) => d.classList.toggle('sel', i === sel));
+    const sl = this.wheelData[sel];
+    this.wheelInfo.textContent = sl ? (sl.note || '') : 'Move the mouse towards an item, let go of Space to take it.';
+    this.wheelPtr.style.transform = `translate(${x * 0.55}px, ${y * 0.55}px)`;
+  }
+
+  /** The line under the crosshair: what you are holding and how many are left. */
+  setInHand(text) {
+    if (this.inHand.textContent !== text) this.inHand.textContent = text;
+  }
+
   showMap(on) {
     if (on && this.map.hidden) this.mapView.recentre = true;
     this.map.hidden = !on;

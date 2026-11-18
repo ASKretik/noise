@@ -8,6 +8,25 @@
 
 export const CHANGES = [
   {
+    build: 36,
+    date: '2026-11-18',
+    phase: 'N6.1',
+    changed: [
+      'Your inventory: hold Space and a wheel opens round the crosshair, with the stun gun at the top and your items round it. Move the mouse towards one (the view holds still while you choose) and let go of Space to take it in hand. Click uses it.',
+      'Noise maker (60 coins, carry 3, up to 3 a district): thrown at the ground under the crosshair, up to 8 cells. Any alien hunting you drops the chase and goes to search where it landed; patrols within 14 cells go to look. It rattles and pulses for 10 seconds. If they see you again, the hunt is back on.',
+      'Dampers (120 coins, carry 1, once a district): click to put them on. For the rest of the district they hear you at three quarters of the distance. The stun gun\'s reach does not change.',
+      'EMP (150 coins, carry 2, once a district): thrown up to 6 cells. Every awake alien within 3 cells of where it lands, with no wall in between, is stunned as if shot.',
+      'While an item is in hand, a ring on the ground shows where it would land: pale where it can, grey where it cannot, with the reason under the crosshair. Once an item is spent the gun comes back to hand. Buy them in the hub\'s shop; what a run does not use comes home with you.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R) the hub and buy one of each (or in dev mode you carry all of them, unlimited). In a district, hold Space, flick the mouse right for the noise maker, let go, aim at the ground across a street from a hunting alien, click.',
+      'Try the EMP on a group closing in, and dampers before crossing a busy avenue.',
+    ],
+    unverified: [
+      'Checked in the browser: the wheel on Space, picking each slot with the mouse, the view held still, each item used, the rings and effects. A new test (3D-17) checks each item against its rule and that runs with items replay exactly. Not checked: how strong the items are against real play (no bot uses them yet), and phones have no wheel.',
+    ],
+  },
+  {
     build: 35,
     date: '2026-11-18',
     phase: 'glow setting',

@@ -12,7 +12,8 @@ import { scoreRun } from '../sim/score.js';
 import { Dossier } from '../sim/predictor/dossier.js';
 import { DistrictRunner } from './runner.js';
 import { HabitFile } from '../sim3d/dispatch/habits.js';
-import { saveHabits3d } from './persist3d.js';
+import { saveHabits3d, returnItems3d } from './persist3d.js';
+import { itemsOf } from '../sim3d/shop3d.js';
 
 export class Career3D {
   /** @param {import('../sim/profile.js').ProfileStore} store  with the profile already loaded */
@@ -52,7 +53,7 @@ export class Career3D {
       habits: this.habits,
       chain: this.chains.get(n),
       difficulty: this.difficulty,
-      loadout: { stunGun: inv.stunGun, bullets: inv.bullets, boltSeconds: inv.boltSeconds },
+      loadout: { stunGun: inv.stunGun, bullets: inv.bullets, boltSeconds: inv.boltSeconds, items: itemsOf(inv) },
       seedKey: `${this.profile.id}#${n}#${this.profile.runs?.length ?? 0}#${this.attempt}`,
       tickHz,
       mode: this.mode,
@@ -85,6 +86,7 @@ export class Career3D {
       await this.store.addCoins(earned);
       await this.store.recordScore(runner.district, scored.score);
       await this.store.returnLoadout(summary.loadoutLeft);
+      if (runner.game.loadout.items) await returnItems3d(this.store, runner.game.loadout.items);
       if (summary.won) await this.store.unlockLevel(runner.district + 1);
     } catch (err) {
       console.warn('[career3d] persistence failed on run end:', err?.message);

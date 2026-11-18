@@ -20,6 +20,7 @@ import { Fx3D } from './fx3d.js';
 import { variantFor } from './sequences.js';
 import { Touch3D, isTouchDevice } from './touch3d.js';
 import { DistrictRunner } from './runner.js';
+import { ITEMS3D, ITEM3D_IDS, DECOY_TICKS, EMP_RADIUS } from '../sim3d/shop3d.js';
 import { HabitFile } from '../sim3d/dispatch/habits.js';
 import { installDevRun } from './dev3d.js'; // DEV-MODE
 import { mountBanner } from './banner.js';
@@ -113,6 +114,11 @@ export class Play3D {
     this.controls.on('pan', (dx, dy) => this.hud.panMap(dx, dy));
     this.controls.on('toggle', (what) => this.hud.toggleLayer(what));
     this.controls.on('fire', () => this.fire());
+    // N6.1: hold Space for the inventory wheel; the mouse picks, letting go takes it
+    this.active = 'gun';
+    this.itemFx = [];
+    this.controls.on('wheel', (open, cancel) => (open ? this.openWheel() : this.closeWheel(cancel)));
+    this.controls.on('wheelmove', (x, y) => this.wheelMove(x, y));
     $('ov-primary').addEventListener('click', () => this.primary());
     $('ov-secondary').addEventListener('click', () => { this.start(this.district); this.controls.lock(); });
     $('ov-killcam').addEventListener('click', () => this.playKillcam());
@@ -177,6 +183,10 @@ export class Play3D {
         habits: this.habits,
       });
     this.runner.session.response = this.tune.response;
+    // N6.1: a new district starts with the gun in hand and no effects left over
+    this.active = 'gun';
+    for (const fx of this.itemFx || []) this.view.scene.remove(fx.obj);
+    this.itemFx = [];
     this.dossier = this.runner.dossier;
     this.chains.set(n, this.runner.chain);
     this.runner.onEnd = (summary) => this.finish(summary);
@@ -216,13 +226,174 @@ export class Play3D {
    * ?kit=1 hands the graybox a full stun gun and ten seconds of lightning, for testing.
    */
   loadout() {
-    return this.kit ? { stunGun: true, bullets: 6, boltSeconds: 10 } : { stunGun: false, bullets: 0, boltSeconds: 0 };
+    return this.kit ? { stunGun: true, bullets: 6, boltSeconds: 10, items: { decoy: 3, dampers: 1, emp: 2 } } : { stunGun: false, bullets: 0, boltSeconds: 0 };
   }
 
   /** Left click. A locked shot always lands; without a lock the gun only clicks. */
+  // ---------------------------------------------------------------- items (N6.1)
+
+  /** What the wheel offers: the stun gun, then every item the rules know. */
+  wheelSlots() {
+    const g = this.runner.game;
+    const out = [{
+      id: 'gun', label: 'Stun gun', ok: !!g.loadout.stunGun,
+      count: g.loadout.stunGun ? `${g.loadout.bullets} charges` : 'not owned',
+      note: 'Click: stun the alien under the crosshair, if you can see it, within 72 m.',
+    }];
+    if (!g.canUseItem) return out;   // the classic ruleset has no items
+    for (const id of ITEM3D_IDS) {
+      const it = ITEMS3D[id], have = g.loadout.items[id] || 0;
+      const used = !g.itemCapOff && g.itemUses[id] >= it.perDistrict;
+      out.push({
+        id, label: it.label, count: `×${have}${used ? ' · used here' : ''}`,
+        ok: have > 0 && !used && !(id === 'dampers' && g.dampers),
+        note: id === 'dampers' ? 'Click: put them on. Heard at 3/4 the distance for the rest of the district.'
+          : id === 'decoy' ? `Click: throw it at the ground under the crosshair, up to ${it.range} cells. Hunters go there instead.`
+            : `Click: throw it, up to ${it.range} cells. Stuns every alien within ${EMP_RADIUS} cells of where it lands.`,
+      });
+    }
+    return out;
+  }
+
+  openWheel() {
+    if (this.paused || !this.runner || this.runner.game.over) return;
+    this.wheelData = this.wheelSlots();
+    this.wheelSel = -1;
+    this.hud.showWheel(true, this.wheelData, this.active);
+  }
+
+  wheelMove(x, y) {
+    if (!this.wheelData) return;
+    const n = this.wheelData.length;
+    let sel = -1;
+    if (Math.hypot(x, y) > 28) {
+      // the slot whose direction is nearest the pointer's (slot 0 at the top, clockwise)
+      const a = Math.atan2(y, x) + Math.PI / 2;
+      sel = ((Math.round((a / (2 * Math.PI)) * n) % n) + n) % n;
+    }
+    this.wheelSel = sel;
+    this.hud.setWheel(sel, x, y);
+  }
+
+  closeWheel(cancel) {
+    const sl = this.wheelData?.[this.wheelSel];
+    this.hud.showWheel(false);
+    this.wheelData = null;
+    if (!cancel && sl?.ok && sl.id !== this.active) { this.active = sl.id; this.audio.click(); }
+  }
+
+  /** Can the item in hand still be used? If not, the gun comes back to hand. */
+  checkInHand(g) {
+    if (this.active === 'gun') return;
+    const it = ITEMS3D[this.active];
+    const used = !g.itemCapOff && g.itemUses?.[this.active] >= it.perDistrict;
+    if (!g.canUseItem || !(g.loadout.items?.[this.active] > 0) || used || (this.active === 'dampers' && g.dampers)) this.active = 'gun';
+  }
+
+  /** The cell on the ground under the crosshair, and whether the item in hand could go there. */
+  aimItem(cam, g) {
+    if (this.active !== 'decoy' && this.active !== 'emp') return null;
+    const dir = new this.view.THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
+    if (dir.y > -0.02) return { ok: false, reason: 'aim at the ground' };
+    const k = -cam.position.y / dir.y;
+    const px = cam.position.x + dir.x * k, pz = cam.position.z + dir.z * k;
+    const x = Math.floor(px / CELL_M), y = Math.floor(pz / CELL_M);
+    return { x, y, ...g.canUseItem(this.active, x, y) };
+  }
+
+  /** Click with an item in hand: throw it, or put the dampers on. */
+  useInHand() {
+    const g = this.runner.game, id = this.active;
+    if (id === 'dampers') {
+      if (!g.canUseItem('dampers').ok) { this.audio.click(); return; }
+      this.runner.useItem('dampers');
+      this.audio.muffle?.();
+      this.active = 'gun';
+      return;
+    }
+    const t = this.itemTarget;
+    if (!t?.ok) { this.audio.click(); return; }
+    this.runner.useItem(id, t.x, t.y);
+    this.spawnItemFx(id, t.x, t.y);
+  }
+
+  /** What a thrown item looks like where it lands: a decoy blinking, an EMP's flash. */
+  spawnItemFx(id, x, y) {
+    const T = this.view.THREE, c = new T.Vector3((x + 0.5) * CELL_M, 0, (y + 0.5) * CELL_M);
+    const blue = new T.Color('#c8d8ff').multiplyScalar(2.4);
+    if (id === 'decoy') {
+      const g = new T.Group();
+      g.position.copy(c);
+      const body = new T.Mesh(new T.CylinderGeometry(0.09, 0.11, 0.14, 10), new T.MeshStandardMaterial({ color: 0x3a3e46, roughness: 0.5, metalness: 0.5 }));
+      body.position.y = 0.07;
+      const lamp = new T.Mesh(new T.SphereGeometry(0.04, 8, 6), new T.MeshBasicMaterial({ color: blue, toneMapped: false }));
+      lamp.position.y = 0.16;
+      const ring = new T.Mesh(new T.RingGeometry(0.85, 1, 40).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({ color: blue, transparent: true, opacity: 0.6, depthWrite: false, toneMapped: false }));
+      ring.position.y = 0.04;
+      g.add(body, lamp, ring);
+      this.view.scene.add(g);
+      this.audio.rattle?.();
+      this.itemFx.push({ obj: g, t: 0, dur: DECOY_TICKS / this.runner.session.tickHz, update(t) {
+        lamp.visible = (t * 3) % 1 < 0.5;
+        const k = (t * 1.4) % 1;
+        ring.scale.setScalar(0.3 + k * 3.2); ring.material.opacity = 0.6 * (1 - k);
+      } });
+    } else if (id === 'emp') {
+      const R = EMP_RADIUS * CELL_M;
+      const ball = new T.Mesh(new T.SphereGeometry(1, 24, 14), new T.MeshBasicMaterial({ color: blue, transparent: true, opacity: 0.5, blending: T.AdditiveBlending, depthWrite: false, toneMapped: false }));
+      ball.position.copy(c).setY(0.8);
+      this.view.scene.add(ball);
+      this.audio.zap();
+      this.itemFx.push({ obj: ball, t: 0, dur: 0.6, update(t) {
+        const k = Math.min(1, t / 0.35);
+        ball.scale.setScalar(0.2 + R * k);
+        ball.material.opacity = 0.55 * (1 - t / 0.6);
+      } });
+    }
+  }
+
+  /** Advance and retire the item effects. */
+  updateItemFx(dt) {
+    for (const fx of this.itemFx) { fx.t += dt; fx.update(fx.t); }
+    for (const fx of this.itemFx.filter((f) => f.t >= f.dur)) {
+      this.view.scene.remove(fx.obj);
+      fx.obj.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); });
+    }
+    this.itemFx = this.itemFx.filter((f) => f.t < f.dur);
+  }
+
+  /** The target ring on the ground for a throw: pale when it would land, grey when not. */
+  showItemTarget(t) {
+    const T = this.view.THREE;
+    if (!this.itemRing) {
+      this.itemRing = new T.Mesh(new T.RingGeometry(0.62, 0.72, 40).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false }));
+      this.itemBlast = new T.Mesh(new T.RingGeometry(0.97, 1, 64).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false, toneMapped: false }));
+      this.view.scene.add(this.itemRing, this.itemBlast);
+    }
+    const show = !!(t && t.x != null);
+    this.itemRing.visible = show;
+    this.itemBlast.visible = show && this.active === 'emp';
+    if (!show) return;
+    const col = t.ok ? '#dbe6ff' : '#5c616b';
+    this.itemRing.material.color.set(col);
+    this.itemBlast.material.color.set(col);
+    this.itemRing.position.set((t.x + 0.5) * CELL_M, 0.06, (t.y + 0.5) * CELL_M);
+    this.itemBlast.position.copy(this.itemRing.position);
+    this.itemBlast.scale.setScalar(EMP_RADIUS * CELL_M);
+  }
+
+  inHandText(g) {
+    if (this.active === 'gun') return g.canUseItem ? `${g.dampers ? 'Dampers on · ' : ''}Space: inventory` : '';
+    const it = ITEMS3D[this.active], have = g.loadout.items[this.active];
+    const why = this.itemTarget && !this.itemTarget.ok && this.itemTarget.reason ? ` · ${this.itemTarget.reason}` : '';
+    return `${it.label} ×${have} · click to ${this.active === 'dampers' ? 'put them on' : 'throw'}${why}`;
+  }
+
   fire() {
     const g = this.runner.game;
-    if (this.paused || g.over || !g.loadout.stunGun) return;
+    if (this.paused || g.over) return;
+    if (this.active !== 'gun') { this.useInHand(); return; }
+    if (!g.loadout.stunGun) return;
     const lock = this.lock;
     if (lock?.ok) {
       this.runner.fire(lock.id, lock.aim);
@@ -668,13 +839,19 @@ export class Play3D {
     document.body.classList.toggle('g3-in-box', inBox);
 
     cam.updateMatrixWorld();
-    this.lock = !this.paused && !g.over ? this.gun.aim(cam, this.entities, g, this.touch ? 0.14 : 0) : null;
+    this.checkInHand(g);
+    this.lock = !this.paused && !g.over && this.active === 'gun' ? this.gun.aim(cam, this.entities, g, this.touch ? 0.14 : 0) : null;
+    this.itemTarget = !g.over ? this.aimItem(cam, g) : null;
+    this.showItemTarget(this.itemTarget);
+    this.updateItemFx(dt);
+    this.hud.setInHand(this.inHandText(g));
     if (this.touch) {
       // RUN latches, but the sim refuses sprint on an empty charge: keep the latch honest.
       if (this.touch.run && g.sprintTicks <= 0) this.touch.run = false;
       this.touch.setState({ running: g.sprinting, charges: g.loadout.bullets, gun: g.loadout.stunGun, locked: this.lock?.ok });
     }
     this.gun.update(dt, cam, g, { yaw: this.controls.yaw, pitch: this.controls.pitch, bob: bobY, reduceMotion: calm });
+    if (this.active !== 'gun') this.gun.model.visible = false;   // an item in hand, not the gun
     this.hud.update({
       game: g, level: r.level, body: b, camera: cam, yaw: this.controls.yaw,
       tickHz: r.session.tickHz, cellM, prediction: r.prediction, entities: this.entities,
