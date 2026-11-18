@@ -16,6 +16,10 @@ built; N8.5 next** · follows 3D build 26
    order, not the numbering**. The numbers are kept so links and `decisions.md` rounds
    stay valid. Big maps (N8) move to the front because the art, the story, the objectives
    and the floors are all laid out on the map, so its size and shape are settled first.
+   After N8 the user's order (decisions.md R59): art (N4), items (N6), floors (N9),
+   objectives (N7), and the story (N5) last. The art comes before floors, which then patch
+   it for stairs, slabs and interiors. Objectives follow floors so they are built on them
+   once, and the story is written against the finished game.
 2. Every phase follows the 3D working loop in `CLAUDE.md`: a `web3d/changes3d.js` entry,
    `npm run stamp3d` (never `npm run stamp`), `npm test`, `npm run webcheck`,
    `npm run test3d -- --skip-2d`, stage named files, push, watch the deploy.
@@ -39,15 +43,15 @@ built; N8.5 next** · follows 3D build 26
 | **N8.5** | Behaviour-first Dispatch: new traits, tactics, bots, 3D constants | 5–7 days | High | **next** |
 | N4.1 | Art: sky, lighting and weather, and the first three belts (RUST, TIDE, MOSS) | ~3 days | Medium | not started |
 | N4.2 | Art: the other seven belts, a centrepiece per landmark, ruined facades, bloom and colour grade | 5–6 days | Medium | not started |
-| N5.1 | Story system: briefings, debriefs from your dossier, transcripts placed in named places, the story save | 3–5 days | Medium | not started |
-| N5.2 | Story writing: ten chapters, about 30 transcripts, the three endings | 3–5 days | Medium | not started |
 | N6.1 | Items: the 3D inventory, noise maker, dampers, EMP (the rules layer itself is built in N8.1) | 3–4 days | Medium | not started |
 | N6.2 | Items: portable black box, intel chip, noise generator; balance measured | 3–5 days | Medium | not started |
-| N7.1 | Objectives, no new rules: sabotage (relays), silent run, stay noise | 2–4 days | Medium | not started |
-| N7.2 | Objectives with new rules (optional): hold to sabotage, sealed portal, rescue | 2–4 days | Medium | not started |
-| N9.1 | Floors prototype: enterable two-floor buildings in belt 4; stairs for you, vents for them | ~1½ weeks | High | not started |
+| N9.1 | Floors prototype: enterable two-floor buildings in belt 4; stairs for you, vents for them; the N4 art and N6 items patched for floors here | ~1½ weeks (+1–2 days of patching) | High | not started |
 | N9.2 | Floors everywhere: three floors from belt 8, belts 4–10 | 2–3½ weeks | High | not started |
-| | **Total remaining** | **~11–16 weeks** | | |
+| N7.1 | Objectives, no new rules: sabotage (relays), silent run, stay noise; built on floors, with its own per-district objective table until N5 | 2–4 days | Medium | not started |
+| N7.2 | Objectives with new rules (optional): hold to sabotage, sealed portal, rescue | 2–4 days | Medium | not started |
+| N5.1 | Story system: briefings, debriefs from your dossier, transcripts placed in named places, the story save; last, so it is written against the finished game | 3–5 days | Medium | not started |
+| N5.2 | Story writing: ten chapters, about 30 transcripts, the three endings | 3–5 days | Medium | not started |
+| | **Total remaining** | **~10–15 weeks** | | |
 
 Estimates are focused working days for one developer. With Claude implementing, the
 coding compresses a great deal (the first round, phases 0–9, took about one long
@@ -296,6 +300,10 @@ weather and bloom together; measure.
 
 ## N5 · Story frame
 
+> **Order (R59):** last in the round, so the briefings, transcripts and endings are
+> written against the finished game: the places, the art's landmarks, the items, the
+> floors, the objectives and the Dispatch's learned habits.
+
 No rule changes in this phase: briefings, debriefs, collectible transcripts and the
 chapter structure. Objective variety is N7.
 
@@ -415,6 +423,11 @@ rules layer, 6–9 days for the six items. **Difficulty:** medium.
 ---
 
 ## N7 · Objective variety
+
+> **Order (R59):** N7 now comes after floors (N9) and before the story (N5). So it is
+> built across floors from the start, and until N5 exists, each district's objective
+> comes from N7's own table (`web3d/objectives3d.js`). N5 later moves that table into
+> the chapter data.
 
 Each district's objective comes from the chapter data. Objectives that change how a
 district is won are expressed as **caches underneath** wherever possible, so the

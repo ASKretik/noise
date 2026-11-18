@@ -2616,6 +2616,34 @@ of the module found it before any browser did.
 fresh guest save redirected to the hub first. The refusal is the first condition in
 `installDevRun`.
 
+---
+
+## R59 · The order after N8: art, items, floors, objectives, story last
+
+**Asked:** whether the story (N5) should be left to last, then whether floors (N9) should
+come before objectives (N7), and finally: "we can include floors later, and also patch
+the art also later, it is art first. so lets go with A."
+
+**Decided (the user's call):** N8.5 → N4 → N6 → N9 → N7 → N5.
+
+- **Story last.** It is written against the finished game: places, landmarks, items,
+  floors, objectives and the habits the Dispatch quotes. Written earlier, it would be
+  rewritten as those change.
+- **Floors before objectives.** A rescued courier has to use stairs, and relays are spread
+  across floors. Objectives built on floors are built once.
+- **Art before floors, by preference.** The alternative, floors before art, was offered
+  as more consistent with "structure first". The user chose to see the art sooner and
+  patch it for floors later.
+
+**Knock-on, written into the spec:**
+
+- N9.1 carries 1–2 extra days to patch the N4 art (stairs, slabs, interiors) and the N6
+  items (sound between floors).
+- Until N5 exists, N7 takes each district's objective from its own table
+  (`web3d/objectives3d.js`).
+
+The total remaining is about 10–15 weeks.
+
 ## Current state
 
 ```
