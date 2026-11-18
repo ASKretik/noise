@@ -761,12 +761,16 @@ export class AlienKit {
 
   /** Which posed alien (by its order this frame) a ray hits, or -1. */
   pick(raycaster) {
+    const hits = this.pickAll(raycaster);
+    return hits.length ? hits[0].slot : -1;
+  }
+
+  /** Every body hit along the ray, nearest first: [{ slot, point, distance }]. */
+  pickAll(raycaster) {
     const meshes = [this.m.cranium, this.m.torso, this.m.bone, this.m.joint];
     for (const mesh of meshes) mesh.computeBoundingSphere();
-    const hits = raycaster.intersectObjects(meshes, false);
-    if (!hits.length) return -1;
-    const h = hits[0];
-    return Math.floor(h.instanceId / h.object.userData.per);
+    return raycaster.intersectObjects(meshes, false)
+      .map((h) => ({ slot: Math.floor(h.instanceId / h.object.userData.per), point: h.point, distance: h.distance }));
   }
 }
 

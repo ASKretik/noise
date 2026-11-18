@@ -56,7 +56,8 @@ sim3d/      pure, Node-runnable, imports only sim/ and sim3d/
   units.js      CELL_M 1.5, TICK_HZ_3D 4, conversions (realSeconds, simSecondsToReal)
   body.js       continuous body: circle (r 0.2 cell) sliding against blocked tiles
   leash.js      continuous body -> four-direction sim input
-  raycast.js    Amanatides-Woo grid march; lineOfSight for the stun gun
+  raycast.js    Amanatides-Woo grid march; lineOfSight, and shotClear (with heights) for the stun gun
+  solid.js      what stops a shot and how tall: walls, and each rubble heap's seeded height
   game3d.js     class Game3D extends Game -- overrides step() and fireStun() only
   record.js     per-tick input record { dir, sprint, stunTarget } and replay()
   session.js    one district in real time: body every frame, sim every 1/TICK_HZ_3D s
@@ -168,17 +169,31 @@ system's `prefers-reduced-motion`.
 | | 2D | 3D |
 |---|---|---|
 | Targets | Every alien whose range contains you | **The one under the crosshair** |
-| Range | Your effective radius | Its detection radius (unhalved) |
-| Line of sight | Not needed | **Required**: walls and rubble block, water does not |
+| Range | Your effective radius | **72 m** (`STUN_RANGE_M`), about as far as the fog lets you make one out (until build 30: its detection radius, 7–8.4 m) |
+| Line of sight | Not needed | **What you see**: the line from your eye to the point the crosshair is on clears every wall and every rubble heap's top; water and black boxes do not block |
 | No valid target | Nothing spent | Nothing spent — a dry click |
 
-The crosshair shows red brackets only when `Game3D.canStun()` would accept the shot, and
-a locked shot always lands, so six charges are still six stuns. The renderer picks an
-alien body; the sim re-validates. A shot exactly through the corner where two blocks meet
-touches both and is blocked if either is solid. The trigger pull enters the sim on the
-next tick (up to 250 ms), so replays stay exact; the beam and the sound are immediate.
+The renderer finds every alien body along the crosshair ray and takes the nearest one you
+can see. It sends the shot's **aim** with it: the eye and the struck point, in 1/32 of a
+cell and of a metre (`aimOf`). The sim re-checks that exact line with `shotClear`
+(`raycast.js`), against the same heights the renderer draws (`solid.js`: walls 3.2 m, a
+rubble heap as tall as its biggest block, from the same seeded draw). An aim is refused
+if its eye is more than 5 cells from your cell (the leash lets the body lead by 3) or
+inside a wall, or its point is more than 2.5 cells from the alien's cell. A shot without
+an aim (headless runs) flies from your cell's centre at eye height to the alien's centre
+at 1.2 m.
 
-On touch only, a 0.14 rad cone locks the valid alien nearest the centre of the screen.
+The crosshair shows red brackets only when `Game3D.canStun()` would accept the shot. A
+locked shot always lands, so six charges are still six stuns. Grey brackets mean visible
+but not shootable: stunned already, out of charges, or 72–82 m away. An alien you cannot
+see gets no bracket, so the crosshair cannot find aliens through walls (before build 30
+it did). A shot exactly through the corner where two blocks meet touches both. The
+trigger pull enters the sim on the next tick (up to 250 ms), with its aim in the input
+record, so replays stay exact; the beam (to the struck point) and the sound are immediate.
+A pull before your first move does nothing: the opening freeze holds everything.
+
+On touch only, a 0.14 rad cone locks the visible, shootable alien nearest the centre of
+the screen, aimed at its mid-body.
 
 ## The world
 
@@ -610,8 +625,8 @@ alongside: `npm test` 12/1/0, `npm run webcheck` green).
 | 3D-3 | Parity: leash-driven `Game3D` reproduces 54 recorded 2D runs bit for bit | PASS |
 | 3D-4 | Determinism: same seed and controls → same run; the input record replays it | PASS |
 | 3D-5 | Leash invariants over 10,000 random control sequences (~494k frames), slack 2 / 3 | PASS |
-| 3D-6 | Aimed stun matches an independent reference on 4,000 trigger pulls | PASS |
-| 3D-7 | Ray march = exhaustive segment–cell test (10,000 random + centre-to-centre rays) | PASS |
+| 3D-6 | Aimed stun matches an independent height-aware reference on 6,000 trigger pulls (half with an aim, some off target); reach 47 cells yes, 49 no on a district-100 street | PASS |
+| 3D-7 | Ray march = exhaustive segment–cell test (10,000 random + centre-to-centre rays); `shotClear` = reference on 10,000 rays with heights | PASS |
 | 3D-8 | Save isolation, both sweeps run against each other, guest leaves MAIN byte-identical | PASS |
 | 3D-9 | Headless career: win, score, payout, dossier, unlock, purchase, kit carried on | PASS |
 | 3D-10 | Nothing optional or off-site loads; templated dispatch narrates live 3D state | PASS |

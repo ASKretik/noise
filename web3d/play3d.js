@@ -222,9 +222,9 @@ export class Play3D {
     if (this.paused || g.over || !g.loadout.stunGun) return;
     const lock = this.lock;
     if (lock?.ok) {
-      this.runner.fire(lock.id);
+      this.runner.fire(lock.id, lock.aim);
       this.view.camera.updateMatrixWorld();
-      this.gun.fired(this.view.scene, this.gun.muzzleWorld(this.view.camera), this.entities.alienPosition(lock.id));
+      this.gun.fired(this.view.scene, this.gun.muzzleWorld(this.view.camera), lock.point || this.entities.alienPosition(lock.id));
       this.audio.zap();
     } else {
       this.gun.dry();

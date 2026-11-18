@@ -8,10 +8,17 @@
 // Since N8.5 a row also says whether the Tab map was open: the `next` rules act on it
 // (standing still over the map draws the aliens in). It is hashed only when true, so a
 // record that never opened the map -- every classic run -- hashes exactly as before.
+//
+// Since 3D build 30 a shot also carries its aim (game3d.js aimOf: the line from your eye
+// to the point on the alien the crosshair was on), hashed only when present.
 
 export class InputRecord {
   constructor() { this.rows = []; }
-  push(row) { this.rows.push({ dir: row.dir, sprint: !!row.sprint, stunTarget: row.stunTarget ?? null, mapOpen: !!row.mapOpen }); }
+  push(row) {
+    const stunTarget = row.stunTarget ?? null;
+    const stunAim = stunTarget != null && row.stunAim ? row.stunAim.slice() : null;
+    this.rows.push({ dir: row.dir, sprint: !!row.sprint, stunTarget, stunAim, mapOpen: !!row.mapOpen });
+  }
   get length() { return this.rows.length; }
 
   /** FNV-1a over the rows. */
@@ -21,7 +28,11 @@ export class InputRecord {
       const v = (n | 0) >>> 0;
       for (let b = 0; b < 4; b++) { h ^= (v >>> (b * 8)) & 0xff; h = Math.imul(h, 0x01000193); }
     };
-    for (const r of this.rows) { mix(r.dir); mix(r.sprint ? 1 : 0); mix(r.stunTarget ?? -1); if (r.mapOpen) mix(0x6d6170); }
+    for (const r of this.rows) {
+      mix(r.dir); mix(r.sprint ? 1 : 0); mix(r.stunTarget ?? -1);
+      if (r.stunAim) { mix(0x61696d); for (const v of r.stunAim) mix(v); }
+      if (r.mapOpen) mix(0x6d6170);
+    }
     return (h >>> 0).toString(16).padStart(8, '0');
   }
 }
@@ -30,7 +41,7 @@ export class InputRecord {
 export function replay(game, rows) {
   for (const r of rows) {
     if (game.over) break;
-    game.step(r.dir, { sprint: r.sprint, stunTarget: r.stunTarget, mapOpen: !!r.mapOpen });
+    game.step(r.dir, { sprint: r.sprint, stunTarget: r.stunTarget, stunAim: r.stunAim ?? null, mapOpen: !!r.mapOpen });
   }
   return game;
 }

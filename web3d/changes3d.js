@@ -8,6 +8,25 @@
 
 export const CHANGES = [
   {
+    build: 30,
+    date: '2026-11-18',
+    phase: 'stun gun',
+    changed: [
+      'The stun gun now hits whatever you can see. If the crosshair is on an alien\'s body and nothing stands between your eye and that spot, the bracket goes red and the shot lands.',
+      'Range went from about 7-8 m (the alien\'s own detection radius) to 72 m, about as far as the fog lets you make one out. Between 72 m and 82 m the bracket goes grey: you can see it, but it is too far.',
+      'Rubble no longer blocks a shot you can see past: aim at a head above a low heap and it lands; aim at the legs behind it and it does not. Walls still block everything.',
+      'An alien hidden behind a wall no longer shows a bracket when the crosshair passes over where it is, so the crosshair cannot be used to find aliens through walls.',
+      'The beam now ends at the exact spot you hit. The shot\'s aim is saved with the run, so replays still match exactly.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R). Find a long street and shoot an alien at the far end; then try one with only its head showing over a rubble heap.',
+    ],
+    unverified: [
+      'This makes the gun much stronger: you can now stun an alien long before it reaches you. If the game gets too easy, the range is one number (STUN_RANGE_M in sim3d/units.js), or charges could cost more.',
+      'Checked in the browser: locks at 15-70 m down a street, a grey bracket at 75 m, nothing at 90 m, a head over a 1.3 m heap but not its legs, no bracket behind a wall, a real 54 m shot through the game loop, touch aim-assist. Not played with a mouse by a person.',
+    ],
+  },
+  {
     build: 29,
     date: '2026-11-18',
     phase: 'N4.1',

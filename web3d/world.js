@@ -16,7 +16,8 @@ import * as THREE from 'three';
 import { TILE } from '../sim/grid.js';
 import { Rng, hashString } from '../sim/prng.js';
 import { themeFor } from '../web/themes.js';
-import { WALL_M } from '../sim3d/units.js';
+import { WALL_M, RUBBLE_MIN_M, RUBBLE_MAX_M } from '../sim3d/units.js';
+import { worldSeed, rubbleRng, rubblePeak } from '../sim3d/solid.js';
 import { artFor, depthOf, beltOf } from './art/belts.js';
 import { surfaceTextures } from './art/textures.js';
 import { buildProps } from './art/props.js';
@@ -231,8 +232,8 @@ function scanTexture() {
 
 // ------------------------------------------------------------------ the world
 
-export const RUBBLE_MIN_M = 1.2;
-export const RUBBLE_MAX_M = 2.2;
+// the heap heights live in sim3d (units.js, solid.js): the stun gun shoots over them
+export { RUBBLE_MIN_M, RUBBLE_MAX_M };
 
 /**
  * @param {object} level   generated level
@@ -243,7 +244,7 @@ export const RUBBLE_MAX_M = 2.2;
 export function buildWorld(level, { cellM, shadows = false }) {
   const { map } = level;
   const pal = palette3d(level.level);
-  const seed = hashString(`world:${level.seed ?? level.level}`);
+  const seed = worldSeed(level);
   // N4: the belt's art direction (art/belts.js), or one derived from its 2D palette
   const art = artFor(level.level) || fallbackArt(level.level, pal);
   pal.art = art;
@@ -328,8 +329,9 @@ export function buildWorld(level, { cellM, shadows = false }) {
   const rubbleCells = cellsOf(TILE.BUILDING);
   const blocks = [];
   for (const [x, y] of rubbleCells) {
-    const r = cellRng(x, y, 'rubble');
-    const peak = RUBBLE_MIN_M + r.float() * (RUBBLE_MAX_M - RUBBLE_MIN_M);
+    // the same Rng and first draw as solid.js, so the heap is as tall as the sim thinks
+    const r = rubbleRng(seed, x, y);
+    const peak = rubblePeak(r);
     const n = 5 + r.int(4);
     for (let k = 0; k < n; k++) {
       const big = k === 0;

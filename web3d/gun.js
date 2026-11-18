@@ -1,9 +1,11 @@
 // web3d/gun.js -- the stun gun viewmodel, lock-on and shot effects. Browser only.
 //
-// The renderer PROPOSES a target -- whatever alien body is under the crosshair -- and the
-// sim DISPOSES: Game3D.canStun() re-checks range, whether it is awake, and a clear line
-// through the tile grid. The crosshair only shows a lock when the sim would accept the
-// shot, and a locked shot always lands, so the skill is acquiring the lock.
+// The renderer PROPOSES a target -- the alien body under the crosshair, and the exact
+// point on it -- and the sim DISPOSES: Game3D.canStun(id, aim) checks that the line from
+// your eye to that point clears every wall and rubble heap (what you see), that the alien
+// is awake, and that it is within 72 m. The crosshair only shows a lock when the sim would
+// accept the shot, the aim travels with the shot, and a locked shot always lands, so the
+// skill is acquiring the lock. An alien you cannot see gets no bracket at all.
 //
 // The viewmodel is drawn in its own pass after the world with the depth buffer cleared,
 // so it never clips into a wall you are standing against. Built from primitives; the six
@@ -11,6 +13,11 @@
 
 import * as THREE from 'three';
 import { STUN_GUN_CAPACITY } from '../sim/shop.js';
+import { aimOf, STUN_REASON } from '../sim3d/game3d.js';
+import { STUN_RANGE_M } from '../sim3d/units.js';
+
+// reasons that mean the crosshair is not really on a visible alien: no bracket for those
+const UNSEEN = new Set([STUN_REASON.BLOCKED, STUN_REASON.OFF_TARGET, STUN_REASON.NO_TARGET]);
 
 const CELL_ON = new THREE.Color(0x9fd8ff);
 const CELL_OFF = new THREE.Color(0x1a2230);
@@ -56,7 +63,8 @@ export class StunGun {
     this.visible = false;
     this.beams = [];
     this.raycaster = new THREE.Raycaster();
-    this.raycaster.far = 60;
+    // a little past the reach, so a visible alien just too far shows the grey bracket
+    this.raycaster.far = STUN_RANGE_M + 10;
   }
 
   /** Lock-on: what is under the crosshair, and would the sim accept a shot at it? */
@@ -67,10 +75,16 @@ export class StunGun {
   aim(mainCamera, entities, game, assist = 0) {
     if (!game.loadout.stunGun) return null;
     this.raycaster.setFromCamera(new THREE.Vector2(0, 0), mainCamera);
-    let id = entities.pick(this.raycaster);
-    if (id != null) {
-      const check = game.canStun(id);
-      if (check.ok || !assist) return { id, ok: check.ok, reason: check.reason };
+    const eye = mainCamera.position, cellM = entities.cellM;
+    // every alien body along the crosshair ray, nearest first: the first one you can see
+    let unseen = null;
+    for (const hit of entities.pickAll(this.raycaster)) {
+      const aim = aimOf(eye, hit.point, cellM);
+      const check = game.canStun(hit.id, aim);
+      if (check.ok) return { id: hit.id, ok: true, reason: null, aim, point: hit.point };
+      if (UNSEEN.has(check.reason)) { unseen = unseen ?? hit.id; continue; }
+      if (!assist) return { id: hit.id, ok: false, reason: check.reason, point: hit.point };
+      break;
     }
     if (assist > 0) {
       const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(mainCamera.quaternion);
@@ -78,14 +92,14 @@ export class StunGun {
       for (const p of game.patrols) {
         const pos = entities.alienPosition(p.id);
         if (!pos) continue;
-        const a = fwd.angleTo(pos.sub(mainCamera.position));
-        if (a < bestA && game.canStun(p.id).ok) { bestA = a; best = p.id; }
+        const a = fwd.angleTo(pos.clone().sub(eye));
+        if (a >= bestA) continue;
+        const aim = aimOf(eye, pos, cellM);
+        if (game.canStun(p.id, aim).ok) { bestA = a; best = { id: p.id, ok: true, reason: null, aim, point: pos, assisted: true }; }
       }
-      if (best != null) return { id: best, ok: true, reason: null, assisted: true };
+      if (best) return best;
     }
-    if (id == null) return { id: null, ok: false, reason: null };
-    const check = game.canStun(id);
-    return { id, ok: check.ok, reason: check.reason };
+    return { id: null, ok: false, reason: unseen != null ? STUN_REASON.BLOCKED : null };
   }
 
   fired(mainScene, from, to) {

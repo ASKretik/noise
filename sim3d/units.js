@@ -21,6 +21,22 @@ export const WALL_M = 3.2;
 export const EYE_M = 1.65;
 export const BODY_RADIUS_M = 0.3;
 
+/**
+ * A rubble heap is as tall as its biggest block: between these, seeded per cell
+ * (sim3d/solid.js). The renderer draws it and the stun gun shoots over it, so both read
+ * the same number.
+ */
+export const RUBBLE_MIN_M = 1.2;
+export const RUBBLE_MAX_M = 2.2;
+
+/**
+ * How far the stun gun reaches: as far as you can make out an alien. The fog
+ * (web3d/world.js) is clear to 26 m and solid at 90 m; at 72 m about a quarter of an
+ * alien's contrast is left, a dim figure you can still put the crosshair on. Before
+ * build 30 the reach was the alien's detection radius, 4.6-5.6 cells (7-8.4 m).
+ */
+export const STUN_RANGE_M = 72;
+
 export const metres = (cells) => cells * CELL_M;
 export const cells = (m) => m / CELL_M;
 

@@ -2795,11 +2795,86 @@ colour grade.
 - not measured on a weaker laptop (rain is the heaviest weather);
 - how the colours, the weather amounts and the prop densities feel is the user's call.
 
+## R62 · The stun gun shoots what you can see (3D build 30)
+
+**Asked:** "what is the shooting range of the gun? can you make it such that if one can
+see the alien, and if the crosshair is inside their body, then one can shoot them?" And
+on the art: "how about some wall art? or would it be better if they are added after the
+story?"
+
+**The range was 4.6–5.6 cells, 7–8.4 m:** the alien's own detection radius, carried
+over from the 2D rule in phase 4. On a city map you could watch an alien 40 m down an
+avenue with the crosshair on it and get a grey bracket.
+
+**What "can see" means now.** Two things changed.
+
+- **Reach is 72 m (`STUN_RANGE_M`).** Measured in the browser down an 84-cell street in
+  RUST at district 5: an alien is a clear figure at 30 m, a small one at 45 m, a dim
+  speck at 60–72 m, and gone into the fog by about 85 m. With linear fog from 26 m to 90 m,
+  72 m leaves about a quarter of its contrast.
+- **The line is the one you look along.** It runs from your eye to the point on the
+  body the crosshair is on, with heights. The old line ran flat, from cell centre to
+  cell centre, and treated a rubble heap (1.2–2.2 m) as a wall. Now a head showing over
+  a 1.3 m heap can be shot, and the legs behind it cannot.
+
+**Built:**
+
+- `sim3d/solid.js` gives every cell's solid height: walls 3.2 m; rubble from the seeded
+  draw `world.js` was already making, now shared, so the drawn heap and the sim agree.
+- `raycast.js shotClear` is the grid march with each cell's span of the line checked
+  against its top.
+- `Game3D.canStun(id, aim)`. The page sends the aim with the shot (six integers in
+  1/32 units), and it goes into the input record, hashed only when present. The sim
+  re-checks the same line against the real positions: the eye within 5 cells of your
+  cell and not inside a wall, the struck point within 2.5 cells of the alien's.
+- The renderer walks every body along the ray and takes the nearest one you can see.
+- **Also fixed: the crosshair could find aliens through walls.** Picking ignored walls,
+  so it put a grey bracket on any alien behind one. Hidden aliens now get no bracket.
+
+**Checked in the browser:**
+
+- locks at 15, 60 and 70.5 m;
+- a grey bracket at 75 m;
+- nothing at 90 m;
+- a head over a 1.31 m heap but not its legs;
+- no bracket behind a wall;
+- touch aim-assist;
+- a real trigger pull through the game loop at 54 m: one charge spent, alien stunned,
+  beam drawn to the struck point.
+
+**Tests:**
+
+- 3D-6 now checks 6,000 trigger pulls against an independent height-aware reference.
+  Half carry aims, some deliberately off target. 11 of the hits were over rubble the
+  flat test calls blocked. It also checks reach on a district-100 street: 47 cells yes,
+  49 no.
+- 3D-7 compares `shotClear` with the reference on 10,000 rays with heights.
+- 3D-4's runs now fire aimed shots and still replay exactly.
+
+**Not changed:** a trigger pull before your first move still does nothing (the opening
+freeze holds the whole world).
+
+**Not verified:** balance. The gun is much stronger: an alien can be stunned long before
+it is close. The reach is one constant. Not played with a mouse by a person.
+
+**Wall art: both, in two layers** (recommended; added to spec-3d-next.md):
+
+- **N4.2 builds a decal layer** on street-facing wall faces, placed like the props and
+  drawn into a per-belt canvas atlas. It fills the layer with art that needs no story:
+  faded pre-invasion posters, graffiti tags and stencils, warning and street signs,
+  peeling paint.
+- **N5 adds wall art that tells the story** to the same layer, as data: survivor
+  messages, tally marks, the courier sign leading to a transcript, occupation
+  propaganda, murals at named places.
+
+Waiting for the story would leave the walls bare for three phases. Doing it all now
+would mean writing story content before the story exists.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    26 passed · 0 not demonstrated · 0 failed  (3D build 29; 3D-1 via the
+npm run test3d    26 passed · 0 not demonstrated · 0 failed  (3D build 30; 3D-1 via the
                   2D suites above, run alongside)
 ```

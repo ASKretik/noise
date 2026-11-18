@@ -1,7 +1,7 @@
 # NOISE 3D — the next round
 
 Written Nov 18, 2026, revised the same day after N3 · **status: N0–N3, N8 and N4.1
-built; N4.2 next** · follows 3D build 29
+built; N4.2 next** · follows 3D build 30 (build 30: the stun gun shoots what you can see)
 
 > A spec to pick up one phase at a time, whenever there is time. It describes what each
 > phase builds, the numbers it uses, the files it touches, how it is checked and what it
@@ -270,6 +270,12 @@ gets its own centrepiece rather than one per district.
 - **Signs** with the district number, drawn into canvas textures.
 - **Building tiles become ruined facades:** window grids, some windows lit (emissive),
   some broken.
+- **Wall art (added after N4.1, R62):** a decal layer on street-facing wall faces, placed
+  like the props (seeded, never on a walkable cell), drawn into a canvas atlas per belt.
+  N4.2 fills it with what needs no story: faded pre-invasion posters and adverts, graffiti
+  tags and stencils, warning and street signs, peeling paint, more of it deeper into a
+  belt. The decals are data (atlas tile, size, which walls), so N5 can add its own
+  without new code.
 
 **Techniques.** Canvas-generated albedo plus a normal map derived from a height canvas
 (Sobel filter); instanced props; an instanced-points particle system with a small shader
@@ -323,6 +329,11 @@ Differences from the plan:
 
 No rule changes in this phase: briefings, debriefs, collectible transcripts and the
 chapter structure. Objective variety is N7.
+
+**Wall art that tells the story** goes on N4.2's decal layer (R62): survivor messages
+and tally marks, Static's courier sign marking the way to a transcript, the occupation's
+propaganda, and murals at named places that point at what happened there. It is written
+with the story, so it lands here and not in N4.2.
 
 **Premise.** The aliens took the city and hunt by sound. Their predictive intelligence,
 the **Dispatch** (the narrator the game already has), is the antagonist, and it speaks to

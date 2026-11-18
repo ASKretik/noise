@@ -380,6 +380,16 @@ export class Entities {
     return slot < 0 ? null : this.slotIds[slot] ?? null;
   }
 
+  /** Every alien body the ray passes through, nearest first: [{ id, point }], one per alien. */
+  pickAll(raycaster) {
+    const out = [];
+    for (const h of this.kit.pickAll(raycaster)) {
+      const id = this.slotIds[h.slot];
+      if (id != null && !out.some((o) => o.id === id)) out.push({ id, point: h.point });
+    }
+    return out;
+  }
+
   /** Awake aliens as circles in cell units, for the body to collide with. */
   solids() {
     const out = [];
