@@ -364,157 +364,6 @@ optimises. The shipped 5-coupling table is genuinely the better choice.
 
 My recommendation is **1**, with the finding written up.
 
----
-
-## R47 · N3 again: the scare was being skipped, and was not scary
-
-**Asked** (with a second recording, also unreadable here): "still, look at this, it does
-not work, make the jumpscene extremely photogenic and very very scary (your levels of
-scariness is extremely extremely low). also, the jaws opening up and gruesome scene is not
-even showing up when caught like in the video i attached."
-
-**Why the jaw never showed: you were skipping it without knowing.** "Any key skips" (R45)
-meant any keydown -- and a movement key held down auto-repeats about 30 times a second.
-You are almost always holding W when you are caught, so the first repeat, a few
-milliseconds into the sequence, skipped straight to the end card. Every frame I had
-checked was real; you never got to see one. **Fixed:** only a fresh press (not a repeat)
-of Space, Enter or Escape, or a click, skips; and a sequence now has a `skipAfter` floor
-(jumpscare 1.0 s, ascension 0.8 s) before which nothing skips it. 3D-15 now fails any
-full or mild sequence with a floor under 0.5 s. Checked in the browser: eight W repeats
-and a repeated Space at 0 s did nothing; Space at 0.9 s did nothing; Space at 1.05 s
-skipped.
-
-**Why it was not scary.** It was a cutscene: the camera turned, the alien walked in, the
-mouth opened 0.5 s later, in a bright, evenly lit street. A jumpscare is the opposite --
-no wind-up. **Now (2.2 s):** on the frame you are caught it is already there, 0.7 m in
-front of wherever you were looking, and pushes in to 0.54 m; in that same frame the
-district goes dark (lights to 6%, fog to a red-black wall 5.5 m out), a guttering red light
-comes on under its chin, the jaw tears open over a ring of 18 needle teeth (new instanced
-part, only drawn while the jaw is open), its slits pinch to burning needles and turn to
-stare at you, and a sub-bass hit, a white flash, the scream, violent shake, zoom punch
-and tearing all land at once. Second spasm at 0.62 s; hard cut to black and silence at
-1.42 s. The scream is new: the ambience is cut under it, and it is a distorted formant
-choir climbing two octaves with a vibrato screech on top.
-
-**What looking caught** (each by screenshot): the red under-light at full strength plus
-the glitch's red ghost turned the whole face one flat salmon -- light cut to 1.6 and the
-ghost halved, skin glow dimmed to 45% close up; "dilated" slits blown wide read as cartoon
-eyes -- they pinch instead; the slits sat on the outer edge of the wrapped-round eyes --
-they now turn to face you; framing went from eyes cropped to mouth cropped before landing
-on eyes, teeth and chin all in shot (0.7 to 0.54 m, pitch -0.24); the reaching forearms,
-caught by the cold fill light, read as two blue pipes -- lowered.
-
-**Not verified:** still never watched at full speed or heard; whether it scares is yours
-to judge.
-
-## R48 · The recording, read at last
-
-**The user put the recording in the project folder.** No ffmpeg here, but the system's own
-AVFoundation, driven from a 30-line Swift script, pulls frames out of a .mov; that is how
-it was read (every 0.5 s, then every 0.1 s round the capture).
-
-**What it showed (build 16, district 1, a Grey):** at 4.6-4.7 s the camera has turned onto
-the alien at arm's length; at 4.8 s the end card is up. One tenth of a second of sequence,
-then skipped -- exactly the held-key skip fixed in R47. The debug panel reads speed 0
-because the body was pressed against the now-solid alien, not because no key was held.
-
-**And a fault R47 had not found:** in that tenth of a second the minimap, keys, narrator
-and debug panel were all back on screen. `finish()` hides the HUD and releases the
-pointer, the browser reports the release a frame or two later, and `onLock(false)`
-un-hid the HUD -- over the face. My browser checks never released a real pointer lock,
-so they never saw it. **Fixed:** `onLock` leaves the HUD alone once the run has ended, and
-`showEnd()` brings it back with the end card. Checked by calling `onLock(false)` straight
-after `finish()`: HUD hidden through the scare, visible with the card.
-
-## R49 · N3, fourth pass: it attacks you
-
-**Asked** (with a film still of a creature lunging out of darkness, jaws wide, claws
-blurred at both edges): "it looks much better now, but then, i want it to be more
-scarier, like the image like I attached (it should look like it tries to attack you, not
-just passively just showing its jaws) ... so that 20 year old college students can play
-this too."
-
-**What the still is doing**, which is what was taken from it (not the creature -- the
-game's own ten species stay): near-total black; one cold light from above catching wet
-teeth; the mouth the brightest thing in frame; claws smeared by motion at the edges; a
-body caught mid-lunge. **Built (2.8 s):** rear up with claws spread and a hiss (0-0.26);
-lunge with claws raking in, motion-smeared (to 0.40); impact -- flash, bass hit, scream,
-three claw gashes torn across the screen, and you are knocked onto your back, the view
-falling, rolling and looking up (to 0.72); it leans over you and bites twice, head
-thrashing (to 1.62); a last lunge into the lens, cut to black and silence, a crunch.
-
-**New machinery.** The face is pinned to a point in the camera's view and the body hung
-off it (`AlienKit.faceLocal`, the face's position in the body frame on the last pose --
-exact, because the body is rigid to it), so the framing holds across species and while
-the body leans 0.62 rad over you. Claw pose (`st.claw`, `st.swipe`) with talons; two rows
-of eleven teeth with fangs and four saliva strands replace the ring; skin darkened and
-wetted (`st.skinK`, roughness) during the attack; a SpotLight key so only the face is lit;
-motion smear (frames laid over the previous ones at part strength); an SVG layer of ragged
-gashes that bleed; a blood vignette on a heartbeat; `def.sounds`, a list of sounds fired
-once each (and not at all on a skip -- a skip jumped to the end and would have fired the
-lot at once). New sounds: hiss, swipe, snap, and a crunch routed past the bus that cut()
-has just silenced. The flash layer now sits above the glitch layer: until now a flash
-during the glitch was drawn underneath the glitch's copy of the frame and never seen.
-
-**What looking caught:** the first pass read as a toy -- grey skin glossy as a balloon,
-the walls and sky still lit (the sky dome ignores fog; it is now hidden during the
-attack), gashes like neon tubes (now ragged filled tears), the pinned face too close, and
-a full-strength glitch making every frame unreadable (now spikes only on impact and
-bites). The point key became a tight spot so the body falls into black.
-
-**Not verified:** never watched at full speed; the new sounds never heard.
-
-## R50 · Why the attack never reached the screen
-
-**Asked** (with a third recording and one of my own screenshots): the cutscene is far too
-short, make it at least six seconds; "the image i have attached (the one you said would
-be the one I would see), was not rendered. why is it? explain what happened ... and most
-importantly, fix it correctly."
-
-**What the recording shows** (build 19, frames every 0.1 s round the capture at 2.85 s):
-the alien walks into you over 0.4 s in its ordinary pose and ordinary light; its jaw opens
-a little between 0.5 and 0.9 s; the light dims by about half; a gradual fade to black
-starts at 1.6 s. No darkness, no claws, no knock-down, no gashes. That is, exactly, the
-**mild** variant's timeline -- approach 0-0.4, jaw to 0.6 at 0.5-0.9, dark 0.5, fade
-1.6-2.0.
-
-**Why mild.** The variant was `variantFor(settings.jumpscares, settings.reduceMotion)`.
-The user's Mac does not ask for reduced motion (checked: ReduceMotionEnabled 0), so it
-was the saved choice: build 15's review note said "Then try Jumpscares: mild", the
-setting lives in localStorage under a key no build stamp ever resets, and from then on
-every capture the user saw was the gentle one. Every frame I checked was the full variant,
-because my test page had no saved settings. This is also why builds 17-19 kept being
-called not scary: the user never saw them. A second, latent way to the same place:
-reduce motion silently turned full into mild, and its default comes from the operating
-system, so a player could get mild without ever choosing it -- and the checkbox's label
-("no head bob, no sprint FOV kick") never said it did that.
-
-**Ruled out first, wrongly suspected for a while:** a crash in the frame loop (the leash
-readout froze, but only because the body stops updating at game over; the loop was
-alive -- the timed fade arrived on schedule); and stale cached modules (GitHub Pages
-caches each file for 10 minutes and the 3D modules carry no ?v= stamp -- a real risk
-right after a deploy, but not what happened here: the frames match mild, not any older
-full sequence).
-
-**Fixed:** (1) the variant is the Jumpscares setting and nothing else (`variantFor`
-takes one argument; 3D-15 checks it); (2) settings move to a v2 key, carrying everything
-over from v1 except the Jumpscares choice, which starts at full again, once; (3) the end
-card says when the capture was not the full one -- the downgrade can never be silent
-again; (4) the leash readout is hidden during the sequence too. Verified in the browser
-the way the user plays, not the way my earlier checks did: a v1 setting of "mild" stored
-before load (migrated to full, sensitivity and FOV kept), sound on, the capture
-triggered by the sim through the real frame loop -- no errors, the full attack.
-
-**Six seconds.** The attack is now 7.0 s (6.0 s of picture, then black and the crunch):
-the lights die in two flickers; it stands in the dark 2.6 m off and comes at you in jerks
-while your heart beats and you back away; rears; lunges; knocks you flat; bites three
-times, screaming between bites; draws back in silence with the jaw stretched wide; lunges
-into the lens. The world is hidden once the lights are out, so the attack happens in a
-void and no wall can stand between you and it. New sounds: beat, buzz, breath. skipAfter
-2.5 s; 3D-15's length bound is 7 s.
-
-**Not verified:** never watched at full speed or heard.
-
 ## Current state
 
 ```
@@ -2225,6 +2074,217 @@ mouth and both hands in frame. Arms reaching at chest height were below the view
 now reach up toward your face.
 
 **Not verified:** never watched at full speed or heard. Whether it lands is the user's call.
+
+---
+
+## R47 · N3 again: the scare was being skipped, and was not scary
+
+**Asked** (with a second recording, also unreadable here): "still, look at this, it does
+not work, make the jumpscene extremely photogenic and very very scary (your levels of
+scariness is extremely extremely low). also, the jaws opening up and gruesome scene is not
+even showing up when caught like in the video i attached."
+
+**Why the jaw never showed: you were skipping it without knowing.** "Any key skips" (R45)
+meant any keydown -- and a movement key held down auto-repeats about 30 times a second.
+You are almost always holding W when you are caught, so the first repeat, a few
+milliseconds into the sequence, skipped straight to the end card. Every frame I had
+checked was real; you never got to see one. **Fixed:** only a fresh press (not a repeat)
+of Space, Enter or Escape, or a click, skips; and a sequence now has a `skipAfter` floor
+(jumpscare 1.0 s, ascension 0.8 s) before which nothing skips it. 3D-15 now fails any
+full or mild sequence with a floor under 0.5 s. Checked in the browser: eight W repeats
+and a repeated Space at 0 s did nothing; Space at 0.9 s did nothing; Space at 1.05 s
+skipped.
+
+**Why it was not scary.** It was a cutscene: the camera turned, the alien walked in, the
+mouth opened 0.5 s later, in a bright, evenly lit street. A jumpscare is the opposite --
+no wind-up. **Now (2.2 s):** on the frame you are caught it is already there, 0.7 m in
+front of wherever you were looking, and pushes in to 0.54 m; in that same frame the
+district goes dark (lights to 6%, fog to a red-black wall 5.5 m out), a guttering red light
+comes on under its chin, the jaw tears open over a ring of 18 needle teeth (new instanced
+part, only drawn while the jaw is open), its slits pinch to burning needles and turn to
+stare at you, and a sub-bass hit, a white flash, the scream, violent shake, zoom punch
+and tearing all land at once. Second spasm at 0.62 s; hard cut to black and silence at
+1.42 s. The scream is new: the ambience is cut under it, and it is a distorted formant
+choir climbing two octaves with a vibrato screech on top.
+
+**What looking caught** (each by screenshot): the red under-light at full strength plus
+the glitch's red ghost turned the whole face one flat salmon -- light cut to 1.6 and the
+ghost halved, skin glow dimmed to 45% close up; "dilated" slits blown wide read as cartoon
+eyes -- they pinch instead; the slits sat on the outer edge of the wrapped-round eyes --
+they now turn to face you; framing went from eyes cropped to mouth cropped before landing
+on eyes, teeth and chin all in shot (0.7 to 0.54 m, pitch -0.24); the reaching forearms,
+caught by the cold fill light, read as two blue pipes -- lowered.
+
+**Not verified:** still never watched at full speed or heard; whether it scares is yours
+to judge.
+
+## R48 · The recording, read at last
+
+**The user put the recording in the project folder.** No ffmpeg here, but the system's own
+AVFoundation, driven from a 30-line Swift script, pulls frames out of a .mov; that is how
+it was read (every 0.5 s, then every 0.1 s round the capture).
+
+**What it showed (build 16, district 1, a Grey):** at 4.6-4.7 s the camera has turned onto
+the alien at arm's length; at 4.8 s the end card is up. One tenth of a second of sequence,
+then skipped -- exactly the held-key skip fixed in R47. The debug panel reads speed 0
+because the body was pressed against the now-solid alien, not because no key was held.
+
+**And a fault R47 had not found:** in that tenth of a second the minimap, keys, narrator
+and debug panel were all back on screen. `finish()` hides the HUD and releases the
+pointer, the browser reports the release a frame or two later, and `onLock(false)`
+un-hid the HUD -- over the face. My browser checks never released a real pointer lock,
+so they never saw it. **Fixed:** `onLock` leaves the HUD alone once the run has ended, and
+`showEnd()` brings it back with the end card. Checked by calling `onLock(false)` straight
+after `finish()`: HUD hidden through the scare, visible with the card.
+
+## R49 · N3, fourth pass: it attacks you
+
+**Asked** (with a film still of a creature lunging out of darkness, jaws wide, claws
+blurred at both edges): "it looks much better now, but then, i want it to be more
+scarier, like the image like I attached (it should look like it tries to attack you, not
+just passively just showing its jaws) ... so that 20 year old college students can play
+this too."
+
+**What the still is doing**, which is what was taken from it (not the creature -- the
+game's own ten species stay): near-total black; one cold light from above catching wet
+teeth; the mouth the brightest thing in frame; claws smeared by motion at the edges; a
+body caught mid-lunge. **Built (2.8 s):** rear up with claws spread and a hiss (0-0.26);
+lunge with claws raking in, motion-smeared (to 0.40); impact -- flash, bass hit, scream,
+three claw gashes torn across the screen, and you are knocked onto your back, the view
+falling, rolling and looking up (to 0.72); it leans over you and bites twice, head
+thrashing (to 1.62); a last lunge into the lens, cut to black and silence, a crunch.
+
+**New machinery.** The face is pinned to a point in the camera's view and the body hung
+off it (`AlienKit.faceLocal`, the face's position in the body frame on the last pose --
+exact, because the body is rigid to it), so the framing holds across species and while
+the body leans 0.62 rad over you. Claw pose (`st.claw`, `st.swipe`) with talons; two rows
+of eleven teeth with fangs and four saliva strands replace the ring; skin darkened and
+wetted (`st.skinK`, roughness) during the attack; a SpotLight key so only the face is lit;
+motion smear (frames laid over the previous ones at part strength); an SVG layer of ragged
+gashes that bleed; a blood vignette on a heartbeat; `def.sounds`, a list of sounds fired
+once each (and not at all on a skip -- a skip jumped to the end and would have fired the
+lot at once). New sounds: hiss, swipe, snap, and a crunch routed past the bus that cut()
+has just silenced. The flash layer now sits above the glitch layer: until now a flash
+during the glitch was drawn underneath the glitch's copy of the frame and never seen.
+
+**What looking caught:** the first pass read as a toy -- grey skin glossy as a balloon,
+the walls and sky still lit (the sky dome ignores fog; it is now hidden during the
+attack), gashes like neon tubes (now ragged filled tears), the pinned face too close, and
+a full-strength glitch making every frame unreadable (now spikes only on impact and
+bites). The point key became a tight spot so the body falls into black.
+
+**Not verified:** never watched at full speed; the new sounds never heard.
+
+## R50 · Why the attack never reached the screen
+
+**Asked** (with a third recording and one of my own screenshots): the cutscene is far too
+short, make it at least six seconds; "the image i have attached (the one you said would
+be the one I would see), was not rendered. why is it? explain what happened ... and most
+importantly, fix it correctly."
+
+**What the recording shows** (build 19, frames every 0.1 s round the capture at 2.85 s):
+the alien walks into you over 0.4 s in its ordinary pose and ordinary light; its jaw opens
+a little between 0.5 and 0.9 s; the light dims by about half; a gradual fade to black
+starts at 1.6 s. No darkness, no claws, no knock-down, no gashes. That is, exactly, the
+**mild** variant's timeline -- approach 0-0.4, jaw to 0.6 at 0.5-0.9, dark 0.5, fade
+1.6-2.0.
+
+**Why mild.** The variant was `variantFor(settings.jumpscares, settings.reduceMotion)`.
+The user's Mac does not ask for reduced motion (checked: ReduceMotionEnabled 0), so it
+was the saved choice: build 15's review note said "Then try Jumpscares: mild", the
+setting lives in localStorage under a key no build stamp ever resets, and from then on
+every capture the user saw was the gentle one. Every frame I checked was the full variant,
+because my test page had no saved settings. This is also why builds 17-19 kept being
+called not scary: the user never saw them. A second, latent way to the same place:
+reduce motion silently turned full into mild, and its default comes from the operating
+system, so a player could get mild without ever choosing it -- and the checkbox's label
+("no head bob, no sprint FOV kick") never said it did that.
+
+**Ruled out first, wrongly suspected for a while:** a crash in the frame loop (the leash
+readout froze, but only because the body stops updating at game over; the loop was
+alive -- the timed fade arrived on schedule); and stale cached modules (GitHub Pages
+caches each file for 10 minutes and the 3D modules carry no ?v= stamp -- a real risk
+right after a deploy, but not what happened here: the frames match mild, not any older
+full sequence).
+
+**Fixed:** (1) the variant is the Jumpscares setting and nothing else (`variantFor`
+takes one argument; 3D-15 checks it); (2) settings move to a v2 key, carrying everything
+over from v1 except the Jumpscares choice, which starts at full again, once; (3) the end
+card says when the capture was not the full one -- the downgrade can never be silent
+again; (4) the leash readout is hidden during the sequence too. Verified in the browser
+the way the user plays, not the way my earlier checks did: a v1 setting of "mild" stored
+before load (migrated to full, sensitivity and FOV kept), sound on, the capture
+triggered by the sim through the real frame loop -- no errors, the full attack.
+
+**Six seconds.** The attack is now 7.0 s (6.0 s of picture, then black and the crunch):
+the lights die in two flickers; it stands in the dark 2.6 m off and comes at you in jerks
+while your heart beats and you back away; rears; lunges; knocks you flat; bites three
+times, screaming between bites; draws back in silence with the jaw stretched wide; lunges
+into the lens. The world is hidden once the lights are out, so the attack happens in a
+void and no wall can stand between you and it. New sounds: beat, buzz, breath. skipAfter
+2.5 s; 3D-15's length bound is 7 s.
+
+**Not verified:** never watched at full speed or heard.
+
+---
+
+## R51 · The plan, re-ordered around big maps
+
+**Asked**, over several messages after N3 was accepted:
+
+- "the levels are very small ... i want the maps to be atleast 5 times larger".
+- Big maps should come before the art.
+- Area must grow with every district, inside each belt and across belts, through fixed
+  points: ×5 at district 1, ×10 at 10, ×30 at 50, ×45 at 75 and ×60 at 100. "we are not
+  changing the scaling. i want the maps to be big."
+- Fewer aliens is fine if they are faster.
+- A new map builder is welcome ("it would be convinient when writing the story"), and
+  the 2D map builder may be changed for it.
+- Recalibrate the Dispatch to learn the player's behaviour ("likes to hide, has trouble
+  at the corners, gets lost pretty easily, stays at the same place looking at map")
+  rather than which room they are in.
+- Would capping the frame rate at 30 stop places from appearing half a second late?
+
+**Measured before planning** (Apple M3, Chrome, 1080p, shadows on):
+
+- **Rendering is cheap at today's look.** Today's district was tiled 8 × 8, about
+  district 100's size, giving 470,000 world triangles drawn with no culling. It built in
+  18 ms and drew in 3.2 ms a frame; today's map draws in 3.8 ms.
+- **Path searches are the real stutter risk.** One full-map distance field costs 1.7 ms
+  at district 100's size, against 0.03 ms today. The squad re-plans every alien on the
+  same tick, so 25 aliens would spend about 43 ms on one frame every 1.5 s, more on a
+  weak laptop.
+- **The frame-rate cap does not touch this.** A cap changes how much time each frame
+  gets, not when anything is built. Nothing pops in, because a district is built whole
+  while it loads.
+
+**Where I was wrong:**
+
+- My earlier estimate of "15–20+ minutes" per district at ×60 was too high. Keys show
+  through walls, so a run is route-finding, not searching. Walking the route straight
+  takes about 3½ minutes at district 100 with 10 keys; with hiding and waiting, perhaps
+  twice that.
+- My size table labelled walking times as "sprint across". There is no sprint meter;
+  bolts double your speed while they last.
+
+**Decided:**
+
+- The plan is re-ordered: N8 (in five pushed steps), then N4, N5, N6, N7, N9.
+- N8 gets the user's size curve, a city builder that emits named places for the story,
+  and the `next` ruleset (D1, moved up from N6).
+- Aliens: an arrival cap of about `4·√A`. They hunt faster, but never above 70 % of your
+  walking speed, so breaking contact still works. They travel at up to twice your speed
+  only when more than 40 m away and out of sight.
+- The 3D Dispatch leads with behaviour traits and tactics (D4). Its constants go in
+  `sim3d/dispatch/`; `sim/predictor/` is untouched.
+- New criteria: 3D-28 (smoothness) and 3D-29 (fair speed). 3D-21 and 3D-22 are
+  reworded. N9 is to be re-scoped for city maps after N8.
+
+**Housekeeping:** rounds R47–R50 had been filed in the middle of this file, under a
+"Current state" from an early round. They were moved back to the end, in order.
+
+**Not verified:** nothing is built yet. The run-length figures are a geometric estimate
+(nearest-key route, ×1.35 for streets, 6 m/s), not play.
 
 ## Current state
 

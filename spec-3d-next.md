@@ -1,6 +1,7 @@
 # NOISE 3D — the next round
 
-Written Nov 18, 2026 · **status: proposed, nothing built** · follows 3D build 10
+Written Nov 18, 2026, revised the same day after N3 · **status: N0–N3 built; N8 next** ·
+follows 3D build 20
 
 > A spec to pick up one phase at a time, whenever there is time. It describes what each
 > phase builds, the numbers it uses, the files it touches, how it is checked and what it
@@ -11,8 +12,10 @@ Written Nov 18, 2026 · **status: proposed, nothing built** · follows 3D build 
 
 ## How to use this file
 
-1. Start at the first phase in the progress table not marked done. Phases are ordered so
-   each one is useful on its own, and so the cheap, visible ones come first.
+1. Start at the first phase in the progress table not marked done, **in the table's
+   order, not the numbering**. The numbers are kept so links and `decisions.md` rounds
+   stay valid. Big maps (N8) move to the front because the art, the story, the objectives
+   and the floors are all laid out on the map, so its size and shape are settled first.
 2. Every phase follows the 3D working loop in `CLAUDE.md`: a `web3d/changes3d.js` entry,
    `npm run stamp3d` (never `npm run stamp`), `npm test`, `npm run webcheck`,
    `npm run test3d -- --skip-2d`, stage named files, push, watch the deploy.
@@ -29,13 +32,13 @@ Written Nov 18, 2026 · **status: proposed, nothing built** · follows 3D build 
 | N1 | Fewer bolts deeper into each belt | ½ day | Low | **done** (3D build 12) |
 | N2 | Comic-accurate aliens, all ten species | 3 days (+1½ per species) | Medium | **done** (3D builds 13–14): ten species, one per belt |
 | N3 | Jumpscare and portal ascension | 3–3½ days | Low–medium | **done** (3D builds 15–20; capture reworked after review into a 7 s attack; build 20 found that a saved "mild" setting had been hiding it) |
+| **N8** | **Big maps, ×5 to ×60 area, growing every district** (five steps, N8.1–N8.5) | 3–4 weeks | High | **next** |
 | N4 | Belt art direction | 8–9 days | Medium | not started |
 | N5 | Story frame | 6–10 days | Medium | not started |
 | N6 | The rules layer and the new shop items | 8–12 days | Medium | not started |
 | N7 | Objective variety | 4–8 days | Medium | not started |
-| N8 | Maps that grow every belt | 4–5 days | Medium | not started |
-| N9 | Buildings with floors | 3½–5 weeks | High | not started |
-| | **Total** | **~11–15 weeks** | | |
+| N9 | Buildings with floors (re-scoped for big maps after N8) | 3½–5 weeks | High | not started |
+| | **Total remaining** | **~12–17 weeks** | | |
 
 Estimates are focused working days for one developer. With Claude implementing, the
 coding compresses a great deal (the first round, phases 0–9, took about one long
@@ -49,6 +52,8 @@ session); playtesting and art-direction feedback do not.
   phone tier is no longer tested, and nothing new is designed around phone limits.
 - **The frame budget still holds:** at least 60 fps on average at 1080p Medium on an
   integrated-GPU laptop (criterion 3D-11, re-measured whenever a phase changes rendering).
+- **Nothing pops in.** A district is built completely, geometry, textures and shaders,
+  while it loads. Nothing is created or streamed in while you play (criterion 3D-28).
 - **The 2D game stays as it is.** No 2D file is edited unless a phase names the edit and
   the reason, and criterion 3D-1 (2D suites 12 / 1 / 0, webcheck green) passes on every
   commit. The 2D build stamp is never bumped by this round.
@@ -61,10 +66,10 @@ session); playtesting and art-direction feedback do not.
 
 | # | Decision | Needed by | Recommendation |
 |---|---|---|---|
-| D1 | **The rules split.** From N6 on, the 3D game stops being the same game as 2D. | N6 | Introduce a ruleset: `classic` (today's rules, still bit-for-bit with 2D under criterion 3D-3) and `next` (items, objectives, sizes, floors). Districts play `next`; the classic ruleset stays as the parity reference. |
+| D1 | **The rules split.** From N8 on (big maps), the 3D game stops being the same game as 2D. | N8.1 | **Decided: lands in N8.1.** Introduce a ruleset: `classic` (today's rules, still bit-for-bit with 2D under criterion 3D-3) and `next` (items, objectives, sizes, floors). Districts play `next`; the classic ruleset stays as the parity reference. |
 | D2 | **Textures.** Keep everything procedural, or allow a small set of CC0 image textures. | N4 | Stay procedural. It keeps the repository text-only and every texture seeded; the cost is a day or two more art work. |
-| D3 | **Bigger maps need the generator to take a size.** That means editing `sim/gen.js` (a 2D file) or copying it. | N8 | Edit `sim/gen.js`, adding an optional `size` argument whose default is exactly today's 32×20. A new criterion hashes 10,000 generated 2D levels before and after and requires them byte-identical. A copy of a 559-line generator would drift. |
-| D4 | **Predictor constants for the `next` ruleset.** Regenerate them for 3D, or keep the 2D ones. | N8 | Keep the 2D ones until a criterion shows they no longer beat uniform on big maps; then add `npm run priors3d` / `couplings3d` writing `sim3d/predictor/`, never touching `sim/predictor/`. |
+| D3 | **Bigger maps need a generator that works at 38,000 cells.** | N8.1 | **Decided (user, Nov 18):** a new city builder in `sim3d/next/city.js`. `sim/gen.js` may be changed wherever the city builder reuses a piece of it (the user allowed this), but with its defaults it must keep producing byte-identical 2D levels (3D-20). |
+| D4 | **Predictor constants for the `next` ruleset.** Regenerate them for 3D, or keep the 2D ones. | N8.5 | **Decided (user, Nov 18): recalibrate, behaviour first.** The 3D Dispatch learns how you play (hiding, trouble at corners, getting lost, standing still over the map) rather than which room you favour. Its constants are generated by `npm run priors3d` / `couplings3d` into `sim3d/dispatch/`; `sim/predictor/` is never touched. See N8. |
 | D5 | **The language model on the 3D page.** It was kept off to protect phones. | N5 (optional) | Allow it on desktops that pass `modelAdvisable()`, lazily, exactly as the 2D page does. Criterion 3D-10 is reworded accordingly. |
 
 ---
@@ -243,7 +248,8 @@ you go deeper. Data-driven: one entry per belt in `web3d/art/belts.js`.
 **Within a belt** (`k` as in N1): sun elevation and sky colour go from dusk (k = 0) to
 midnight (k = 9); weather intensity and alien growth decals on walls rise with `k`.
 
-**Per district.**
+**Per district.** On N8's city maps, art is built per chunk, and each landmark place
+gets its own centrepiece rather than one per district.
 
 - One **centrepiece**, chosen and placed by seed in the largest room, on wall or building
   cells only so walkability never changes: a crashed ship, a broadcast tower, a statue,
@@ -345,7 +351,9 @@ remains the fallback.
 
 ## N6 · The rules layer and the new shop items
 
-**The rules layer (decision D1).** `sim3d/rules.js` exports `RULESET = 'classic' | 'next'`.
+**The rules layer (decision D1)** is now built in N8.1, because big maps already need it.
+N6 adds the items on top of it. As designed: `sim3d/rules.js` exports
+`RULESET = 'classic' | 'next'`.
 
 - `classic` is `Game3D` as it is today. Criterion 3D-3 (parity with the 2D sim) is scoped
   to it and keeps passing.
@@ -424,53 +432,215 @@ or three objective types. **Difficulty:** medium.
 
 ---
 
-## N8 · Maps that grow every belt
+## N8 · Big maps that grow every district
 
-**Sizes.** For belt `b` (0 = RUST, 9 = COBALT):
+**Built first** (revised Nov 18, after N3). The user judged today's 32 × 20 districts far
+too small ("it is very easy to go around the entire map very quickly"). This replaces the
+earlier proposal, which grew maps per belt only, from 32 × 20 to 68 × 38.
+
+### Sizes
+
+Area as a multiple of today's 640 cells, along a straight line between five fixed points.
+Every district is larger than the one before it, inside a belt and across belts. **The
+sizes are the user's and are not tuned.** Everything else in this phase is tuned to fit them.
 
 ```
-width  = 32 + 4b        32, 36, 40 ... 68
-height = 20 + 2b        20, 22, 24 ... 38
+A(d) = piecewise linear through (1, ×5) (10, ×10) (50, ×30) (75, ×45) (100, ×60)
+w = round(32 · √A)   h = round(20 · √A)        today's 8 : 5 shape is kept
 ```
 
-Belt 10 is about 4× the area of belt 1 (68 × 38 cells, 102 × 57 m).
+| District | Area | Cells | Metres | Walking straight across the long side |
+|---|---|---|---|---|
+| 1 | ×5 | 72 × 45 | 108 × 67 | 18 s |
+| 10 | ×10 | 101 × 63 | 152 × 95 | 25 s |
+| 50 | ×30 | 175 × 110 | 263 × 164 | 44 s |
+| 75 | ×45 | 215 × 134 | 322 × 201 | 54 s |
+| 100 | ×60 | 248 × 155 | 372 × 232 | 62 s |
 
-**What scales with area** (`a = area / 640`, so `a = 1` in belt 1):
+You walk at 4 cells (6 m) a second; a bolt doubles that while it lasts.
 
-| Quantity | Rule | Why |
+### The map builder: a city, not rooms
+
+`sim3d/next/city.js` (new, pure). The 2D generator places 6–10 rooms on 640 cells and
+was never meant for 38,000, so big maps are built as a city:
+
+1. **Streets.** Two to four avenues cross the map, side streets run between them, and
+   alleys cut through blocks. Avenues are 3–4 cells wide, streets 2, alleys 1.
+2. **Neighbourhoods.** Each block between streets gets a type by seed, which decides its
+   cover, water, rubble and black boxes. The types are plaza, market, yards, depot,
+   park, canal and tenements.
+3. **Places.** Every map carries a list of named neighbourhoods and landmarks with their
+   bounds (`{id, name, type, x, y, w, h}`). The story (N5), the art's centrepieces (N4)
+   and the objectives (N7) are written against places, not coordinates. This is what
+   makes big maps convenient for the story.
+4. **Checked like every map.** Every key and the portal are reachable for the human,
+   every street is reachable for the aliens, and the spawn distance is respected.
+
+`sim/gen.js` may be changed wherever the city builder reuses a piece of it (decision D3).
+With its defaults it must keep producing byte-identical 2D levels (3D-20).
+
+**The ruleset split lands here (decision D1).** A big map is no longer the 2D game, so
+districts play the `next` ruleset. `classic` keeps today's 32 × 20 rules and is still
+checked bit-for-bit against 2D by 3D-3.
+
+### Aliens: few, and fast where you cannot see them
+
+The user's direction: not many aliens, but faster, so a big map stays tense.
+
+| | Rule | Why |
 |---|---|---|
-| Alien cap | `round(cap × a)` | Same density of aliens; otherwise a bigger map is just easier |
-| Arrival rate λ | `λ × a` | Same |
-| Keys | `base + floor(b / 3)` | More ground to cover, but not proportionally more keys |
-| Predictor regions | `round(12 × a)`, at most 48 | Regions keep their size, so predictions stay as specific |
-| Rooms | The generator's room count × `a` | Same room density |
-| Detection radius, speeds, spawn distances | Unchanged | They are about the player's experience, not the map |
+| **Arrival cap** | Grows with √area: `round(4·√A)`, so 9 at district 1, 13 at 10, 22 at 50, 27 at 75 and 31 at 100 | Six to ten times sparser than today, which is the user's "not many" |
+| **Divisions** | As now: one alien splits every 10–15 s. Ceiling of twice the arrival cap (`MAX_ALIENS` 48 → 64) | Divisions are the game's clock: the longer you take, the more there are |
+| **Hunting speed** (alerted, chasing you) | Today's speed for the tier × a district factor from 1.0 (district 1) to 1.4 (district 100). Never above **70 % of your walking speed** | Above 70 %, a 5 s alert can no longer be outrun past the detection radius, and breaking contact stops being a mechanic. HARD reaches the 70 % ceiling at district 100 |
+| **Patrol speed** | Rises in step with hunting speed | |
+| **Travel speed** (more than 40 m from you and out of your line of sight) | Up to **2× your walking speed** | A few aliens can cross a big map to where the Dispatch expects you. They slow down before they reach view distance, so you never see one move unfairly fast. The Tab map does show a distant alien closing in fast, which is intended |
+| **Arrivals** | Out of sight, 25–60 m away, weighted toward the Dispatch's prediction | Pressure follows you instead of being spread evenly over the map |
 
-**Generator (decision D3).** `sim/gen.js` gains an optional size argument defaulting to
-32×20. Two runtime places assume 32×20 and change: `sim/gen.js` (`GRID_W`, `GRID_H`) and
-`web3d/runner.js` (the `FieldPool` size).
+### Keys, the portal and run length
 
-**Criteria.**
+- **Keys:** `round(4 + 6·(d − 1)/99)`, so 4 at district 1, 5 at 10, 7 at 50, 8 at 75 and
+  10 at 100.
+- **Spread:** at least 25 m apart, at most one per place, and at least one in each half
+  of the map.
+- **Portal:** placed in a place far from the keys' centre, so the last stretch is a
+  real crossing.
+- **Run length:** keys show through walls, so this is not a search. Walking the route
+  straight takes about 1 minute at district 1, 2 at district 50 and 3½ at district 100.
+  If about half your time goes to hiding and waiting, a run lasts roughly twice that.
+  N8.3 measures this with the bots.
 
-- **3D-20 (new), 2D unchanged:** 10,000 2D levels generated with the default size hash
+### Smoothness, and why nothing pops in
+
+**Measured before planning** (Apple M3, Chrome, 1080p, shadows on):
+
+- **Rendering.** The test map was today's district tiled 8 × 8, about district 100's size:
+  470,000 world triangles, drawn with no culling at all. It built in 18 ms and drew in
+  3.2 ms a frame; today's map draws in 3.8 ms. At today's look, rendering is not the
+  bottleneck.
+- **Path searches.** One full-map distance field at district 100's size takes 1.7 ms;
+  today it takes 0.03 ms. The squad re-plans every alien on the same tick, every 6 ticks.
+  With 25 aliens that is about 43 ms on one frame every 1.5 s, a visible hitch. On a weak
+  laptop it would be three to five times worse. **This is the real stutter risk.**
+
+**What N8 does about it:**
+
+1. **Everything is built while the district loads**, including shader compilation
+   (`renderer.compile`). No part of the map is ever created while you play.
+2. **Chunks.** The world is cut into 16 × 16-cell chunks (24 m), each with its own
+   instanced meshes. Chunks outside the view are skipped, and so are chunks beyond the
+   fog's end; the fog is solid there, so skipping them changes no pixel. The camera's far
+   plane matches the fog. Showing or hiding a chunk is a flag on geometry that is already
+   on the GPU, so there is no frame in which a place is missing. Today's look does not
+   need chunks; N4's art will.
+3. **The shadow box follows you**, about 60 m across. One shadow map stretched over
+   district 100 would blur every shadow to 0.2 m per texel.
+4. **Sim work is spread out.** Re-plans are staggered so only a few aliens re-plan each
+   tick, path searches stop once they reach their target, and aliens heading to the same
+   place share a field. If the worst tick still costs more than 4 ms on the reference
+   laptop, the sim moves to a Web Worker. It is pure and deterministic, so it moves
+   unchanged.
+5. **Frame rate setting:** Auto (the default, the display's own rate), 60 or 30. A cap
+   does not make anything appear sooner. It gives each frame twice the time, which can
+   turn an uneven 40–60 fps into a steady 30 on a weak laptop. It is off by default
+   because 30 fps makes mouse-look feel heavy.
+
+**The Tab map** zooms (mouse wheel) and pans (drag), opens centred on you and names the
+places.
+
+### The Dispatch reads behaviour, not rooms (decision D4)
+
+Today the Dispatch combines two tiers:
+
+- **Tier 1** counts which region you move to next ("room 6, then room 5").
+- **Tier 2** is the dossier: 20 traits that do not depend on the map, such as wall
+  hugging, time in cover, pauses and doubling back.
+
+On a big map tier 1 says less and less, and the user wants the Dispatch to learn the
+player, not the room. So in 3D:
+
+- **Tier 1 shrinks to geometry only:** where you can physically be in the next few
+  seconds, from where you were last heard. It learns no room preference.
+- **Tier 2 leads,** with new 3D traits measured from the input record:
+
+| Behaviour | Measured as | What the aliens do about it |
+|---|---|---|
+| **Likes to hide** | Time in cover and black boxes; going to ground when an alien appears | Sweep the cover along your route; wait outside the black box you went into |
+| **Trouble at corners** | Slowing or stopping before a corner; being caught within 2 cells of one | Wait just round the corners on your route to the next key |
+| **Gets lost** | Doubling back, retracing streets, walking away from the nearest key, opening the map often | Cut you off between where you are and the key you need |
+| **Stops to read the map** | Standing still with the Tab map open | While you stand still over the map, the nearest aliens close in |
+| **Runs for it** | Sprinting when seen; rarely hiding | Flank: come from the side you run toward |
+| Today's 20 traits | As now | As now |
+
+- **Strength.** Each tactic is as strong as your dossier is far from the population on
+  that trait (its z-score). A player who never hides gets no hiding sweeps.
+- **Memory.** The dossier is kept per profile and carries across districts, as now. The
+  Dispatch's lines quote what it has learned ("You stop at corners."), which N5's story
+  uses.
+- **Recording.** Whether the Tab map is open goes into the input record, so replays stay
+  deterministic.
+- **Constants.** They live in `sim3d/dispatch/`, generated by `npm run priors3d` and
+  `couplings3d` from 3D bot runs on big maps. `sim/predictor/` is not touched, so the 2D
+  Dispatch is unchanged.
+- **New bots** for calibration, alongside the existing five: a hider, a walker who
+  hesitates at corners, a wanderer who gets lost, a map-checker and a runner.
+
+### Steps, each pushed as its own build
+
+| Step | What | Estimate |
+|---|---|---|
+| N8.1 | Size curve, city builder with places, `next` ruleset. Districts play big maps with today's rendering | 4–5 days |
+| N8.2 | Alien population, the three speeds, arrivals. Sim work staggered and bounded | 3–4 days |
+| N8.3 | Keys and portal placement. Tab map zoom, pan and place names. Run length measured | 2–3 days |
+| N8.4 | Chunks, the shadow box, far plane, the frame-rate setting. 3D-11 re-measured | 2–3 days |
+| N8.5 | Behaviour-first Dispatch: new traits, tactics, bots and 3D constants | 5–7 days |
+
+**Total:** about 3–4 weeks. **Difficulty:** high.
+
+### Criteria
+
+- **3D-20 (new), 2D unchanged.** 10,000 2D levels generated with the defaults hash
   byte-identical to before the change.
-- **3D-21 (new), big maps sound:** 10,000 generations at each belt size, all objectives
-  reachable, the minimum spawn distance respected across 1,000 episodes, divisions
-  included (the 2D criteria 3 and 4, at the new sizes).
-- **3D-22 (new), predictor still works:** at the largest size, top-1 region accuracy beats
-  uniform for all five bots, and chain-plus-dossier beats chain-only (the 2D criteria 5
-  and 6). If this fails, decision D4: regenerate the predictor constants for 3D.
+- **3D-21 (new), big maps sound.** 1,000 generations at each of districts 1, 10, 25, 50,
+  75 and 100 must pass all of these:
+  - sizes follow the curve and grow every district;
+  - every key and the portal are reachable for the human, and every street for the aliens;
+  - places do not overlap;
+  - the spawn distance holds over 1,000 episodes, divisions included.
+- **3D-22 (reworded), the Dispatch learns behaviour.** At district 100's size:
+  - prediction beats uniform for every bot;
+  - each behaviour tactic raises interception against the bot that has that behaviour,
+    and not against the bots that do not.
+- **3D-28 (new), smooth on big maps.** On a district-100 map with the full alien
+  population, no tick's sim work exceeds 4 ms. Geometry, texture and shader-program
+  counts stay constant during play: nothing is created after loading.
+- **3D-29 (new), fair speed.** Across 1,000 episodes:
+  - no alien moves faster than its hunting speed while within 40 m of the player and in
+    their line of sight;
+  - hunting speed never exceeds 70 % of walking speed.
+- **3D-11** re-measured on district-100 maps.
 
-The HUD needs no change: the minimap is cropped around you, and the tactical map fits
-any size.
+**Files:**
 
-**Files:** `sim/gen.js` (one optional argument, under decision D3), `web3d/runner.js`,
-`sim3d/scale.js` (new: the table above), `bench3d/criteria/maps.js` (new).
-**Estimate:** 4–5 days. **Difficulty:** medium.
+- `sim3d/next/` (new: `size.js`, `city.js`, `rules.js`)
+- `sim3d/dispatch/` (new)
+- `sim/gen.js` (only where reused; 2D output unchanged)
+- `web3d/runner.js`
+- `web3d/world.js` (chunks)
+- `web3d/hud3d.js` (Tab map)
+- `web3d/settings3d.js` (frame rate)
+- `web3d/alien.js` (`MAX_ALIENS`)
+- `bench3d/criteria/maps.js` and `bench3d/criteria/dispatch.js` (new)
+- `bench3d/bots3d.js`
 
 ---
 
 ## N9 · Buildings with floors
+
+> **Re-scope after N8.** This section was written for 32 × 20 districts, where the whole
+> district is one building. On N8's city maps, floors belong to individual buildings
+> inside the city: a few enterable buildings per district, each stored as the strip
+> below. The mechanics (stairs for you, vents for them, the sound rule) carry over; the
+> estimate is revisited when N8 is done.
 
 **The design.**
 
@@ -539,14 +709,16 @@ generalised to three floors and belts 8–10.
 | 3D-17 | N6 | Each item does exactly what its rule says and nothing else |
 | 3D-18 | N7 | Objective completion, determinism, chapter assignment |
 | 3D-19 | N5 | Story writes are per-profile and never touch the 2D database |
-| 3D-20 | N8 | Default-size 2D generation byte-identical after the generator change |
-| 3D-21 | N8 | Big maps: connectivity and spawn distance at every belt size |
-| 3D-22 | N8 | Predictor beats uniform, and the dossier helps, at the largest size |
+| 3D-20 | N8 | Default-size 2D generation byte-identical after any generator change |
+| 3D-21 | N8 | Big maps: sizes follow the curve; connectivity, places and spawn distance at districts 1–100 |
+| 3D-22 | N8 | The Dispatch beats uniform at district 100's size, and each behaviour tactic works on the matching bot only |
 | 3D-23 | N9 | Multi-floor connectivity for humans and aliens; spawn distance over vents |
 | 3D-24 | N9 | Leash and smoothness on multi-floor maps |
 | 3D-25 | N9 | Predictor beats uniform on multi-floor maps |
 | 3D-26 | N2 | Species table: one distinct species per belt, threat-red glow, known features (built, passing) |
 | 3D-27 | N3 | Contact: awake aliens are solid to the body, walking at one ends in a capture (built, passing) |
+| 3D-28 | N8 | Smooth on big maps: no tick's sim work over 4 ms; nothing created after loading |
+| 3D-29 | N8 | Fair speed: no alien faster than hunting speed within 40 m and in sight; hunting at most 70 % of walking |
 
 Re-checked as phases change rendering: 3D-11 (frame budget) and 3D-12 (legibility),
 recorded in `bench3d/measured.json`. Unchanged throughout: 3D-1 (the 2D suites) and 3D-3
@@ -560,3 +732,6 @@ recorded in `bench3d/measured.json`. Unchanged throughout: 3D-1 (the 2D suites) 
 2. Whether the minimap should keep showing every alien once the art and sound carry more
    of the information (a "hear-only" mode).
 3. Whether one dossier should describe both the 2D and 3D games (plan-3d.md, phase 10).
+4. Whether waypoints should keep showing every key through walls on big maps. They make
+   a run a route-finding problem rather than a search, and make "gets lost" rarer. Kept
+   for N8; worth revisiting with the story (N5).
