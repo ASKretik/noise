@@ -27,23 +27,16 @@ import * as THREE from 'three';
 import { TILE } from '../../sim/grid.js';
 import { Rng, hashString } from '../../sim/prng.js';
 import { DIR4, TYPES, SURFACES, surface, batch, BOX, PLANE, CYL, PRISM, signAtlas, canvasTex } from './buildings.js';
-import { KitBatch } from './kit.js';
+import { KitBatch, setWallLook } from './kit.js';
 
 const ST = 3;   // the kits' storey and bay, metres
 
 const PLASTER = ['#e6d6b6', '#dbb98a', '#d29c84', '#b7c3a3', '#a7b6c3', '#dcc9c0', '#c9a467', '#c2baab', '#d8aea4', '#9db19f', '#ebe3d2', '#c78c69', '#b8a2c0'];
 const JOINERY = ['#ece7dc', '#2c4a38', '#5c2320', '#24314a', '#1c1c1e', '#4b3425', '#7e8386', '#6d5a3c', '#3d5f6e'];
 const BRICK = ['#ffffff', '#efdccd', '#d6cec6', '#f4e2d0', '#cdbcb2', '#e0d4c4'];
-const KIT_OF = {
-  house: () => 'apart', cafe: () => 'apart', pharmacy: () => 'apart', cinema: () => 'apart', bank: () => 'apart', hotel: () => 'apart', clinic: () => 'apart',
-  garage: () => 'factory', laundry: () => 'factory',
-  apartments: (r) => (r.bool(0.7) ? 'apart' : 'factory'),
-  shop: (r) => (r.bool(0.6) ? 'apart' : 'factory'),
-  bar: (r) => (r.bool(0.5) ? 'factory' : 'apart'),
-  warehouse: () => 'factory', yardwall: () => 'factory',
-  stall: (r) => (r.bool(0.6) ? 'apart' : 'factory'),
-  ruin: (r) => (r.bool(0.5) ? 'apart' : 'factory'),
-};
+// fixed kits; everything else draws plaster or brick by the belt's plaster share plus a lean
+const KIT_FIXED = { garage: 'factory', laundry: 'factory', warehouse: 'factory', yardwall: 'factory', parkwall: 'factory' };
+const PLASTER_LEAN = { house: 0.3, cafe: 0.25, pharmacy: 0.25, cinema: 0.3, bank: 0.3, hotel: 0.4, clinic: 0.25, apartments: 0.1, shop: 0.05, bar: -0.1, stall: 0.05, ruin: 0 };
 const FAMILIES = {
   apart: ['centered_small', 'centered_large', 'centered_double', 'offset_small'],
   factory: ['centered_small', 'centered_medium', 'centered_large', 'centered_double', 'offset_small'],
@@ -54,7 +47,9 @@ const CROWN_H = { apart: 0.75, factory: 0.32 };
  * Give each planned building its kit, window family, colours and height. Runs right after
  * planBuildings, before anything reads the heights.
  */
-export function planKit(plan, seed) {
+export function planKit(plan, seed, town = {}) {
+  const PAL = town.palette || PLASTER, BR = town.brick || BRICK, JO = town.joinery || JOINERY;
+  const [d0, d1] = town.damage || [0.25, 0.95];
   const nb = new Map(plan.list.map((b) => [b, new Set()]));
   for (const b of plan.list) for (const [x, y] of b.cells) for (const [dx, dy] of DIR4) {
     const o = plan.at(x + dx, y + dy);
@@ -63,19 +58,27 @@ export function planKit(plan, seed) {
   for (const b of plan.list) {
     const r = new Rng(hashString(`${seed}:kit:${b.id}`), 'kit');
     const near = [...nb.get(b)].filter((o) => o.kit);
-    b.kit = KIT_OF[b.type](r);
+    b.kit = KIT_FIXED[b.type] || (r.bool(Math.max(0, Math.min(1, (town.plaster ?? 0.6) + (PLASTER_LEAN[b.type] ?? 0)))) ? 'apart' : 'factory');
     const fams = FAMILIES[b.kit].filter((f) => !near.some((o) => o.kit === b.kit && o.family === f));
     b.family = (fams.length ? fams : FAMILIES[b.kit])[r.int((fams.length ? fams : FAMILIES[b.kit]).length)];
-    const pal = b.kit === 'apart' ? PLASTER : BRICK;
+    const pal = b.kit === 'apart' ? PAL : BR;
     const cols = pal.filter((c) => !near.some((o) => o.colour === c));
     b.colour = (cols.length ? cols : pal)[r.int((cols.length ? cols : pal).length)];
-    const joins = JOINERY.filter((c) => !near.some((o) => o.joinery === c));
-    b.joinery = (joins.length ? joins : JOINERY)[r.int((joins.length ? joins : JOINERY).length)];
-    b.piers = b.kit === 'apart' && r.bool(0.4);
-    b.pitched = TYPES[b.type].roof === 'pitched';
+    const joins = JO.filter((c) => !near.some((o) => o.joinery === c));
+    b.joinery = (joins.length ? joins : JO)[r.int((joins.length ? joins : JO).length)];
+    b.piers = b.kit === 'apart' && r.bool(town.piers ?? 0.4);
+    // build 42: the belt's own height, damage and roofs
+    if (!['stall', 'yardwall', 'parkwall'].includes(b.type)) b.storeys = Math.max(1, Math.min(8, b.storeys + (town.storeys || 0)));
+    b.damage = d0 + (d1 - d0) * r.float();
+    b.burnt = r.bool(town.burnt ?? 0.22);
+    b.pitched = TYPES[b.type].roof === 'pitched' || (town.pitched != null && b.storeys <= 3 && !['garage', 'warehouse', 'yardwall', 'parkwall', 'stall'].includes(b.type) && r.bool(town.pitched));
+    b.balconies = b.kit === 'apart' && b.storeys >= 2 && r.bool(town.balconies || 0);
+    b.awning = r.bool(town.awnings || 0);
     if (b.type === 'ruin') { b.damage = 1; b.burnt = true; }
     b.gH = ST; b.sH = ST;
-    b.top = b.type === 'yardwall' ? 2.4 : b.storeys * ST;   // a yard wall is a brick wall, 2.4 m
+    // a yard wall is a brick wall, 2.4 m; a park's is a hedge as high (never lower than the
+    // eye: a wall blocks shots and sight at any height, so you must not see over one)
+    b.top = b.type === 'yardwall' || b.type === 'parkwall' ? 2.4 : b.storeys * ST;
     b.H = b.top + (b.pitched ? 0 : CROWN_H[b.kit]);
   }
   return plan;
@@ -105,10 +108,16 @@ function roomTexture(lit) {
  * @param {object} o     { map, cellM, seed, heightAt(x, y) for walls that are not buildings, kit, track }
  * @returns {THREE.Object3D[]}
  */
-export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, track, lookAt = () => null }) {
+export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, track, lookAt = () => null, style = {} }) {
+  const town = style.town || {}, LS = style.lamps || {}, FX = style.effects || {};
+  setWallLook({ brickSat: town.brickSat ?? 1 });
   const { w, h, tiles } = map;
   const open = (x, y) => x >= 0 && y >= 0 && x < w && y < h && tiles[y * w + x] !== TILE.WALL && tiles[y * w + x] !== TILE.BUILDING;
   const K = new KitBatch(kit);
+  // things on the pavement you can catch a foot on (Play3D trips over them; the sim never sees them)
+  const obstacles = [];
+  // lamps that are real lights (the nearest four burn as point lights): wall lamps, and fires
+  const lamps = [];
   const batches = new Map();
   const B = (key, tile = 1.5) => { if (!batches.has(key)) batches.set(key, batch(tile)); return batches.get(key); };
   const atlas = signAtlas(plan.list);
@@ -118,11 +127,14 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
   // the rooms behind the glass: pieces of their own in the batch
   // (unlit: a room never sees the sun, and a lit material behind every window was the costliest overdraw)
   const roomDark = track(new THREE.MeshBasicMaterial({ map: track(roomTexture(false)), color: new THREE.Color(0.55, 0.55, 0.55), name: 'room-dark' }));
-  const roomLit = track(new THREE.MeshBasicMaterial({ map: track(roomTexture(true)), color: new THREE.Color(1.7, 1.45, 1.15), name: 'room-lit' }));
-  roomDark.userData.kitRole = 'prop'; roomLit.userData.kitRole = 'prop';
+  const roomLit = track(new THREE.MeshBasicMaterial({ map: track(roomTexture(true)), color: new THREE.Color(...(town.litColor || [1.7, 1.45, 1.15])), name: 'room-lit' }));
+  // build 42, EMBER: rooms still burning
+  const roomFire = track(new THREE.MeshBasicMaterial({ map: track(roomTexture(true)), color: new THREE.Color(FX.fires?.color || '#ff8c3c').multiplyScalar(3.2), name: 'room-fire' }));
+  roomDark.userData.kitRole = 'prop'; roomLit.userData.kitRole = 'prop'; roomFire.userData.kitRole = 'prop';
   const roomGeo = track(new THREE.PlaneGeometry(1, 1));
   kit.define?.('room/dark', [{ geo: roomGeo, mat: roomDark, role: 'prop' }]);
   kit.define?.('room/lit', [{ geo: roomGeo, mat: roomLit, role: 'prop' }]);
+  kit.define?.('room/fire', [{ geo: roomGeo, mat: roomFire, role: 'prop' }]);
 
   const has = (k, name) => kit.has(`${k}/${name}`);
   const boxOf = (k, name) => kit.piece(`${k}/${name}`).box;
@@ -182,6 +194,8 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
   // ---- one building
   for (const b of plan.list) {
     const r = new Rng(hashString(`${seed}:kitdraw:${b.id}`), 'kitdraw');
+    const fire = !!FX.fires && b.type !== 'yardwall' && r.bool(FX.fires.share);
+    let fireLit = false;
     const T = TYPES[b.type];
     const k = b.kit;
     const colours = { wall: b.colour, frame: b.joinery, trim: k === 'apart' ? new THREE.Color(b.colour).lerp(new THREE.Color('#f2eee6'), 0.55) : '#e8e2da', glass: '#ffffff' };
@@ -197,12 +211,14 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
       const bw = F.L / n, sx = bw / ST;
       const r2 = new Rng(hashString(`${seed}:run:${b.id}:${run.dx},${run.dy},${run.plane},${run.a0}`), 'run');
 
+      if (b.type === 'parkwall') continue;   // a hedge: drawn whole with the roofs below
       if (b.type === 'yardwall') {
         // a brick wall round a yard: blank bays 2.4 m high between piers, a coping on top
+        const sy = roofY / 3;
         for (let i = 0; i < n; i++) {
-          K.put('factory/wall_standard_standard_01', F.at((i + 1) * bw, 0, 0, sx, 0.8), colours);
+          K.put('factory/wall_standard_standard_01', F.at((i + 1) * bw, 0, 0, sx, sy), colours);
           K.put('factory/crown_standard_standard_01', F.at((i + 1) * bw, roofY, 0, sx), colours);
-          if (i > 0) K.put('factory/wall_pier_standard_01', F.at(i * bw, 0, 0, 1, 0.8), colours);
+          if (i > 0) K.put('factory/wall_pier_standard_01', F.at(i * bw, 0, 0, 1, sy), colours);
         }
         K.put('factory/crown_end_01', F.at(0, roofY), colours); K.put('factory/crown_end_02', F.at(F.L, roofY), colours);
         continue;
@@ -277,13 +293,15 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
       };
 
       // ---- what goes where in one window bay, by the building's damage
-      function windowState(bb, FF, kk, ins, at, rr, sMid, sxB) {
+      function windowState(bb, FF, kk, ins, at, rr, sMid, sxB, y0 = 0) {
         const roll = rr.float(), d = bb.damage;
-        const broken = roll < 0.08 + d * 0.22;
-        const boarded = !broken && roll < 0.12 + d * 0.36;
+        const pb = Math.min(0.95, (0.08 + d * 0.22) * (town.broken ?? 1));
+        const broken = roll < pb;
+        const boarded = !broken && roll < pb + (0.04 + d * 0.14) * (town.boarded ?? 1);
         K.put(`${kk}/${ins}`, at(0), colours, { glass: !broken });
-        room(kk, ins, at, rr, 0.05);
+        room(kk, ins, at, rr, town.lit ?? 0.05);
         if (boarded) planks(FF, sMid, kk, ins, sxB);
+        else if (!broken && rr.bool(town.shutters || 0)) shutterOver(FF, kk, ins, sMid, sxB, y0, rr);
         if (bb.burnt && rr.bool(0.35)) {
           const bx = boxOf(kk, ins);
           e.set(0, FF.yaw, 0, 'YXZ');
@@ -295,13 +313,31 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
       // ---- the room behind an opening: dark, or now and then a lamp still on
       function room(kk, ins, at, rr, pLit) {
         const bx = boxOf(kk, ins);
-        const lit = rr.bool(pLit);
+        const burning = fire && rr.bool(0.65);
+        const lit = !burning && rr.bool(pLit);
         const wB = bx.max.x - bx.min.x, hB = bx.max.y - bx.min.y;
         // a 1 x 1 plane centred on its origin: shift to the opening's centre, set back
         const mm = at(0).clone();
         const local = new THREE.Matrix4().compose(new THREE.Vector3((bx.min.x + bx.max.x) / 2, (bx.min.y + bx.max.y) / 2, kk === 'apart' ? -0.32 : -0.42), new THREE.Quaternion(), new THREE.Vector3(wB, hB, 1));
         mm.multiply(local);
-        K.put(lit ? 'room/lit' : 'room/dark', mm, { prop: lit ? '#ffffff' : new THREE.Color(0.75 + rr.float() * 0.5, 0.75 + rr.float() * 0.5, 0.75 + rr.float() * 0.5) });
+        K.put(burning ? 'room/fire' : lit ? 'room/lit' : 'room/dark', mm, { prop: burning ? new THREE.Color(0.7 + rr.float() * 0.5, 0.7 + rr.float() * 0.3, 0.7) : lit ? '#ffffff' : new THREE.Color(0.75 + rr.float() * 0.5, 0.75 + rr.float() * 0.5, 0.75 + rr.float() * 0.5) });
+        // the fire's light on the street: one real light per burning building, a metre out
+        if (burning && !fireLit) {
+          fireLit = true;
+          const wp = new THREE.Vector3().setFromMatrixPosition(mm);
+          const F2 = FX.fires;
+          lamps.push({ x: wp.x + run.dx * 1.1, y: Math.min(wp.y, 3.2), z: wp.z + run.dy * 1.1, color: F2.color, intensity: F2.intensity, distance: F2.distance, fire: true });
+        }
+      }
+
+      // ---- a roller shutter pulled down over an opening (a storm shutter, a shop's)
+      function shutterOver(FF, kk, ins, sMid, sxB, y0, rr) {
+        const bx = boxOf(kk, ins);
+        const gw = (bx.max.x - bx.min.x) * sxB, gh = bx.max.y - bx.min.y;
+        const name = rr.bool(0.35) ? 'shutterwin/rollershutter_window_01_graffiti' : 'shutterwin/rollershutter_window_01';
+        const sb = kit.piece(name).box;
+        const fx2 = gw / (sb.max.x - sb.min.x), fy = gh / (sb.max.y - sb.min.y);
+        K.put(name, FF.at(sMid - ((sb.min.x + sb.max.x) / 2) * fx2, y0 + bx.min.y - sb.min.y * fy, 0.14, fx2, fy, 0.6), colours);
       }
 
       // ---- boards nailed over an opening
@@ -338,19 +374,19 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
           const at = (y, z = 0, sy = 1) => F.at((i + 1) * bw, st * ST + y, z, sx, sy);
           if (side && r2.bool(0.4)) { K.put(`${k}/wall_standard_standard_01`, at(0), colours); continue; }
           let wall, ins;
-          if (b.type === 'hotel' && !side) { const vv = st === 1 ? 1 : st === 2 ? 5 : 9; wall = `wall_door_window_small_0${vv}`; ins = `door_window_small_0${vv}`; }
+          if ((b.type === 'hotel' || b.balconies) && !side && k === 'apart') { const vv = st === 1 ? 1 : st === 2 ? 5 : 9; wall = `wall_door_window_small_0${vv}`; ins = `door_window_small_0${vv}`; }
           else [wall, ins] = windowNames(k, b.family, st, b.storeys, i);
           if (!has(k, wall) || !has(k, ins)) { wall = 'wall_standard_standard_01'; ins = null; }
           K.put(`${k}/${wall}`, at(0), colours);
-          if (ins) windowState(b, F, k, ins, at, r2, i * bw + bw / 2, sx);
+          if (ins) windowState(b, F, k, ins, at, r2, i * bw + bw / 2, sx, st * ST);
           if (st < b.storeys - 1 || b.pitched) K.put(`${k}/${ins && /door_window/.test(ins) ? 'dado_door_window_small_01' : 'dado_standard_standard_01'}`, at(dadoY), colours);
-          if (b.type === 'hotel' && !side && ins) {
+          if ((b.type === 'hotel' || b.balconies) && !side && ins && /door_window/.test(ins)) {
             // a railing across each French window
             for (const yy of [0.95]) box('metal', F, i * bw + bw / 2, st * ST + yy, 0.18, bw * 0.8, 0.04, 0.04, '#1e1e1e');
             for (let kk = -4; kk <= 4; kk++) box('metal', F, i * bw + bw / 2 + kk * bw * 0.09, st * ST + 0.48, 0.18, 0.02, 0.95, 0.02, '#1e1e1e');
           }
           // an air conditioner under one window in eight
-          if (ins && r2.bool(0.07)) {
+          if (ins && r2.bool(town.aircon ?? 0.07)) {
             const name = r2.bool(0.5) ? 'aircon/exterior_aircon_unit' : 'aircon/exterior_aircon_unit_rusted';
             const ab = kit.piece(name).box, bx = boxOf(k, ins);
             K.put(name, F.at(i * bw + bw / 2 - (ab.min.x + ab.max.x) / 2, st * ST + Math.max(0.05, bx.min.y - (ab.max.y - ab.min.y) - 0.05) - ab.min.y, 0.03 - ab.min.z), {});
@@ -392,17 +428,21 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
           m4.compose(F.point(mid + 0.95 * sx, 2.2, 0.03), q.setFromEuler(e), s.set(0.42, 0.105, 1));
           B('sign').add(PLANE, m4, '#ffffff', atlas.wide.get(b.id));
         }
-        if (T.ground === 'cafe' && r2.bool(0.85)) {
+        if ((T.ground === 'cafe' && r2.bool(0.85)) || (b.awning && ['shopfront', 'pharmacy', 'laundry', 'pub'].includes(T.ground))) {
           const torn = r2.bool(b.damage * 0.5);
           box('cloth', F, F.L / 2, 2.35, 0.75, F.L - 0.2, 0.04, 1.45, b.paint2, torn ? 0.95 : 0.35, torn ? 0.25 : 0);
         }
         if (T.ground === 'hotel') {
           box('paint', F, mid, 2.95, 1.0, 2.6, 0.18, 2.0, b.joinery);
-          for (const sd of [-1, 1]) cyl('metal', F.point(mid + sd * 1.1, 1.45, 1.9), 0.04, 2.9, '#2a2a2a');
+          for (const sd of [-1, 1]) { const pp = F.point(mid + sd * 1.1, 1.45, 1.9); cyl('metal', pp, 0.04, 2.9, '#2a2a2a'); obstacles.push({ x: pp.x, z: pp.z, r: 0.1, kind: 'metal' }); }
         }
-        if (T.ground === 'bank') for (let kk = 0; kk < 3; kk++) box('Concrete042C', F, mid, 0.09 + kk * 0.18, 0.75 - kk * 0.25, bw, 0.18, 0.5, '#b0aba0');
+        if (T.ground === 'bank') {
+          for (let kk = 0; kk < 3; kk++) box('Concrete042C', F, mid, 0.09 + kk * 0.18, 0.75 - kk * 0.25, bw, 0.18, 0.5, '#b0aba0');
+          const sp = F.point(mid, 0, 0.6); obstacles.push({ x: sp.x, z: sp.z, r: Math.min(1.2, bw / 2), kind: 'step' });
+        }
         if (T.ground === 'house') {
           for (let kk = 0; kk < 3; kk++) box('Concrete042C', F, mid, 0.1 + kk * 0.2, 0.85 - kk * 0.27, 1.3, 0.2, 0.55, '#a39e94');
+          const sp = F.point(mid, 0, 0.7); obstacles.push({ x: sp.x, z: sp.z, r: 0.62, kind: 'step' });
           if (r2.bool(0.4)) for (const kk of [-0.07, 0.07]) box('cloth', F, mid + 0.35 + kk, 0.68, 0.45, 0.09, 0.07, 0.25, ['#2a2420', '#3a3028', '#2c2c30'][r2.int(3)]);
         }
         if (atlas.tall.has(b.id)) {
@@ -416,12 +456,23 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
         // brick and plaster fallen onto the pavement in front of the worst
         if (b.damage > 0.6 && r2.bool(0.6)) for (let kk = 0; kk < 6 + r2.int(8); kk++) {
           e.set(r2.float(), r2.float() * 6, r2.float(), 'YXZ');
-          m4.compose(F.point(r2.float() * F.L, 0.04, 0.15 + r2.float() * 0.55), q.setFromEuler(e), s.set(0.08 + r2.float() * 0.18, 0.05 + r2.float() * 0.08, 0.1 + r2.float() * 0.12));
-          B(k === 'apart' ? 'Plaster001' : 'Bricks051', 1.6).add(BOX, m4, k === 'apart' ? b.colour : '#a0786a');
+          const dp = F.point(r2.float() * F.L, 0.04, 0.15 + r2.float() * 0.55);
+          m4.compose(dp, q.setFromEuler(e), s.set(0.08 + r2.float() * 0.18, 0.05 + r2.float() * 0.08, 0.1 + r2.float() * 0.12));
+          B(k === 'apart' ? 'Plaster001' : 'Bricks051', 1.6).add(BOX, m4, k === 'apart' ? b.colour : `#${new THREE.Color(b.colour).multiplyScalar(0.8).getHexString()}`);
+          if (kk % 3 === 0) obstacles.push({ x: dp.x, z: dp.z, r: 0.18, kind: 'rubble' });
         }
       }
     }
 
+    // ---- a park's hedge: overgrown, a little uneven along the top
+    if (b.type === 'parkwall') {
+      for (const [x, y] of b.cells) {
+        const hh = 2.4 + (r.float() - 0.5) * 0.35;
+        m4.compose(v.set((x + 0.5) * C, hh / 2, (y + 0.5) * C), q.identity(), s.set(C * 1.04, hh, C * 1.04));
+        B('hedge', 1.4).add(BOX, m4, ['#6f7d5a', '#66744f', '#77845f', '#5e6c4a'][r.int(4)]);
+      }
+      continue;
+    }
     // ---- roofs
     for (const [x, y] of b.cells) {
       if (b.pitched) {
@@ -457,7 +508,6 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
   }
 
   // ---- the street: what was left outside when people went quiet
-  const lamps = [];
   const bulbMat = track(new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 3.1, 1.5), name: 'bulb' }));
   bulbMat.userData.kitRole = 'prop';
   kit.define?.('x/bulb', [{ geo: track(new THREE.SphereGeometry(0.045, 8, 6)), mat: bulbMat, role: 'prop' }]);
@@ -470,6 +520,10 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
     pc.makeTranslation(-(bx.min.x + bx.max.x) / 2, -bx.min.y, -(bx.min.z + bx.max.z) / 2);
     pm.compose(pv.set(x, y, z), pq.setFromAxisAngle(UP, yaw), ps.setScalar(sc)).multiply(pc);
     K.put(name, pm, colours);
+    if (!/manhole/.test(name) && y < 0.1) {
+      const rr = Math.max(bx.max.x - bx.min.x, bx.max.z - bx.min.z) * sc * 0.42;
+      obstacles.push({ x, z, r: rr, kind: /can|ubox|barrel/.test(name) ? 'metal' : /crate|bench/.test(name) ? 'wood' : 'soft' });
+    }
   };
   const lampAt = [];
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -488,13 +542,16 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
     // how wide is it here: open cells straight out from the wall
     let width = 0;
     while (width < 5 && !isWallT(x - dx * (width + 1), y - dy * (width + 1))) width++;
-    // a lamp on the wall where it is narrow and dark; most still burn, warm
-    if (width <= 2 && r.bool(0.3) && !lampAt.some(([lx, ly]) => Math.abs(lx - x) + Math.abs(ly - y) < 5)) {
+    // a lamp on the wall where it is narrow and dark; most still burn, warm (never on a
+    // yard wall: it is lower than the lamp)
+    const wallB = plan.at(x + dx, y + dy);
+    const tallEnough = wallB ? wallB.top >= 3 : heightAt(x + dx, y + dy) >= 3.3;
+    if (tallEnough && (width <= 2 && r.bool(0.3) && !lampAt.some(([lx, ly]) => Math.abs(lx - x) + Math.abs(ly - y) < 5) && LS.intensity !== 0 || (LS.intensity === 0 && width <= 2 && r.bool(0.12) && !lampAt.some(([lx, ly]) => Math.abs(lx - x) + Math.abs(ly - y) < 7)))) {
       lampAt.push([x, y]);
       const [lx, lz] = [cx + dx * (C / 2), cz + dy * (C / 2)];
       pm.compose(pv.set(lx, 2.9, lz), pq.setFromAxisAngle(UP, yawOut), ps.setScalar(1.25));
       K.put('walllamp/industrial_wall_lamp', pm, {});
-      if (r.bool(0.75)) {
+      if (LS.intensity !== 0 && r.bool(LS.burn ?? 0.75)) {
         pm.compose(pv.set(lx - dx * 0.11, 2.83, lz - dy * 0.11), pq.identity(), ps.setScalar(1));
         K.put('x/bulb', pm, {});
         lamps.push({ x: lx - dx * 0.5, y: 2.6, z: lz - dy * 0.5 });
@@ -508,14 +565,14 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
       if (r.bool(0.6)) { const [bx2, bz2] = at(0.3); prop('bag/trashbag', bx2 + dy * 0.55, bz2 - dx * 0.55, r.float() * 6.28, 0.9 + r.float() * 0.25); }
     } else if ((place === 'street' || place === 'tenements') && roll < 0.09) {
       for (let k2 = 0; k2 < 1 + r.int(3); k2++) { const [px, pz] = at(0.28 + r.float() * 0.2); prop('bag/trashbag', px + (r.float() - 0.5) * 0.9 * Math.abs(dy), pz + (r.float() - 0.5) * 0.9 * Math.abs(dx), r.float() * 6.28, 0.85 + r.float() * 0.3); }
-    } else if ((place === 'yards' || place === 'depot' || place === 'market') && roll < 0.12) {
+    } else if ((place === 'yards' || place === 'depot' || place === 'market' || (style.props?.harbour && roll < 0.15)) && roll < 0.15) {
       const [px, pz] = at(0.36);
       const pick = r.int(4);
       if (pick === 0) prop('barrel/barrel_03', px, pz, r.float() * 6.28);
       else if (pick === 1) { prop('crate/crate', px, pz, yawOut + (r.float() - 0.5) * 0.3); if (r.bool(0.4)) prop('crate/crate', px, pz, yawOut + (r.float() - 0.5) * 0.6, 1, {}, 0.32); }
       else if (pick === 2) for (let k2 = 0; k2 < 1 + r.int(2); k2++) prop('tyre/old_tyre', px + dy * (k2 * 0.3 - 0.15), pz - dx * (k2 * 0.3 - 0.15), Math.atan2(-dy, dx) + (r.float() - 0.5) * 0.3);
       else prop('can/rusty', px, pz, r.float() * 6.28);
-    } else if ((place === 'plaza' || place === 'park' || place === 'canal') && roll < 0.07 && width >= 2) {
+    } else if ((place === 'plaza' || place === 'park' || place === 'canal') && roll < 0.07 * (style.props?.benches ?? 1) && width >= 2) {
       const [px, pz] = at(0.3);
       prop('bench/painted_wooden_bench', px, pz, yawOut);
     } else if (roll < 0.1 && roll >= 0.095) {
@@ -539,13 +596,19 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
   };
   for (const id of Object.keys(SURFACES)) if (batches.has(id)) add(id, new THREE.MeshStandardMaterial({ ...surface(id), vertexColors: true, roughness: 1 }));
   add('paint', new THREE.MeshStandardMaterial({ ...surface('Plaster001'), vertexColors: true, roughness: 1 }));
+  // the hedges: Poly Haven's leaf photo (assets3d/textures), on every face
+  if (batches.has('hedge')) {
+    const L = new THREE.TextureLoader();
+    const t = (n, srgb) => { const tx = track(L.load(new URL(`../../assets3d/textures/forest_leaves_02/${n}.jpg`, import.meta.url).href)); tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.anisotropy = 8; if (srgb) tx.colorSpace = THREE.SRGBColorSpace; return tx; };
+    add('hedge', new THREE.MeshStandardMaterial({ map: t('diff', true), normalMap: t('nor_gl', false), roughnessMap: t('arm', false), normalScale: new THREE.Vector2(1.6, 1.6), vertexColors: true, roughness: 1 }));
+  }
   add('cloth', new THREE.MeshStandardMaterial({ map: canvasStripe, vertexColors: true, roughness: 1, side: THREE.DoubleSide }));
   add('metal', new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.6 }));
   add('roofslate', new THREE.MeshStandardMaterial({ map: slate, vertexColors: true, roughness: 0.85 }));
   add('soot', new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: soot, transparent: true, depthWrite: false, opacity: 0.7 }), false);
   add('sign', new THREE.MeshStandardMaterial({ map: atlas.tex, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, side: THREE.DoubleSide }), false);
   track(soot); track(canvasStripe); track(slate); track(atlas.tex);
-  return { meshes: out, lamps };
+  return { meshes: out, lamps, obstacles };
 }
 
 /** Wall and window piece names for a storey of a family: a smaller attic row on top. */

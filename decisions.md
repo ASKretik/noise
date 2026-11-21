@@ -3367,11 +3367,100 @@ occlusion costs 0.7 ms.
 - chunking for big cities;
 - every other district.
 
+## R72 · Ten first districts, ten styles; and tripping (3D build 42)
+
+**Asked:**
+
+1. "whenever the player runs into a small obstacle like the stairs in front of the
+   building, the used boxes, etc., make sure that the player is slightly tripped and
+   temporarily loses balance … the speed need not be hindered."
+2. Build 41's sky "looks bright … not suitable … as we are making the game look sombre
+   (for the plot)". When it goes to other districts and belts, "make sure that the art
+   style completely changes from belt to belt, rather than just changing the colour
+   palette and calling it a day". Give the first district of each belt a different
+   style; the user approves each before it is copied to the rest of its belt.
+
+**The stumble** is the camera only. The sim, the speed, and the noise the aliens hear are
+untouched. The kit builder records each obstacle's footprint; `Play3D.stumble` trips
+once per obstacle above a walking pace. Checked on a real walk into a stoop: a 5° pitch,
+a 7 cm drop and a roll, recovered in 0.75 s, at unchanged speed.
+
+**The styles** (antialgorithm skill):
+
+- **The default** was one grey fog in ten tints: what the user called "changing the colour
+  palette".
+- **The move:** each belt is lit by a different kind of light, tied to its alien and
+  character, and its buildings, ground, weather and grade follow. The light sources:
+  - RUST: the last light under cloud;
+  - TIDE: a storm with no sun;
+  - MOSS: sun through a canopy;
+  - EMBER: fires;
+  - VIOLET: an aurora;
+  - ASH: none, and a frame with no colour but the entities';
+  - CORAL: backlit mist;
+  - JADE: two moons;
+  - SOLAR: a dust-dimmed sun;
+  - COBALT: the ship's searchlight.
+- **Off-default choices made for the project's reasons:**
+  - VIOLET has no neon (the power is out);
+  - EMBER's fire is local, not everywhere (orange would crowd the aliens' red and the
+    keys' gold);
+  - ASH's colour survives only on what the player must read: the legibility rule made
+    into the look.
+
+**Downloaded** with the user's approval (Poly Haven, CC0, `assets3d/CREDITS.md`):
+
+- four skies: 1K HDRs shipped, plus a JPEG dome made from each 4K;
+- eight ground textures;
+- about 20 MB in all.
+
+**What the browser showed, and what it changed:**
+
+- The first MOSS canopy was nearly solid, and from below its blobs read as black spots.
+  It is now clustered leaf shapes with big gaps, unlit and dim green, as leaves look lit
+  from behind.
+- VIOLET and COBALT were black: a drawn night sky gives little light. Sky light ×5 and
+  ×3.5, more fill. The searchlight needed 60,000 cd to read at 70 m.
+- SOLAR's dimmed photo sky read as night. A dust veil over the whole dome, with a sun
+  disc in it, made it a storm.
+- Every plaster colour came out salmon: the plaster photo averages sRGB (151, 106, 81).
+  Plaster and stone trim now keep the photo's light and dark, not its hue.
+- ASH kept the red of fallen brick, which could pass for an alien. Kept colours must now
+  be vivid and lit, and the rubble takes the building's colour.
+  - Checked with swatches in the six entity colours: all keep their colour.
+- Low "garden" walls round the parks were tried and dropped before shipping: the player
+  could see aliens over a wall that blocks shots and sight. That breaks build 30's
+  "if you can see it you can shoot it". Hedges at full height instead.
+- The darkness map was baked into the model kit's shared materials when they were first
+  used, so a second district would have used the first's alleys. Its uniforms are now
+  shared and updated per district.
+- 3D-16 now lints each style's facades, brick, haze and ground tint. Its dusk-to-midnight
+  order starts after a first district, which sets its own hour. Two colours were moved
+  off the 10-coin violet, and SOLAR's dust off the coin orange.
+
+**Measured** (1080p Medium):
+
+- Before the cost controls, the night belts were at 43, 41 and 58 ms. The first big cost
+  was the long night fog; then the per-piece culling over 172,000 pieces (district 91),
+  run for the camera and again for each shadow-casting light.
+- After the cost controls (shorter night fog; detail hidden beyond 55 m; batches chunked
+  by 64 m; only walls, trim and garage doors in the shadow passes):
+  - RUST, TIDE, MOSS, EMBER, ASH, CORAL and SOLAR: 12–21 ms;
+  - VIOLET, JADE and COBALT: 25–29 ms.
+
+**Not done:**
+
+- districts 2–10, 12–20 and the rest keep their old look until a belt's style is
+  approved;
+- the parks' lone trees;
+- interiors;
+- a weaker laptop.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 41; 3D-1 via the
+npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 42; 3D-1 via the
                   2D suites above, run alongside)
 ```

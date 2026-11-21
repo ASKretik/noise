@@ -13,6 +13,8 @@
 // game's vocabulary. No large-area colour here -- walls, floors, sky, fog, props -- may sit
 // within 25 degrees of hue AND 0.25 of lightness of one of them (largeAreaColours()).
 
+import { HD_STYLES } from './hdstyles.js';
+
 export const ENTITY_COLOURS = Object.freeze({
   alien: '#ff4d5e', alienGlow: '#ff2a3c', alienGlowOrange: '#ff4a24', alienCalm: '#c9414f',
   key: '#ffc93b', bolt: '#ffe66d', coin1: '#c8803c', coin10: '#c87bff', portal: '#19e0c8',
@@ -216,40 +218,15 @@ const ART = {
 };
 
 /**
- * N4.4 PROTOTYPE, district 1 only: the horror look the user asked for (Amnesia, Silent
- * Hill) at far more detail, to judge before it goes to every district. Chosen with the
- * antialgorithm skill's rule -- name the default, move away for a reason from NOISE:
- *   fog    not Silent Hill's white: RUST is the foundry belt, its air is smog -- brown,
- *          amber low down, darker above
- *   light  open streets and squares lit by the smoggy sky; narrow alleys and courtyards
- *          nearly black (world.js darkness map), where you need the torch (F); most
- *          street lamps smashed (lamps hum), a few still burning amber
- *   world  no gore: the street shows how people tried to be quiet before they were
- *          taken -- mattresses nailed over windows, shoes left at doors, bell ropes cut
- * web3d/art/hd.js builds the detail; this is its light, fog and grade.
+ * N4.4 PROTOTYPE: the first district of every belt in its own style (art/hdstyles.js),
+ * built from the model kit (art/kit.js, art/kitbuild.js). Builds 38-40 tried a smog
+ * horror look on district 1, build 41 daylight; the user kept build 41's craft and asked
+ * for a sombre look that changes completely from belt to belt (3D build 42, R72). Once a
+ * belt's first district is approved it is carried to the rest of the belt.
  */
-export const HD_DISTRICTS = Object.freeze([1]);
-// Build 41: the smog is gone. The user's references were Halo concept art for the
-// streets (daylight, blue sky, haze) and Amnesia for the dark places (black, with warm
-// pools of light), so: a photographed sky and its light (art/daylight.js), a real sun
-// with shadows, haze from the photograph's horizon, film tone mapping (post.js); the
-// darkness map keeps the alleys black and the lamps there burn warm.
-const RUST_HD = Object.freeze({
-  day: {
-    sky: 'kloofendal_48d_sky_4k.jpg', env: 'kloofendal_48d_partly_cloudy_puresky_1k.hdr',
-    skyGain: 2.857, drift: 0.0004,
-    haze: '#aeb4c4',
-    sun: { dir: [0.5547, 0.7415, 0.3775], color: '#fff0dc', intensity: 3.4 },
-    envIntensity: 1.0, exposure: 0.85,
-  },
-  fog: { color: '#aeb4c4', near: 22, far: 230 },
-  sky: { zenith: '#5d6780', horizon: '#aeb4c4' },
-  light: { hemiSky: '#9fb2d0', hemiGround: '#4a4136', hemi: 0.25, key: '#fff0dc', keyI: 3.4 },
-  torch: { color: '#ffe8c8', intensity: 20, angle: 0.38, penumbra: 0.7, distance: 32, decay: 1.15 },
-  lamp: { color: '#ffb46b', intensity: 14, distance: 13 },
-  grade: { tint: '#fffaf2', sat: 1.08, lift: 0.0, gain: 1.0, bloom: 0.35, grain: 0.035, ca: 0.0008, vignette: 0.28, aces: true, exposure: 0.85, ao: 0.85 },
-  dustRate: 0.35, dustSize: 0.02,
-});
+export const HD_DISTRICTS = Object.freeze([1, 11, 21, 31, 41, 51, 61, 71, 81, 91]);
+/** what every belt's style shares: the torch in your hand */
+const HD_TORCH = Object.freeze({ color: '#ffe8c8', intensity: 20, angle: 0.38, penumbra: 0.7, distance: 32, decay: 1.15 });
 
 export const BELT_NAMES = Object.freeze(['RUST', 'TIDE', 'MOSS', 'EMBER', 'VIOLET', 'ASH', 'CORAL', 'JADE', 'SOLAR', 'COBALT']);
 export const beltOf = (district) => Math.floor((Math.max(1, Math.min(100, district)) - 1) / 10);
@@ -321,20 +298,37 @@ export function artFor(district) {
       keyI: lerp(a.keyI, b.keyI, t), keyAz: body.az, keyElev: Math.max(6, body.elev),
     },
     fog: { color: mixHex(a.horizon, b.horizon, t) },
-    ...(HD_DISTRICTS.includes(district) && def === ART.RUST ? hdOverrides(def) : {}),
+    ...(HD_DISTRICTS.includes(district) && HD_STYLES[BELT_NAMES[belt]] ? hdOverrides(HD_STYLES[BELT_NAMES[belt]], a) : {}),
   };
 }
 
-/** District 1's prototype look: daylight in the streets, black alleys, a film grade. */
-function hdOverrides(def) {
-  const H = RUST_HD;
+/**
+ * A belt's first district in its own style (art/hdstyles.js). The drawn-sky fields keep
+ * the shape art/sky.js wants; a photographed sky keeps a stand-in gradient from its haze.
+ * `light` keeps the old keys for the fallbacks; world.js lightScene reads `hd` itself.
+ */
+function hdOverrides(H, dusk) {
+  const P = H.sky.proc;
+  const sun = H.sun || H.moonLight;
+  const az = sun ? (Math.atan2(sun.dir[0], -sun.dir[2]) * 180) / Math.PI : 250;
+  const elev = sun ? (Math.asin(sun.dir[1]) * 180) / Math.PI : -10;
   return {
-    hd: H,
-    sky: { zenith: H.sky.zenith, horizon: H.sky.horizon, clouds: 0, cloud: H.sky.horizon, stars: 0, canopy: 0, body: { kind: 'sun', az: 34, elev: 48, color: '#fff0dc', size: 0, glow: 0 }, beam: null, body2: null, aurora: null, ship: 0 },
-    light: { ...H.light, keyAz: 250, keyElev: 18 },
+    hd: {
+      ...H,
+      torch: HD_TORCH,
+      lamp: { color: H.lamps?.color ?? '#ffb46b', intensity: H.lamps?.intensity ?? 10, distance: H.lamps?.distance ?? 12 },
+    },
+    sky: P ? { ...P } : {
+      zenith: H.fog.color, horizon: H.fog.color, clouds: 0, cloud: H.fog.color, stars: 0, canopy: 0,
+      body: { kind: elev > 0 ? 'sun' : 'moon', az, elev, color: '#000000', size: 0, glow: 0 }, beam: null, body2: null, aurora: null, ship: 0,
+    },
+    light: {
+      hemiSky: H.hemi?.sky ?? dusk.hemiSky, hemiGround: H.hemi?.ground ?? dusk.hemiGround, hemi: H.hemi?.i ?? 0.2,
+      key: sun?.color ?? '#000000', keyI: sun?.intensity ?? 0, keyAz: az, keyElev: Math.max(2, elev),
+    },
     fog: { color: H.fog.color, near: H.fog.near, far: H.fog.far },
     grade: H.grade,
-    weather: def.weather ? { ...def.weather, rate: H.dustRate, size: H.dustSize, speed: def.weather.speed * 0.6 } : null,
+    weather: H.weather || null,
   };
 }
 
@@ -400,6 +394,14 @@ export function largeAreaColours(art) {
     ['clouds', art.sky.cloud], ['fog', art.fog.color],
   ];
   if (art.sky.aurora) out.push(['aurora', art.sky.aurora.a], ['aurora', art.sky.aurora.b]);
+  // build 42: a belt's first district in its own style: its facades, brick, fog and haze
+  if (art.hd) {
+    const T = art.hd.town || {};
+    for (const c of T.palette || []) out.push(['facade', c]);
+    for (const c of T.brick || []) out.push(['brick', c]);
+    if (art.hd.sky?.haze) out.push(['haze', art.hd.sky.haze]);
+    if (art.hd.ground?.tint) out.push(['ground tint', art.hd.ground.tint]);
+  }
   // N4.2: every kind of place's walls, floor and goods -- a yard full of containers is a lot of screen
   for (const type of PLACE_TYPE_ORDER) {
     const L = placeLook(art, type);

@@ -177,6 +177,42 @@ export function simplifyPlanar(geo) {
   return out;
 }
 
+// ------------------------------------------------------------------ wall colour
+
+/**
+ * Build 42: the apartments kit's plaster photo averages a terracotta (sRGB 151, 106, 81),
+ * so any colour laid over it came out salmon. Its walls keep the photo's light and dark
+ * but not its hue (uSat 0, normalised so the average is 0.75), and the building's colour
+ * is the colour you see. Brick keeps its own colour, desaturated by a belt's `brickSat`.
+ * The uniforms are shared, so setWallLook() changes them for every district built after.
+ */
+const WALL_U = {
+  plaster: { uSat: { value: 0 }, uNorm: { value: 0.75 / 0.176 } },
+  trim: { uSat: { value: 0 }, uNorm: { value: 0.7 / 0.085 } },      // the stone trim photo is warm brown too
+  brick: { uSat: { value: 1 }, uNorm: { value: 1 } },
+};
+function wallColour(mat) {
+  mat.userData.kitWall = true;
+  const U = /plaster/.test(mat.name) ? WALL_U.plaster : /apartments_facade_trim_01/.test(mat.name) ? WALL_U.trim : WALL_U.brick;
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (shader, renderer) => {
+    if (prev) prev.call(mat, shader, renderer);
+    shader.uniforms.uSat = U.uSat; shader.uniforms.uNorm = U.uNorm;
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uSat, uNorm;')
+      .replace('#include <map_fragment>', `#ifdef USE_MAP
+  vec4 sampledDiffuseColor = texture2D( map, vMapUv );
+  float kitL = dot( sampledDiffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) );
+  sampledDiffuseColor.rgb = mix( vec3( kitL * uNorm ), sampledDiffuseColor.rgb, uSat );
+  diffuseColor *= sampledDiffuseColor;
+#endif`);
+  };
+  const key = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : null;
+  mat.customProgramCacheKey = () => `${key ? key() : ''}:kitwall`;
+}
+/** A belt's brick: how much of the photo's red-brown it keeps (ASH and COBALT keep little). */
+export function setWallLook({ brickSat = 1 } = {}) { WALL_U.brick.uSat.value = brickSat; }
+
 // ------------------------------------------------------------------ loading
 
 /** Only position, normal and uv, indexed: what every geometry in one BatchedMesh must share. */
@@ -225,6 +261,7 @@ export function loadKit(onProgress = () => {}) {
             mesh.material = mat = g;
           }
           if (mat.transparent) mat.forceSinglePass = true;   // one pass, not back faces then front
+          if ((roleOf(mat.name) === 'wall' || /apartments_facade_trim_01/.test(mat.name)) && !mat.userData.kitWall) wallColour(mat);
           for (const t of ['map', 'normalMap', 'roughnessMap', 'metalnessMap']) if (mat[t]) mat[t].anisotropy = 8;
           mat.userData.kitRole = roleOf(mat.name);
         }
@@ -296,16 +333,25 @@ export class KitBatch {
     }
   }
 
-  /** @returns {THREE.BatchedMesh[]} */
-  build(track = (x) => x) {
+  /**
+   * One BatchedMesh per material per CHUNK_M square of the map (build 42): three culls
+   * a whole chunk first, so the per-instance tests -- for the camera and again for every
+   * shadow-casting light -- only run where you can see. On a district-90 map of 170,000
+   * pieces that was most of the frame.
+   * @returns {THREE.BatchedMesh[]}
+   */
+  build(track = (x) => x, CHUNK_M = 64) {
     const byMat = new Map();
     for (const it of this.items) {
-      let l = byMat.get(it.part.mat);
-      if (!l) byMat.set(it.part.mat, (l = []));
+      const key = `${Math.floor(it.m.elements[12] / CHUNK_M)},${Math.floor(it.m.elements[14] / CHUNK_M)}`;
+      let byChunk = byMat.get(it.part.mat);
+      if (!byChunk) byMat.set(it.part.mat, (byChunk = new Map()));
+      let l = byChunk.get(key);
+      if (!l) byChunk.set(key, (l = []));
       l.push(it);
     }
     const out = [];
-    for (const [mat, items] of byMat) {
+    for (const [mat, chunks] of byMat) for (const items of chunks.values()) {
       const geos = [...new Set(items.map((it) => it.part.geo))];
       const nv = geos.reduce((s, g) => s + g.attributes.position.count, 0);
       const ni = geos.reduce((s, g) => s + g.index.count, 0);
@@ -320,13 +366,39 @@ export class KitBatch {
       bm.sortObjects = !!mat.transparent;   // opaque pieces need no per-frame sort
       // glass, the rooms behind it, and the small fittings cast nothing worth a shadow pass
       const glass = mat.userData.kitRole === 'glass';
-      bm.castShadow = !glass && !/room|aircon|gutter|shutter/.test(mat.name);
+      // (build 42: window and door joinery sits inside the wall's own shadow, and the props
+      // are small: only walls, trim and the big doors cast, which halves the shadow passes)
+      bm.castShadow = !glass && (mat.userData.kitRole === 'wall' || mat.userData.kitRole === 'trim' || /garage/.test(mat.name));
       bm.receiveShadow = true;
       bm.computeBoundingBox();
       bm.computeBoundingSphere();
+      // build 42: small detail (frames, glass, fittings, props) is hidden beyond DETAIL_M --
+      // in the fog it is invisible anyway, and on a district-90 map it was most of the frame
+      if (mat.userData.kitRole !== 'wall' && mat.userData.kitRole !== 'trim' && !/room|garage/.test(mat.name)) {
+        const xz = new Float32Array(items.length * 2);
+        items.forEach((it, i) => { xz[i * 2] = it.m.elements[12]; xz[i * 2 + 1] = it.m.elements[14]; });
+        bm.userData.detailXZ = xz;
+      }
       track(bm);
       out.push(bm);
     }
     return out;
+  }
+}
+
+export const DETAIL_M = 55;
+/**
+ * Show only the detail within DETAIL_M of the eye. Cheap enough to run every few metres
+ * of walking: one pass over the instance positions, no matrices touched.
+ */
+export function cullDetail(meshes, x, z, range = DETAIL_M) {
+  const r2 = range * range;
+  for (const bm of meshes) {
+    const xz = bm.userData.detailXZ;
+    if (!xz) continue;
+    for (let i = 0, n = xz.length / 2; i < n; i++) {
+      const dx = xz[i * 2] - x, dz = xz[i * 2 + 1] - z;
+      bm.setVisibleAt(i, dx * dx + dz * dz < r2);
+    }
   }
 }

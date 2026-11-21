@@ -157,13 +157,20 @@ export function setLayers(mesh, layers) {
  * lights -- still light it. Above about 6 m (roofs, cornices) it fades back to full.
  */
 export function patchDark(mat, dark) {
-  if (mat.userData.dark) return;
+  // (build 42: the model kit's materials outlive a district and are patched once, so the
+  // map and scale live in shared uniforms that each new district's call updates)
+  if (mat.userData.dark) {
+    mat.userData.darkU.darkMap.value = dark.tex;
+    mat.userData.darkU.darkScale.value.set(1 / dark.wM, 1 / dark.hM);
+    return;
+  }
   mat.userData.dark = true;
+  const U = mat.userData.darkU = { darkMap: { value: dark.tex }, darkScale: { value: new THREE.Vector2(1 / dark.wM, 1 / dark.hM) } };
   const prev = mat.onBeforeCompile;
   mat.onBeforeCompile = (shader, renderer) => {
     if (prev) prev.call(mat, shader, renderer);
-    shader.uniforms.darkMap = { value: dark.tex };
-    shader.uniforms.darkScale = { value: new THREE.Vector2(1 / dark.wM, 1 / dark.hM) };
+    shader.uniforms.darkMap = U.darkMap;
+    shader.uniforms.darkScale = U.darkScale;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vDkPos;')
       .replace('#include <project_vertex>', `#include <project_vertex>

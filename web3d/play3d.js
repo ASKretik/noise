@@ -11,7 +11,7 @@ import { createScene } from './scene.js';
 import { createPost } from './post.js';
 import { buildWorld, lightScene } from './world.js';
 import { artFor } from './art/belts.js';
-import { loadDayEnv } from './art/daylight.js';
+import { loadDayEnv, envFromSky } from './art/daylight.js';
 import { loadKit, kitReady } from './art/kit.js';
 import { currentQuality, setQuality } from './quality.js';
 import { Entities } from './entities.js';
@@ -178,6 +178,43 @@ export class Play3D {
     requestAnimationFrame(this.frame);
   }
 
+  /**
+   * Build 42, at the user's request: running into something small -- a stoop, a bin, a
+   * crate, a bag, rubble -- catches your foot. The view pitches forward and drops, rolls
+   * toward the side you hit it on, and swings back over about 0.7 s; a scuff and a heavy
+   * step, and the thing itself if it rings or knocks. Speed is untouched and the sim never
+   * knows: it is the camera only. Once per obstacle until you are clear of it; Reduce
+   * motion keeps a third of it and no roll. Returns the drop, for the gun to follow.
+   */
+  stumble(dt, cam, b, speed, cellM, calm, sprinting) {
+    const px = b.x * cellM, pz = b.y * cellM;
+    const hit = speed > 0.9 ? this.world.obstacleAt?.(px, pz, 0.22) : null;
+    if (hit && hit !== this.tripOn && (!this.tripState || this.t - this.tripState.t0 > 0.45)) {
+      // which side of your path it is on: a foot caught on the left throws you left
+      const fx = -Math.sin(this.controls.yaw), fz = -Math.cos(this.controls.yaw);
+      const side = Math.sign(fx * (hit.z - pz) - fz * (hit.x - px)) || 1;
+      const k = Math.min(1.25, 0.55 + speed / (this.runner.session.tickHz * 2.2)) * (sprinting ? 1.15 : 1);
+      this.tripState = { t0: this.t, side, k: calm ? k * 0.33 : k };
+      this.audio.stumble(hit.kind, Math.min(1, k));
+    }
+    this.tripOn = hit;
+    const st = this.tripState;
+    if (!st) return 0;
+    const u = (this.t - st.t0) / 0.75;
+    if (u >= 1) { this.tripState = null; return 0; }
+    const catchUp = 1 - Math.exp(-u * 22);                 // the foot stops dead
+    const dip = -0.15 * st.k * catchUp * Math.exp(-u * 4.2);
+    const drop = -0.09 * st.k * catchUp * Math.exp(-u * 4.8);
+    const roll = calm ? 0 : st.side * 0.085 * st.k * Math.sin(u * 8.5) * Math.exp(-u * 3.4);
+    const sway = st.side * 0.06 * st.k * Math.sin(u * 6.5) * Math.exp(-u * 4);
+    cam.rotation.x += dip;
+    cam.rotation.z += roll;
+    cam.position.y += drop;
+    cam.position.x += Math.cos(this.controls.yaw) * sway;
+    cam.position.z -= Math.sin(this.controls.yaw) * sway;
+    return drop;
+  }
+
   // ---------------------------------------------------------------- a district
 
   start(n) {
@@ -200,6 +237,7 @@ export class Play3D {
     this.runner.session.response = this.tune.response;
     // N6.1: a new district starts with the gun in hand and no effects left over
     this.active = 'gun';
+    this.tripState = null; this.tripOn = null;
     for (const fx of this.itemFx || []) this.view.scene.remove(fx.obj);
     this.itemFx = [];
     this.dossier = this.runner.dossier;
@@ -459,29 +497,36 @@ export class Play3D {
 
   buildScene() {
     const cellM = this.tune.cellM;
-    // build 41: district 1's daylight sun casts shadows at Medium too -- without them the
-    // streets lose the shapes the whole look is built on (Low still has none)
-    const day = artFor(this.runner.level.level)?.hd?.day || null;
-    const shadows = this.quality.shadows || (!!day && this.quality.id !== 'low');
+    // builds 41-42: a belt's first district in its own style (art/hdstyles.js). Its key
+    // light casts shadows at Medium too -- the look is built on them (Low has none)
+    const H = artFor(this.runner.level.level)?.hd || null;
+    const castsShadow = !!H && !!((H.sun || H.moonLight)?.shadow || H.moon2?.shadow || H.effects?.searchlight);
+    const shadows = this.quality.shadows || (castsShadow && this.quality.id !== 'low');
     const R = this.view.renderer, T = this.view.THREE;
     R.shadowMap.enabled = shadows;
-    R.shadowMap.type = day ? T.PCFSoftShadowMap : T.PCFShadowMap;
-    if (day && !kitReady()) loadKit().catch(() => {});   // for the next time this district is built
-    this.world = buildWorld(this.runner.level, { cellM, shadows, kit: day ? kitReady() : null });
+    R.shadowMap.type = H ? T.PCFSoftShadowMap : T.PCFShadowMap;
+    // for the next time this district is built, or the next district if it is a belt's first
+    if ((H || artFor(this.runner.level.level + 1)?.hd) && !kitReady()) loadKit().catch(() => {});
+    this.world = buildWorld(this.runner.level, { cellM, shadows, kit: H ? kitReady() : null });
     this.view.post?.setGrade(this.world.art.grade);
     // film tone mapping: in post.js when it runs, else (Low) by the renderer
-    R.toneMapping = day ? T.ACESFilmicToneMapping : T.NoToneMapping;
+    R.toneMapping = H ? T.ACESFilmicToneMapping : T.NoToneMapping;
     R.toneMappingExposure = this.world.art.grade?.exposure ?? 1;
-    // the sky's own light on every PBR surface (art/daylight.js), once it has loaded
+    // the sky's own light on every PBR surface: a photograph's HDR, or the drawn sky itself
     const sc = this.view.scene;
     sc.environment = null;
-    if (day) {
+    this.skyEnv?.dispose(); this.skyEnv = null;
+    if (H?.sky?.photo) {
       const world = this.world;
-      loadDayEnv(R, day).then((env) => {
+      loadDayEnv(R, H.sky.env).then((env) => {
         if (this.world !== world) return;
         sc.environment = env;
-        sc.environmentIntensity = day.envIntensity;
-      }).catch((e) => console.warn('daylight: the sky light did not load', e));
+        sc.environmentIntensity = H.env ?? 1;
+      }).catch((e) => console.warn('the sky light did not load', e));
+    } else if (H?.sky?.proc && this.world.skyMesh) {
+      this.skyEnv = envFromSky(R, this.world.skyMesh);
+      sc.environment = this.skyEnv.texture;
+      sc.environmentIntensity = H.env ?? 1;
     }
     // N4.4 prototype: the far plane follows the district's fog (district 1's smog ends at 38 m)
     this.view.camera.far = (this.world.art.fog.far ?? 90) + 8;
@@ -826,6 +871,8 @@ export class Play3D {
     const bobY = calm ? 0 : Math.sin(this.bob * 2) * 0.035 * Math.min(1, speed / r.session.tickHz);
     cam.position.set(b.x * cellM, EYE_M + bobY, b.y * cellM);
     cam.rotation.set(this.controls.pitch, this.controls.yaw, 0);
+    // build 42: a foot caught on a step, a bin, a bag: a stumble you recover from at once
+    const trip = !this.paused && !g.over && !this.fx.run && !this.endAnim ? this.stumble(dt, cam, b, speed, cellM, calm, g.sprinting) : 0;
     // A small FOV kick while actually sprinting.
     const kick = !calm && g.sprinting && speed > r.session.tickHz * 1.2 ? 5 : 0;
     this.fovKick += (kick - this.fovKick) * (1 - Math.exp(-dt * 8));
@@ -926,7 +973,7 @@ export class Play3D {
       if (this.touch.run && g.sprintTicks <= 0) this.touch.run = false;
       this.touch.setState({ running: g.sprinting, charges: g.loadout.bullets, gun: g.loadout.stunGun, locked: this.lock?.ok });
     }
-    this.gun.update(dt, cam, g, { yaw: this.controls.yaw, pitch: this.controls.pitch, bob: bobY, reduceMotion: calm });
+    this.gun.update(dt, cam, g, { yaw: this.controls.yaw, pitch: this.controls.pitch, bob: bobY + trip, reduceMotion: calm });
     if (this.active !== 'gun') this.gun.model.visible = false;   // an item in hand, not the gun
     this.hud.update({
       game: g, level: r.level, body: b, camera: cam, yaw: this.controls.yaw,

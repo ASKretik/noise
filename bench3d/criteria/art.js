@@ -3,7 +3,8 @@
 // Red aliens, gold keys, coins by value and the teal portal are how a player reads the
 // game. web3d/art/belts.js is pure data, so the check runs here in Node: for every
 // district of every art-directed belt (dusk to midnight, k = 0..9), each colour that
-// covers a lot of screen -- walls, floors, rubble, water, props, sky, clouds, fog -- must
+// covers a lot of screen -- walls, floors, rubble, water, props, sky, clouds, fog, and in a
+// belt's first district its facades, brick, haze and ground tint (build 42) -- must
 // sit at least 25 degrees of hue or 0.25 of lightness away from every entity colour.
 //
 // Alongside it, the shape the renderer relies on: every colour a well-formed hex, the
@@ -20,7 +21,7 @@ export const criteria = [{
     const { artFor, largeAreaColours, clashes, hexToHsl, BELT_NAMES, ENTITY_COLOURS } = await import('../../web3d/art/belts.js');
     const problems = [];
     const styled = [], fallback = [];
-    let checked = 0;
+    let checked = 0, hd = 0;
     const isHex = (h) => typeof h === 'string' && /^#[0-9a-f]{6}$/i.test(h);
 
     for (const e of Object.values(ENTITY_COLOURS)) if (!isHex(e)) problems.push(`entity colour ${e} is not a hex`);
@@ -43,6 +44,10 @@ export const criteria = [{
         for (const hex of [art.light.hemiSky, art.light.hemiGround, art.light.key, art.sky.body.color]) {
           if (!isHex(hex)) problems.push(`district ${d} light colour is not a hex: ${hex}`);
         }
+        // build 42: a belt's first district in its own style (art/hdstyles.js) sets its own
+        // hour -- EMBER's burned night, JADE's two moons -- so the dusk-to-midnight order
+        // starts after it; its colours, facades and fog are linted above like the rest
+        if (art.hd) { lastL = Infinity; hd++; continue; }
         // dusk to midnight: the horizon never brightens going deeper into a belt
         const l = hexToHsl(art.sky.horizon).l;
         if (l > lastL + 1e-9) problems.push(`district ${d} horizon brighter than district ${d - 1}`);
@@ -63,6 +68,6 @@ export const criteria = [{
 
     return problems.length
       ? [FAIL, problems.slice(0, 6).join('; ')]
-      : [PASS, `${styled.length} belts art-directed (${styled.join(', ')}): ${checked} large-area colours over ${styled.length * 10} districts, none within 25°/0.25 of ${Object.keys(ENTITY_COLOURS).length} entity colours; horizons darken dusk to midnight; sign and wall-art colours clear too${fallback.length ? `. On 2D palettes: ${fallback.join(', ')}` : ''}`];
+      : [PASS, `${styled.length} belts art-directed (${styled.join(', ')}): ${checked} large-area colours over ${styled.length * 10} districts, none within 25°/0.25 of ${Object.keys(ENTITY_COLOURS).length} entity colours; horizons darken dusk to midnight; ${hd} first districts in their own style (facades, brick, fog, haze linted too); sign and wall-art colours clear too${fallback.length ? `. On 2D palettes: ${fallback.join(', ')}` : ''}`];
   },
 }];

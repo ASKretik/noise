@@ -449,6 +449,30 @@ export class Audio3D {
     o.connect(og).connect(this.bus); o.start(t); o.stop(t + 2.6);
   }
 
+  /**
+   * Build 42: a foot caught on something -- a scuff, a heavy step to catch yourself, and
+   * what you hit: a bin rings, a crate knocks, a bag or rubble only scrapes. Cosmetic: the
+   * sim's noise is the footsteps' and nothing else.
+   */
+  stumble(kind = 'soft', level = 1) {
+    if (!this.ctx || !this.bus || !this.enabled) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const n = ctx.createBufferSource(); n.buffer = this.noise;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 700; bp.Q.value = 0.9;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.16 * level, t + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+    n.connect(bp).connect(g).connect(this.bus); n.start(t); n.stop(t + 0.25);
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(95, t + 0.16); o.frequency.exponentialRampToValueAtTime(48, t + 0.32);
+    const og = ctx.createGain(); og.gain.setValueAtTime(0.0001, t); og.gain.setValueAtTime(0.0001, t + 0.15); og.gain.exponentialRampToValueAtTime(0.22 * level, t + 0.17); og.gain.exponentialRampToValueAtTime(0.001, t + 0.34);
+    o.connect(og).connect(this.bus); o.start(t); o.stop(t + 0.36);
+    if (kind === 'metal' || kind === 'wood') {
+      const k = ctx.createBufferSource(); k.buffer = this.noise;
+      const kb = ctx.createBiquadFilter(); kb.type = 'bandpass'; kb.frequency.value = kind === 'metal' ? 1900 : 420; kb.Q.value = kind === 'metal' ? 9 : 3;
+      const kg = ctx.createGain(); kg.gain.setValueAtTime(0.2 * level, t + 0.01); kg.gain.exponentialRampToValueAtTime(0.001, t + (kind === 'metal' ? 0.35 : 0.12));
+      k.connect(kb).connect(kg).connect(this.bus); k.start(t + 0.01); k.stop(t + 0.4);
+    }
+  }
+
   /** One footstep. kind: 'floor' | 'water' | 'safe'. */
   footstep(kind, sprinting = false) {
     if (!this.ctx || !this.bus || !this.enabled || kind === 'safe') return;

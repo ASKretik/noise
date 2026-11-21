@@ -138,9 +138,10 @@ export const TYPES = {
   stall: { weight: 0, storeys: [1, 1], walls: ['Plaster001', 'Bricks051'], ground: 'shopfront', upper: 'sash', roof: 'flat' },
   ruin: { weight: 0, storeys: [2, 3], walls: ['Bricks097', 'Bricks042'], ground: 'plain', upper: 'grid', roof: 'flat' },
   yardwall: { weight: 0, storeys: [1, 1], walls: ['Bricks042', 'Concrete042C'], ground: 'plain', upper: 'grid', roof: 'flat' },
+  parkwall: { weight: 0, storeys: [1, 1], walls: ['Bricks042', 'Concrete042C'], ground: 'plain', upper: 'grid', roof: 'flat' },
 };
 /** build 41: what each kind of place's walls become when the model kit builds them */
-export const PLACE_BUILDS = { tenements: null, market: 'stall', plaza: 'stall', yards: 'warehouse', depot: 'warehouse', canal: 'warehouse', ruins: 'ruin' };
+export const PLACE_BUILDS = { tenements: null, market: 'stall', plaza: 'stall', yards: 'warehouse', depot: 'warehouse', canal: 'warehouse', ruins: 'ruin', park: 'parkwall' };
 
 function signText(type, r) {
   const sur = SURNAMES[r.int(SURNAMES.length)];
@@ -187,7 +188,8 @@ export function planBuildings({ map, lookAt, seed, allPlaces = false }) {
       block.push([x, y]);
       for (const [dx, dy] of DIR4) if (inBlock(x + dx, y + dy) && !seen[(y + dy) * w + x + dx]) { seen[(y + dy) * w + x + dx] = 1; stack.push([x + dx, y + dy]); }
     }
-    if (block.length < 2 && lookAt(block[0][0], block[0][1])?.type === 'tenements') continue;
+    // (a lone cell in a tenement block is too small to be a building; in a park it is a tree)
+    if (block.length < 2 && ['tenements', 'park'].includes(lookAt(block[0][0], block[0][1])?.type)) continue;
     const r = new Rng(hashString(`${seed}:block:${bi++}`), 'block');
     const place = lookAt(block[0][0], block[0][1])?.type || 'tenements';
     const xs = block.map((c) => c[0]), ys = block.map((c) => c[1]);
@@ -242,7 +244,7 @@ export function planBuildings({ map, lookAt, seed, allPlaces = false }) {
     if (!types.length) types = ['house'];
     const wsum = types.reduce((s, t) => s + TYPES[t].weight, 0);
     let pick = r.float() * wsum;
-    b.type = b.place && b.place !== 'tenements' ? (b.thin ? 'yardwall' : PLACE_BUILDS[b.place])
+    b.type = b.place && b.place !== 'tenements' ? (b.place === 'park' ? 'parkwall' : b.thin ? 'yardwall' : PLACE_BUILDS[b.place])
       : types.find((t) => (pick -= TYPES[t].weight) < 0) || types[0];
     used.add(b.type);
     const T = TYPES[b.type];

@@ -21,6 +21,9 @@ import { hashString } from '../../sim/prng.js';
 const SURF = {
   asphalt_02: 3.0, concrete_pavement: 1.8, cobblestone_floor_04: 1.5, grass_path_2: 2.0,
   damaged_concrete_floor: 4.5, dirt: 2.0,
+  // build 42: the other belts' first districts
+  leaves_forest_ground: 1.26, forest_leaves_02: 3.0, burned_ground_01: 1.0, dense_sand: 1.8,
+  checkered_pavement_tiles: 2.0, metal_plate: 1.0, mossy_cobblestone: 2.0, granite_tile: 2.3,
 };
 const BY_PLACE = {
   plaza: 'cobblestone_floor_04', market: 'cobblestone_floor_04', park: 'grass_path_2',
@@ -56,7 +59,12 @@ function slow(seed, x, y, scale = 7) {
  * @param {object} o { map, cellM, seed, lookAt(x, y), track }
  * @returns {THREE.Mesh[]}
  */
-export function buildKitGround({ map, cellM: C, seed, lookAt, track }) {
+export function buildKitGround({ map, cellM: C, seed, lookAt, track, style = {} }) {
+  // build 42: a belt's style picks its own surface for each kind of ground, tints it, and
+  // wets it (wet ground is darker and glossy, and mirrors the sky)
+  const pick = (kind, dflt) => style[kind] || dflt;
+  const tint = new THREE.Color(style.tint || '#ffffff');
+  const wet = style.wet || 0;
   const { w, h, tiles } = map;
   const isWall = (x, y) => x < 0 || y < 0 || x >= w || y >= h || tiles[y * w + x] === TILE.WALL;
   const parts = new Map();
@@ -93,23 +101,25 @@ export function buildKitGround({ map, cellM: C, seed, lookAt, track }) {
     }
   };
 
+  const PLACE_KIND = { plaza: 'plaza', market: 'plaza', park: 'park', yards: 'yards', depot: 'yards', ruins: 'ruins', canal: 'pavement' };
+  const STREET = pick('street', 'asphalt_02'), PAVE = pick('pavement', 'concrete_pavement');
   const kind = (x, y) => {
     if (x < 0 || y < 0 || x >= w || y >= h || isWall(x, y)) return null;
     const L = lookAt(x, y);
-    const place = L && BY_PLACE[L.type];
-    if (place) return place;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (isWall(x + dx, y + dy)) return 'concrete_pavement';
-    return 'asphalt_02';
+    const pk = L && PLACE_KIND[L.type];
+    if (pk) return pk === 'pavement' ? PAVE : pick(pk, BY_PLACE[L.type]);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (isWall(x + dx, y + dy)) return PAVE;
+    return STREET;
   };
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const k = kind(x, y);
     if (!k) continue;
     const shade = 0.82 + slow(seed, x, y) * 0.3;
     quad(k, x * C, y * C, (x + 1) * C, (y + 1) * C, 0, shade);
-    if (k !== 'concrete_pavement') continue;
+    if (k !== PAVE || PAVE === STREET) continue;
     // the kerb, where this pavement meets road
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      if (kind(x + dx, y + dy) !== 'asphalt_02') continue;
+      if (kind(x + dx, y + dy) !== STREET) continue;
       const cx = (x + 0.5 + dx * 0.44) * C, cz = (y + 0.5 + dy * 0.44) * C;
       box('concrete_pavement', cx, 0.05, cz, dx ? 0.18 : C, 0.1, dx ? C : 0.18, 0.78);
     }
@@ -125,7 +135,10 @@ export function buildKitGround({ map, cellM: C, seed, lookAt, track }) {
     geo.setIndex(g.idx);
     geo.computeBoundingSphere();
     const S = surfaceSet(id);
-    const mat = new THREE.MeshStandardMaterial({ ...S, vertexColors: true, roughness: 1, metalness: 0, side: THREE.DoubleSide, name: `ground-${id}` });
+    const mat = new THREE.MeshStandardMaterial({
+      ...S, vertexColors: true, roughness: 1 - wet * 0.78, metalness: 0, side: THREE.DoubleSide, name: `ground-${id}`,
+      color: tint.clone().multiplyScalar(1 - wet * 0.3),
+    });
     const mesh = new THREE.Mesh(track(geo), track(mat));
     mesh.name = `ground-${id}`;
     mesh.receiveShadow = true;

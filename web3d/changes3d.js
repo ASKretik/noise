@@ -8,6 +8,35 @@
 
 export const CHANGES = [
   {
+    build: 42,
+    date: '2026-11-21',
+    phase: 'N4.4 prototype',
+    changed: [
+      'Running into something small, like a stoop, a bin, a crate, a bag or rubble, catches your foot: the view pitches forward, drops and rolls, then recovers within a second, with a scuff and a knock. Your speed is not changed and the aliens hear nothing extra. Reduce motion keeps a third of it.',
+      'The first district of every belt now has its own style, built from the same models but lit by a different kind of light, with its own buildings, ground, weather and grade. All of them are sombre.',
+      'RUST (1): the sun going down under a roof of cloud, the light catching only the top storeys; grey terraces, a few candles.',
+      'TIDE (11): a storm at noon, rain, everything wet and reflecting, sea fog, storm shutters down.',
+      'MOSS (21): a canopy of leaves closed over the district, so it is gloomy at noon and the sun comes through in patches; leaf litter, pitched roofs.',
+      'EMBER (31): night after the fire, burnt shells, the only light from fires still burning inside some buildings; embers drifting.',
+      'VIOLET (41): power out under an aurora; violet light on tall dark blocks and wet streets.',
+      'ASH (51): ash falling like snow and the picture in black and white, except aliens, keys, coins and the portal, which keep their colour.',
+      'CORAL (61): morning sea mist, pale pastel fronts with balconies, checkered pavements.',
+      'JADE (71): two moons, so everything casts two shadows; mossy cobbles, stone-grey fronts.',
+      'SOLAR (81): a dust storm at noon, the sun a dull coin, heat shimmer, sand streets, low sand-coloured houses.',
+      'COBALT (91): the alien ship fills the sky, and its searchlight sweeps the streets.',
+      'Park walls are now hedges made from a leaf photograph. Rubble heaps are broken concrete. Facade colours now come out as designed (the plaster photo was making every colour salmon).',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R). From the hub, play districts 1, 11, 21 ... 91 (dev mode can jump straight there), and walk from an open street into an alley in each.',
+      'Sprint into a house\'s front steps or a bin.',
+    ],
+    unverified: [
+      'Measured at 1080p Medium on this Mac: RUST, TIDE, MOSS, EMBER, ASH, CORAL and SOLAR take 12-21 ms a frame; the three night belts take 25-29 ms (VIOLET, JADE with its two shadows, COBALT), about 35-40 fps. Not tried on a weaker laptop.',
+      'Nothing is decided for districts 2-10, 12-20 and so on: they keep their old look until you approve a belt\'s style.',
+      'The single-cell trees in parks are still the old round ones. No interiors.',
+    ],
+  },
+  {
     build: 41,
     date: '2026-11-21',
     phase: 'N4.4 prototype',

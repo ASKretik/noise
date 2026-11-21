@@ -27,9 +27,10 @@ import { buildSigns } from './art/signs.js';
 import { buildLandmarks } from './art/landmarks.js';
 import { buildHD, grimeTexture } from './art/hd.js';
 import { makePhotoSky } from './art/daylight.js';
-import { planBuildings, buildBuildings } from './art/buildings.js';
+import { planBuildings, buildBuildings, surface } from './art/buildings.js';
 import { planKit, buildKitBuildings } from './art/kitbuild.js';
 import { buildKitGround } from './art/ground.js';
+import { cullDetail } from './art/kit.js';
 import { buildProps } from './art/props.js';
 import { makeSky, skyDir } from './art/sky.js';
 import { makeWeather } from './art/weather.js';
@@ -331,7 +332,7 @@ export function buildWorld(level, { cellM, shadows = false, kit = null }) {
   // every place but the parks
   const plan = art.hd && looks ? planBuildings({ map, lookAt, seed, allPlaces: !!kit }) : null;
   const useKit = !!(plan && kit);
-  if (useKit) planKit(plan, seed);
+  if (useKit) planKit(plan, seed, art.hd.town);
   const baseHeight = (x, y) => lookAt(x, y)?.height ?? WALL_M;
   /** How tall a wall cell is drawn: its building's height, its place's walls (tenements 5.4 m, depots 4.4 m), else WALL_M. */
   const heightAt = (x, y) => plan?.at(x, y)?.H ?? baseHeight(x, y);
@@ -361,7 +362,7 @@ export function buildWorld(level, { cellM, shadows = false, kit = null }) {
   if (floorLayers) setLayers(floor, floorCells.map(([x, y]) => { const L = lookAt(x, y); return L ? floorLayers.index[L.type] : 0; }));
   floor.receiveShadow = shadows;
   // build 41: district 1's ground is photographed surfaces (art/ground.js), not this
-  if (useKit) { floor.dispose(); for (const m of buildKitGround({ map, cellM, seed, lookAt, track })) group.add(m); }
+  if (useKit) { floor.dispose(); for (const m of buildKitGround({ map, cellM, seed, lookAt, track, style: art.hd.ground })) group.add(m); }
   else group.add(floor);
 
   // ---- walls: body + a lighter cap, per-instance wear. A wall cell with wall on all four
@@ -462,7 +463,10 @@ export function buildWorld(level, { cellM, shadows = false, kit = null }) {
     }
   }
   const rubbleGeo = track(new THREE.BoxGeometry(1, 1, 1));
-  const rubbleMat = track(new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.97, flatShading: true }));
+  // (build 42: in a model-kit district the heaps are broken concrete, photographed)
+  const rubbleMat = track(useKit
+    ? new THREE.MeshStandardMaterial({ ...surface('Concrete042C'), roughness: 1, color: '#b8b4ae' })
+    : new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.97, flatShading: true }));
   // N4.3: with places, each heap's biggest block is what is left of a building front --
   // the ground storey of a tenement, or a burnt shell in the ruins -- still the heap's height
   const fronts = wallLayers ? blocks.filter((b) => !b.colour && b.big) : [];
@@ -473,7 +477,8 @@ export function buildWorld(level, { cellM, shadows = false, kit = null }) {
     q.setFromEuler(new THREE.Euler(b.tilt, b.ry, b.tilt * 0.5));
     m4.compose(v.set(b.x, b.sy / 2 - 0.05, b.z), q, sc.set(b.sx, b.sy, b.sz));
     rubble.setMatrixAt(i, m4);
-    if (styled) rubble.setColorAt(i, col.set(art.rubble).multiplyScalar(b.top ? b.shade * 1.3 : b.shade));
+    if (useKit) rubble.setColorAt(i, col.setRGB(0.8, 0.8, 0.8).multiplyScalar(b.top ? b.shade * 1.1 : b.shade * 0.85));
+    else if (styled) rubble.setColorAt(i, col.set(art.rubble).multiplyScalar(b.top ? b.shade * 1.3 : b.shade));
     else rubble.setColorAt(i, col.copy(b.top ? pal.rubbleTop : pal.rubble).multiplyScalar(b.shade));
   });
   rubble.castShadow = rubble.receiveShadow = shadows;
@@ -523,7 +528,7 @@ export function buildWorld(level, { cellM, shadows = false, kit = null }) {
   const waterGeo = track(new THREE.PlaneGeometry(cellM, cellM).rotateX(-Math.PI / 2));
   // (build 41: under district 1's daylight, standing water is a dark mirror of the sky)
   const waterMat = track(new THREE.MeshStandardMaterial(useKit
-    ? { color: '#141a1e', roughness: 0.04, metalness: 0.0, normalMap: waterNorm, normalScale: new THREE.Vector2(0.12, 0.12), transparent: true, opacity: 0.94 }
+    ? { color: '#141a1e', roughness: 0.12, metalness: 0.0, normalMap: waterNorm, normalScale: new THREE.Vector2(0.035, 0.035), transparent: true, opacity: 0.94 }
     : {
       color: styled ? new THREE.Color(art.water) : pal.water, roughness: styled ? 0.34 : 0.08, metalness: 0.15, normalMap: waterNorm,
       normalScale: styled ? new THREE.Vector2(0.28, 0.28) : new THREE.Vector2(0.6, 0.6), transparent: true, opacity: 0.86,
@@ -597,12 +602,14 @@ export function buildWorld(level, { cellM, shadows = false, kit = null }) {
   if (looks) for (const m of buildLandmarks(level, { cellM, seed, art, looks, heightAt, track })) group.add(m);
   // ---- N4.4 prototype: the detail layer (art/hd.js) and the lamps the torch scene lights
   pal.hdLamps = [];
+  let obstacles = [];
   if (art.hd && looks) {
     const hd = buildHD(level, { cellM, seed, art, lookAt, heightAt, doorAt, track, skip: (x, y) => !!plan?.at(x, y), kit: useKit });
     if (plan && useKit) {
-      const kb = buildKitBuildings(plan, { map, cellM, seed, heightAt: baseHeight, kit, track, lookAt });
+      const kb = buildKitBuildings(plan, { map, cellM, seed, heightAt: baseHeight, kit, track, lookAt, style: art.hd });
       for (const m of kb.meshes) group.add(m);
       pal.hdLamps = kb.lamps;
+      obstacles = kb.obstacles;
     } else if (plan) for (const m of buildBuildings(plan, { map, cellM, seed, heightAt: baseHeight, track })) group.add(m);
     for (const m of hd.meshes) group.add(m);
     if (!useKit) pal.hdLamps = hd.lamps;
@@ -631,13 +638,17 @@ export function buildWorld(level, { cellM, shadows = false, kit = null }) {
 
   // N4.1: the belt's sky (art/sky.js), inside the far plane; named 'sky' for the capture
   // (build 41: district 1's sky is a photograph, art/daylight.js)
-  const skyDome = art.hd?.day ? makePhotoSky(art.hd.day, (art.fog.far ?? FOG_FAR) * 0.98, track) : makeSky(art.sky, (art.fog.far ?? FOG_FAR) * 0.98, track);
+  const skyDome = art.hd?.sky?.photo ? makePhotoSky(art.hd.sky, (art.fog.far ?? FOG_FAR) * 0.98, track) : makeSky(art.sky, (art.fog.far ?? FOG_FAR) * 0.98, track);
   const sky = skyDome.mesh;
   sky.position.set(W / 2, 0, H / 2);
   group.add(sky);
   // and its weather, round the camera
   const weather = makeWeather(art.weather, seed, track);
   if (weather) group.add(weather.object);
+  // build 42, MOSS: a canopy closed over the district at the height of the roofs. The sun
+  // comes through its holes, so the street is dark with coins and shafts of light that the
+  // shadow map draws (alpha-tested leaves cast alpha-tested shadows)
+  if (art.hd?.effects?.canopy) group.add(makeCanopy(art.hd.effects.canopy, W, H, seed, track));
 
   // ---- N4.4 prototype: how much sky each open cell sees. Walls within 4 cells, weighted by
   // their height and nearness, close it in: an alley between tenements is nearly black, an
@@ -645,7 +656,7 @@ export function buildWorld(level, { cellM, shadows = false, kit = null }) {
   let darkAt = () => 1;
   if (art.hd) {
     const W2 = map.w, H2 = map.h, raw = new Float32Array(W2 * H2);
-    if (art.hd.day) {
+    if (art.hd.sky) {
       // build 41, daylight: how much of the sky a cell sees (its sky-view factor), from
       // the tallest wall in each of 16 directions within 14 cells. Light from a uniform
       // sky above elevation e is cos^2 e of the whole, so a square sees nearly all of it,
@@ -710,13 +721,39 @@ export function buildWorld(level, { cellM, shadows = false, kit = null }) {
     darkAt = (x, y) => (x < 0 || y < 0 || x >= W2 || y >= H2 ? 1 : dk[y * W2 + x]);
   }
 
+  const detailMeshes = group.children.filter((c) => c.isBatchedMesh && c.userData.detailXZ);
+  let lastCull = null;
   return {
     group,
     palette: pal,
+    /** build 42: the sky dome, for play3d to light a drawn sky's district with (envFromSky) */
+    skyMesh: sky,
     /** N4.4: how much sky a cell sees, 0 (black alley) to 1 (open); 1 where there is no map */
     darkAt,
     /** N4.4: district 1's buildings (art/buildings.js planBuildings), or null */
     buildings: plan,
+    /**
+     * Build 42: the small things on the ground you can catch a foot on -- steps, bins,
+     * bags, crates, rubble -- as the nearest one whose footprint (grown by `pad` metres)
+     * holds (x, z), or null. Presentation only: the sim walks straight through them.
+     */
+    obstacleAt: (() => {
+      const idx = new Map(), key = (i, j) => i * 65536 + j;
+      for (const o of obstacles) {
+        const R = o.r + 0.35;   // indexed a little wide, so a padded query finds it from the next cell
+        const i0 = Math.floor((o.x - R) / cellM), i1 = Math.floor((o.x + R) / cellM);
+        const j0 = Math.floor((o.z - R) / cellM), j1 = Math.floor((o.z + R) / cellM);
+        for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const k = key(i, j); if (!idx.has(k)) idx.set(k, []); idx.get(k).push(o); }
+      }
+      return (x, z, pad = 0) => {
+        let best = null, bd = Infinity;
+        for (const o of idx.get(key(Math.floor(x / cellM), Math.floor(z / cellM))) || []) {
+          const d = Math.hypot(o.x - x, o.z - z) - o.r - pad;
+          if (d < 0 && d < bd) { bd = d; best = o; }
+        }
+        return best;
+      };
+    })(),
     chunkCount,
     art,
     /**
@@ -726,6 +763,11 @@ export function buildWorld(level, { cellM, shadows = false, kit = null }) {
      * device pixels, which keeps weather particles their size in metres.
      */
     animate(t, eye = null, px = 1000) {
+      // build 42: the kit's small detail near you only, refreshed every 3 m you move
+      if (eye && detailMeshes.length && (lastCull == null || Math.hypot(eye.x - lastCull.x, eye.z - lastCull.z) > 3)) {
+        lastCull = { x: eye.x, z: eye.z };
+        cullDetail(detailMeshes, eye.x, eye.z);
+      }
       waterNorm.offset.set(t * 0.03, t * 0.017);
       skyDome.update(t);
       if (eye) sky.position.set(eye.x, 0, eye.z);
@@ -736,6 +778,52 @@ export function buildWorld(level, { cellM, shadows = false, kit = null }) {
       for (const d of disposables) d.dispose?.();
     },
   };
+}
+
+/** MOSS's canopy: one big leafy sheet with holes, its own shade from the sun. */
+function makeCanopy(c, W, H, seed, track) {
+  const n = 512, cv = document.createElement('canvas');
+  cv.width = cv.height = n;
+  const g = cv.getContext('2d');
+  const r = new Rng(seed, 'canopy');
+  g.fillStyle = '#000'; g.fillRect(0, 0, n, n);
+  // clusters of single leaves, not blobs: each a few hundred small leaf shapes scattered
+  // round a centre, so the holes are big between clusters and fine inside them
+  const leaf = (x, y, len, ang, col) => {
+    g.save(); g.translate(x, y); g.rotate(ang); g.fillStyle = col;
+    g.beginPath(); g.moveTo(-len, 0); g.quadraticCurveTo(0, -len * 0.42, len, 0); g.quadraticCurveTo(0, len * 0.42, -len, 0); g.fill();
+    g.restore();
+  };
+  const clusters = Math.round(170 * c.cover);
+  for (let i = 0; i < clusters; i++) {
+    const cx = r.float() * n, cy = r.float() * n, R = 14 + r.float() * 34;
+    const count = Math.round(R * R * 0.32);
+    for (let j = 0; j < count; j++) {
+      const a = r.float() * 6.283, d = R * Math.sqrt(r.float()) * (0.6 + 0.4 * r.float());
+      const k = r.float();
+      const col = k < 0.55 ? `rgb(${46 + r.int(30)},${70 + r.int(36)},${24 + r.int(20)})` : k < 0.88 ? `rgb(${70 + r.int(30)},${92 + r.int(30)},${30 + r.int(20)})` : `rgb(${98 + r.int(30)},${84 + r.int(24)},${36 + r.int(16)})`;
+      for (const [ox, oy] of [[0, 0], [n, 0], [-n, 0], [0, n], [0, -n]]) {
+        const x = cx + Math.cos(a) * d + ox, y = cy + Math.sin(a) * d + oy;
+        if (x < -10 || y < -10 || x > n + 10 || y > n + 10) continue;
+        leaf(x, y, 2.2 + r.float() * 3.2, r.float() * 3.14, col);
+      }
+    }
+  }
+  const tex = track(new THREE.CanvasTexture(cv));
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.repeat.set((W + 60) / 14, (H + 60) / 14);
+  // alpha from brightness: the black between the leaves is open sky
+  const alpha = track(tex.clone());
+  alpha.colorSpace = THREE.NoColorSpace;
+  // seen from under it, a leaf is lit through from above: unlit, and dim
+  const mat = track(new THREE.MeshBasicMaterial({ map: tex, alphaMap: alpha, alphaTest: 0.08, side: THREE.DoubleSide, color: new THREE.Color(0.55, 0.62, 0.42) }));
+  const mesh = new THREE.Mesh(track(new THREE.PlaneGeometry(W + 60, H + 60).rotateX(-Math.PI / 2)), mat);
+  mesh.position.set(W / 2, c.height, H / 2);
+  mesh.castShadow = true;
+  mesh.receiveShadow = false;
+  mesh.name = 'canopy';
+  return mesh;
 }
 
 /**
@@ -754,24 +842,55 @@ export function lightScene(scene, pal, { cellM, mapW, mapH, shadows = false, fol
   const art = pal.art || fallbackArt(1, pal);
   const L = art.light;
   g.add(new THREE.HemisphereLight(new THREE.Color(L.hemiSky), new THREE.Color(L.hemiGround), L.hemi));
-  const day = art.hd?.day || null;
-  const sun = new THREE.DirectionalLight(new THREE.Color(day ? day.sun.color : L.key), day ? day.sun.intensity : L.keyI);
-  // build 41: district 1's sun is where the photographed sky has it (art/daylight.js)
-  const toLight = (day ? new THREE.Vector3(...day.sun.dir).normalize() : skyDir(L.keyAz, L.keyElev)).multiplyScalar(day ? 70 : 54);
+  // build 42: a styled district's key light is its own: a sun where its photograph has
+  // it, a moon (VIOLET, JADE), or none at all (TIDE's storm, EMBER's smoke, COBALT's hull)
+  const hd = art.hd || null;
+  const keyDef = hd ? (hd.sun || hd.moonLight || null) : null;
+  const day = keyDef;
+  const sun = new THREE.DirectionalLight(new THREE.Color(keyDef ? keyDef.color : L.key), hd ? (keyDef ? keyDef.intensity : 0) : L.keyI);
+  const toLight = (keyDef ? new THREE.Vector3(...keyDef.dir).normalize() : skyDir(L.keyAz, L.keyElev)).multiplyScalar(keyDef ? 70 : 54);
   const cx = (mapW * cellM) / 2, cz = (mapH * cellM) / 2;
   sun.position.set(cx + toLight.x, toLight.y, cz + toLight.z);
   sun.target.position.set(cx, 0, cz);
   // (build 41: district 1's daylight sun keeps its box tighter -- the shadow pass is a third of the frame)
   const r = follow ? (day ? 32 : SHADOW_HALF_M) : Math.max(mapW, mapH) * cellM * 0.62;
   // (N4.4: under district 1's old smog the sun cast nothing; build 41's daylight sun does)
-  if (shadows && (!art.hd || day)) {
+  if (shadows && (!art.hd || (day && day.shadow))) {
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     Object.assign(sun.shadow.camera, { left: -r, right: r, top: r, bottom: -r, near: 1, far: day ? 180 : 140 });
     sun.shadow.bias = day ? -0.0004 : -0.0008;
     if (day) sun.shadow.normalBias = 0.03;
+    if (day?.softShadow != null) sun.shadow.intensity = day.softShadow;   // haze lets light into the shade
   }
   g.add(sun, sun.target);
+  // JADE: a second moon, a second shadow
+  let moon2 = null, toMoon2 = null;
+  if (hd?.moon2) {
+    moon2 = new THREE.DirectionalLight(new THREE.Color(hd.moon2.color), hd.moon2.intensity);
+    toMoon2 = new THREE.Vector3(...hd.moon2.dir).normalize().multiplyScalar(70);
+    if (shadows && hd.moon2.shadow) {
+      moon2.castShadow = true;
+      moon2.shadow.mapSize.set(1024, 1024);
+      Object.assign(moon2.shadow.camera, { left: -r, right: r, top: r, bottom: -r, near: 1, far: 180 });
+      moon2.shadow.bias = -0.0006; moon2.shadow.normalBias = 0.04;
+    }
+    g.add(moon2, moon2.target);
+  }
+  // COBALT: the ship's searchlight, sweeping the district from above, and its beam
+  let search = null;
+  if (hd?.effects?.searchlight) {
+    const S = hd.effects.searchlight;
+    const spot = new THREE.SpotLight(new THREE.Color(S.color), S.intensity, 0, Math.atan(S.radius / S.height), 0.35, 2);
+    if (shadows) { spot.castShadow = true; spot.shadow.mapSize.set(1024, 1024); spot.shadow.bias = -0.0004; spot.shadow.camera.near = 20; spot.shadow.camera.far = S.height * 2; }
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.35, S.radius * 0.95, 1, 32, 1, true).translate(0, -0.5, 0),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(S.color).multiplyScalar(0.15), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }),
+    );
+    beam.frustumCulled = false;
+    g.add(spot, spot.target, beam);
+    search = { S, spot, beam, W: mapW * cellM, H: mapH * cellM };
+  }
   // N4.4 prototype: a torch in your hand, and the few street lamps still burning (the
   // nearest four get real lights, flickering; a fixed count, so no shader recompiles)
   let torch = null;
@@ -805,6 +924,7 @@ export function lightScene(scene, pal, { cellM, mapW, mapH, shadows = false, fol
     const n = h - Math.floor(h);
     return n < 0.06 ? 0.15 : n < 0.12 ? 0.55 : 0.92 + 0.08 * Math.sin(t * 7 + i);
   };
+  const fireFlicker = (i, t) => 0.72 + 0.18 * Math.sin(t * 11 + i * 1.7) + 0.1 * Math.sin(t * 23.3 + i * 4.1);
   return {
     sun,
     torch,
@@ -824,8 +944,24 @@ export function lightScene(scene, pal, { cellM, mapW, mapH, shadows = false, fol
           const e = near[k];
           if (!e || e.d > 45 * 45) { pl.intensity = 0; return; }
           pl.position.set(e.l.x, e.l.y, e.l.z);
-          pl.intensity = art.hd.lamp.intensity * flicker(e.i, t);
+          // build 42: a lamp may carry its own colour and strength (EMBER's fires flicker harder)
+          if (e.l.color) pl.color.set(e.l.color); else pl.color.set(art.hd.lamp.color);
+          pl.distance = e.l.distance ?? art.hd.lamp.distance;
+          pl.intensity = (e.l.intensity ?? art.hd.lamp.intensity) * (e.l.fire ? fireFlicker(e.i, t) : flicker(e.i, t));
         });
+      }
+      if (search) {
+        // a slow figure of eight over the whole district, out of step with itself
+        const { S, spot, beam, W, H } = search, t = performance.now() / 1000;
+        const u = (t / S.period) * Math.PI * 2;
+        const tx = W * (0.5 + 0.42 * Math.sin(u)), tz = H * (0.5 + 0.42 * Math.sin(u * 1.618 + 1.3));
+        spot.target.position.set(tx, 0, tz);
+        spot.position.set(tx + S.height * 0.18, S.height, tz - S.height * 0.12);
+        spot.target.updateMatrixWorld();
+        const dx = tx - spot.position.x, dy = -spot.position.y, dz = tz - spot.position.z, len = Math.hypot(dx, dy, dz);
+        beam.position.copy(spot.position);
+        beam.scale.set(1, len, 1);
+        beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), new THREE.Vector3(dx / len, dy / len, dz / len));
       }
       if (!follow) return;
       camera.getWorldDirection(fwd);
@@ -836,6 +972,7 @@ export function lightScene(scene, pal, { cellM, mapW, mapH, shadows = false, fol
       sun.target.position.set(x, 0, z);
       sun.position.set(x + toLight.x, toLight.y, z + toLight.z);
       sun.target.updateMatrixWorld();
+      if (moon2) { moon2.target.position.set(x, 0, z); moon2.position.set(x + toMoon2.x, toMoon2.y, z + toMoon2.z); moon2.target.updateMatrixWorld(); }
     },
   };
 }

@@ -752,6 +752,59 @@ unchanged. See decisions.md R71.
 - **Not done:** the parks keep the old hedges and round trees (the free vegetation models
   are 50,000–280,000 triangles each); no interiors; roofs still drawn; only district 1.
 
+### Every belt's first district in its own style (N4.4, 3D build 42)
+
+Districts 1, 11, 21 … 91 (`HD_DISTRICTS`) are built from the model kit, each in a style
+of its own from `web3d/art/hdstyles.js` (pure data, linted by 3D-16). The user asked for
+a sombre look that changes completely from belt to belt, not a recolour. So each style
+picks a different **light source**, tied to the belt's alien and character. With it come
+its own sky, fog, grade, weather, ground, town (kit mix, heights, colours, damage,
+shutters, balconies, awnings, pitched roofs), lamps and effects. See decisions.md R72.
+
+| Belt | District | Light | Sky | Signature |
+|---|---|---|---|---|
+| RUST | 1 | the sun 5° up, warm, under cloud | photo (Belfast sunset) | brick terraces, soot, candles |
+| TIDE | 11 | none: overcast | photo (overcast soil) | rain, wet streets (wetness 0.85), storm shutters |
+| MOSS | 21 | sun through a canopy | photo (Kloofendal 48d) | a leaf canopy at 15.5 m, alpha-tested so its shadow is dappled light |
+| EMBER | 31 | fires inside 14 % of buildings | drawn smoke | burning rooms, real fire lights that flicker, embers |
+| VIOLET | 41 | the aurora (sky light ×5) and a moon | drawn aurora | no neon; tall blocks; wet granite |
+| ASH | 51 | none: white overcast | photo (Kloofendal overcast) | `mono`: black and white except entity hues; ash falling |
+| CORAL | 61 | sun through mist (soft shadows) | photo (Kloofendal 28d misty) | pastel fronts, balconies with railings, checkered pavements |
+| JADE | 71 | two moons, two shadow maps | drawn, two moons | crossing double shadows; mossy cobbles; ground mist |
+| SOLAR | 81 | a dull sun in dust (soft shadows) | photo under a dust veil with a sun disc | `shimmer`: heat haze; sand; fog from 3 m to 52 m |
+| COBALT | 91 | the ship's searchlight | drawn hull | a 60,000 cd spot sweeping a figure of eight, with a visible beam |
+
+- **Light from a drawn sky** (`daylight.js envFromSky`): the dome is rendered into a cube
+  and prefiltered (PMREM), once per district.
+- **Wall colour** (`kit.js wallColour`): the plaster photo averages terracotta. Plaster
+  and the apartments' stone trim keep only the photo's luminance (normalised), so a
+  building's colour is the colour seen; brick keeps its own colour, desaturated by
+  `town.brickSat`.
+- **Grade** (`post.js`): `mono` keeps a colour only where it is vivid, lit, and in an entity
+  hue band (red to gold, teal, violet); `shimmer` ripples the middle of the view.
+- **Parks:** blocks of park wall are hedges (2.4 m, never lower than the eye: walls block
+  shots and sight at any height) textured with a leaf photo; lone park cells stay trees.
+  Rubble heaps in kit districts are photographed concrete.
+- **Cost controls:**
+  - kit batches are chunked by 64 m of map;
+  - window and door joinery, glass and props are hidden beyond 55 m (re-checked every
+    3 m walked);
+  - only walls, trim and garage doors cast shadows;
+  - the night belts' fog ends at 80–90 m.
+- **Stumbling** (`Play3D.stumble`): the kit builder records every small thing on the
+  pavement: stoops, bank steps, bins, bags, crates, barrels, tyres, benches, utility
+  boxes, rubble, canopy poles. Walking at over 0.9 cells/s into one (0.22 m of foot
+  reach) pitches the view up to about 0.15 rad and drops it 9 cm, rolls it toward the
+  side you hit, and recovers in 0.75 s. Once per obstacle; Reduce motion keeps a third
+  of it and no roll. A scuff and a heavy step play, plus a ring or knock for metal or
+  wood. Camera only: speed, the sim and the noise you make are unchanged.
+- **Measured** at 1080p Medium:
+
+  | Districts | Mean |
+  |---|---|
+  | RUST, TIDE, MOSS, EMBER, ASH, CORAL, SOLAR | 12–21 ms |
+  | VIOLET, JADE, COBALT (night) | 25–29 ms |
+
 **Bolts thin out deeper into each belt** (`sim3d/bolts.js`): the generator's bolts are
 kept in full in a belt's first district and cut to `max(1, round(n × (1 − 2k/27)))` at
 depth `k` (0–9), about a third by its tenth; the next belt starts full again. The kept set
