@@ -626,6 +626,49 @@ outside places keep the belt's plain surfaces, so places stand out against them.
 
 Glow and grade cost about 3–4 ms.
 
+### District 1 horror prototype (N4.4, 3D build 38)
+
+The user asked for the look of Amnesia and Silent Hill at about ten times the detail, on
+district 1 alone first (`belts.js HD_DISTRICTS`). The open choices were made with the
+antialgorithm skill (installed in `~/.claude/skills`): name the default, then move away
+for a reason from NOISE (decisions.md R68).
+
+- **Light** (`RUST_HD`).
+  - Foundry smog instead of a sky: the fog runs from 2 m to 38 m, the camera's far plane
+    sits at 46 m, and the sky dome shows only the smog.
+  - A torch is a spot light carried with the camera; on High it casts the one shadow,
+    because the sun's shadow pass is dropped here.
+  - Street lamps: the nearest four burning ones get point lights, with a hashed flicker.
+- **Grade.** Saturation 0.58, grain 0.11 (stronger in the shadows), chromatic fringe
+  0.0022, vignette 0.62 (`post.js`).
+- **Grime** (`layered.js`). A 512² value-noise map, sampled by world position from the
+  axis each surface faces, at about 1.7 m and 11 m a repeat:
+  - dirt at the foot of walls, stains and rain streaks;
+  - glossy wet patches on the ground.
+
+  It no longer repeats with the cell grid.
+- **Detail** (`art/hd.js`), merged into seven meshes:
+  - window frames, sills and lintels round the brick texture's windows. Behind each:
+    dark glass, a mattress, foam, boards, a broken pane, or a lit curtain;
+  - door frames and steps, with shoes left in pairs on some;
+  - cornices, chimneys and drainpipes;
+  - wall plinths;
+  - cables sagging across the streets;
+  - street lamps, most dead, about 45 % burning;
+  - a ground-clutter atlas: leaves, grit, paper, oil, rags, drains, manholes, glass.
+
+  All of it stands on wall cells or lies flat on the ground: no rule, sight line or shot
+  changes.
+- **Measured** at 1080p:
+
+  | | Mean | p95 |
+  |---|---|---|
+  | Medium, district 1 | 9.4–12.4 ms | up to 17.6 ms |
+  | Medium, district 2 (unchanged, the control) | 9.5–9.9 ms | 13.0–13.4 ms |
+  | High, district 1 | 11.6–13.5 ms | up to 22 ms |
+- **Before it can go everywhere:** the merged meshes cover a whole district (fine at
+  district 1's size), so they need cutting into chunks for the big cities.
+
 **Bolts thin out deeper into each belt** (`sim3d/bolts.js`): the generator's bolts are
 kept in full in a belt's first district and cut to `max(1, round(n × (1 − 2k/27)))` at
 depth `k` (0–9), about a third by its tenth; the next belt starts full again. The kept set

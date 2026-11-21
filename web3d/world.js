@@ -25,6 +25,7 @@ import './art/beltstyles.js';   // registers belts 4-10's surfaces (N4.3)
 import { layerTextures, layeredMaterial, setLayers } from './art/layered.js';
 import { buildSigns } from './art/signs.js';
 import { buildLandmarks } from './art/landmarks.js';
+import { buildHD, grimeTexture } from './art/hd.js';
 import { buildProps } from './art/props.js';
 import { makeSky, skyDir } from './art/sky.js';
 import { makeWeather } from './art/weather.js';
@@ -319,6 +320,8 @@ export function buildWorld(level, { cellM, shadows = false }) {
     floorLayers = { tex: layerTextures(fl), index: fIdx };
     for (const L of [wallLayers, floorLayers]) track(L.tex.map, L.tex.normal, L.tex.rm, ...(L.tex.emissive ? [L.tex.emissive] : []));
   }
+  // N4.4 prototype (district 1): world-space grime on every wall and floor
+  const grime = art.hd && wallLayers ? { map: track(grimeTexture(seed)), fine: 1 / 1.7, macro: 1 / 11, strength: 1, tint: '#2a2119' } : null;
   /** How tall a wall cell is drawn: its place's walls (tenements 5.4 m, depots 4.4 m), else WALL_M. */
   const heightAt = (x, y) => lookAt(x, y)?.height ?? WALL_M;
 
@@ -329,7 +332,7 @@ export function buildWorld(level, { cellM, shadows = false }) {
   const floorCells = [];
   for (let y = 0; y < map.h; y++) for (let x = 0; x < map.w; x++) if (map.tiles[y * map.w + x] !== TILE.WALL) floorCells.push([x, y]);
   const floorGeo = track(new THREE.PlaneGeometry(cellM, cellM).rotateX(-Math.PI / 2));
-  const floorMat = track(floorLayers ? layeredMaterial(floorLayers.tex) : new THREE.MeshStandardMaterial(floorArt
+  const floorMat = track(floorLayers ? layeredMaterial(floorLayers.tex, grime ? { grime } : {}) : new THREE.MeshStandardMaterial(floorArt
     ? { map: floorTex, normalMap: floorArt.normalMap, roughnessMap: floorArt.roughnessMap, roughness: floorArt.roughnessMap ? 1 : art.floor.roughness, metalness: 0 }
     : { map: floorTex, roughness: 0.92, metalness: 0 }));
   const floor = new THREE.InstancedMesh(floorGeo, floorMat, floorCells.length);
@@ -364,7 +367,7 @@ export function buildWorld(level, { cellM, shadows = false }) {
   const wallTex = wallArt ? wallArt.map : track(wallTexture(seed));
   const wallGeo = track(new THREE.BoxGeometry(cellM, WALL_M, cellM));
   // tenement windows glow faintly at dusk and plainly by midnight
-  const wallMat = track(wallLayers ? layeredMaterial(wallLayers.tex, { emissiveIntensity: 0.18 + 0.62 * art.t }) : new THREE.MeshStandardMaterial(wallArt
+  const wallMat = track(wallLayers ? layeredMaterial(wallLayers.tex, { emissiveIntensity: 0.18 + 0.62 * art.t, ...(grime ? { grime } : {}) }) : new THREE.MeshStandardMaterial(wallArt
     ? { map: wallTex, normalMap: wallArt.normalMap, roughnessMap: wallArt.roughnessMap, roughness: wallArt.roughnessMap ? 1 : art.wall.roughness, metalness: art.wall.metalness }
     : { map: wallTex, roughness: 0.88 }));
   const wallMesh = new THREE.InstancedMesh(wallGeo, wallMat, Math.max(1, faced.length));
@@ -389,6 +392,9 @@ export function buildWorld(level, { cellM, shadows = false }) {
     }
   });
   if (wallLayers) setLayers(wallMesh, wallLayerIdx);
+  const wallLayerAt = new Map();
+  if (wallLayers) faced.forEach(([x, y], i) => wallLayerAt.set(y * map.w + x, wallLayerIdx[i]));
+  const doorAt = (x, y) => !!wallLayers && wallLayerAt.get(y * map.w + x) === wallLayers.index.tenements[1];
   const white = new THREE.Color(0xffffff), tar = new THREE.Color('#262422');
   walls.forEach(([x, y], i) => {
     m4.makeTranslation((x + 0.5) * cellM, heightAt(x, y) + 0.06, (y + 0.5) * cellM);
@@ -572,6 +578,13 @@ export function buildWorld(level, { cellM, shadows = false }) {
   if (looks) for (const m of buildSigns(level, { cellM, seed, art, lookAt, heightAt, track })) group.add(m);
   // ---- N4.3: a centrepiece on every plaza, and one skyline landmark per district
   if (looks) for (const m of buildLandmarks(level, { cellM, seed, art, looks, heightAt, track })) group.add(m);
+  // ---- N4.4 prototype: the detail layer (art/hd.js) and the lamps the torch scene lights
+  pal.hdLamps = [];
+  if (art.hd && looks) {
+    const hd = buildHD(level, { cellM, seed, art, lookAt, heightAt, doorAt, track });
+    for (const m of hd.meshes) group.add(m);
+    pal.hdLamps = hd.lamps;
+  }
 
   // ---- cut every instanced layer into chunks (N8.4)
   // (a few small layers -- containers, tree crowns -- cost less drawn whole: one call each)
@@ -595,7 +608,7 @@ export function buildWorld(level, { cellM, shadows = false }) {
   group.add(apron);
 
   // N4.1: the belt's sky (art/sky.js), inside the far plane; named 'sky' for the capture
-  const skyDome = makeSky(art.sky, FOG_FAR * 0.98, track);
+  const skyDome = makeSky(art.sky, (art.fog.far ?? FOG_FAR) * 0.98, track);
   const sky = skyDome.mesh;
   sky.position.set(W / 2, 0, H / 2);
   group.add(sky);
@@ -649,23 +662,69 @@ export function lightScene(scene, pal, { cellM, mapW, mapH, shadows = false, fol
   sun.position.set(cx + toLight.x, toLight.y, cz + toLight.z);
   sun.target.position.set(cx, 0, cz);
   const r = follow ? SHADOW_HALF_M : Math.max(mapW, mapH) * cellM * 0.62;
-  if (shadows) {
+  // (N4.4: under district 1's smog the sun casts nothing worth a second shadow pass; the torch does)
+  if (shadows && !art.hd) {
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     Object.assign(sun.shadow.camera, { left: -r, right: r, top: r, bottom: -r, near: 1, far: 140 });
     sun.shadow.bias = -0.0008;
   }
   g.add(sun, sun.target);
+  // N4.4 prototype: a torch in your hand, and the few street lamps still burning (the
+  // nearest four get real lights, flickering; a fixed count, so no shader recompiles)
+  let torch = null;
+  const lampLights = [];
+  const lamps = pal.hdLamps || [];
+  if (art.hd) {
+    const T = art.hd.torch, LP = art.hd.lamp;
+    torch = new THREE.SpotLight(new THREE.Color(T.color), T.intensity, T.distance, T.angle, T.penumbra, T.decay);
+    if (shadows) {
+      torch.castShadow = true;
+      torch.shadow.mapSize.set(1024, 1024);
+      torch.shadow.bias = -0.0005;
+      torch.shadow.camera.near = 0.3;
+    }
+    g.add(torch, torch.target);
+    for (let i = 0; i < 4; i++) {
+      const pl = new THREE.PointLight(new THREE.Color(LP.color), 0, LP.distance, 2);
+      g.add(pl);
+      lampLights.push(pl);
+    }
+  }
   scene.add(g);
   const fogColour = new THREE.Color(art.fog.color);
-  scene.fog = new THREE.Fog(fogColour, FOG_NEAR, FOG_FAR);
+  scene.fog = new THREE.Fog(fogColour, art.fog.near ?? FOG_NEAR, art.fog.far ?? FOG_FAR);
   scene.background = fogColour;
   const texel = (2 * r) / 2048;
-  const fwd = new THREE.Vector3();
+  const fwd = new THREE.Vector3(), right = new THREE.Vector3(), tmp = new THREE.Vector3();
+  const flicker = (i, t) => {
+    // a lamp mostly holds, dips now and then, and sometimes stutters -- from a hash, never Math.random
+    const h = Math.sin(i * 12.9898 + Math.floor(t * 9) * 78.233) * 43758.5453;
+    const n = h - Math.floor(h);
+    return n < 0.06 ? 0.15 : n < 0.12 ? 0.55 : 0.92 + 0.08 * Math.sin(t * 7 + i);
+  };
   return {
     sun,
-    /** Centre the shadow box a little ahead of the camera, snapped to whole texels. */
+    torch,
+    /** Centre the shadow box a little ahead of the camera, snapped to whole texels; carry the torch; light the nearest lamps. */
     follow(camera) {
+      if (torch) {
+        camera.getWorldDirection(fwd);
+        right.set(1, 0, 0).applyQuaternion(camera.quaternion);
+        torch.position.copy(camera.position).addScaledVector(right, 0.22).add(tmp.set(0, -0.18, 0));
+        torch.target.position.copy(camera.position).addScaledVector(fwd, 10);
+        torch.target.updateMatrixWorld();
+      }
+      if (lampLights.length) {
+        const cx = camera.position.x, cz = camera.position.z, t = performance.now() / 1000;
+        const near = lamps.map((l, i) => ({ l, i, d: (l.x - cx) ** 2 + (l.z - cz) ** 2 })).sort((a, b) => a.d - b.d).slice(0, lampLights.length);
+        lampLights.forEach((pl, k) => {
+          const e = near[k];
+          if (!e || e.d > 45 * 45) { pl.intensity = 0; return; }
+          pl.position.set(e.l.x, e.l.y, e.l.z);
+          pl.intensity = art.hd.lamp.intensity * flicker(e.i, t);
+        });
+      }
       if (!follow) return;
       camera.getWorldDirection(fwd);
       fwd.y = 0;

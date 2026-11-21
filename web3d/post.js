@@ -37,16 +37,20 @@ void main() {
   gl_FragColor = vec4(c, 1.0);
 }`;
 
-const COMPOSITE = `uniform sampler2D src, b1, b2; uniform float strength, sat, lift, gain, vignette;
+const COMPOSITE = `uniform sampler2D src, b1, b2; uniform float strength, sat, lift, gain, vignette, grain, ca, time;
 uniform vec3 tint; varying vec2 vUv;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 void main() {
-  vec3 c = texture2D(src, vUv).rgb;
+  vec2 off = (vUv - 0.5) * ca;   // N4.4: a cheap lens -- colour fringes toward the edges
+  vec3 c = ca > 0.0 ? vec3(texture2D(src, vUv + off).r, texture2D(src, vUv).g, texture2D(src, vUv - off).b) : texture2D(src, vUv).rgb;
   c += (texture2D(b1, vUv).rgb * 0.6 + texture2D(b2, vUv).rgb * 0.8) * strength;
   c = c * gain + lift;
   float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
   c = max(mix(vec3(l), c, sat), 0.0) * tint;
   vec2 d = vUv - 0.5;
   c *= 1.0 - vignette * dot(d, d) * 2.0;
+  // film grain, a new pattern every frame, stronger in the shadows like real stock
+  if (grain > 0.0) c *= 1.0 + (hash(vUv * 1024.0 + time) - 0.5) * grain * (2.0 - min(1.0, dot(c, vec3(0.33)) * 4.0));
   gl_FragColor = vec4(c, 1.0);
   #include <colorspace_fragment>
 }`;
@@ -73,6 +77,7 @@ export function createPost(renderer, { scale = 0.5, samples = 4 } = {}) {
     src: { value: scene.texture }, b1: { value: b1.texture }, b2: { value: a2.texture },
     strength: { value: 0.9 }, sat: { value: 1 }, lift: { value: 0 }, gain: { value: 1 },
     vignette: { value: 0.22 }, tint: { value: new THREE.Color(1, 1, 1) },
+    grain: { value: 0 }, ca: { value: 0 }, time: { value: 0 },
   });
   const size = new THREE.Vector2();
   let W = 0, H = 0;
@@ -106,6 +111,7 @@ export function createPost(renderer, { scale = 0.5, samples = 4 } = {}) {
       blurPass(a2, b2, a2, a2.width, a2.height);          // a2: the second level, wider
       comp.uniforms.b1.value = a1.texture;
       comp.uniforms.b2.value = a2.texture;
+      comp.uniforms.time.value = (comp.uniforms.time.value + 0.6180339) % 97;
       pass(comp, prev);
       return info;
     },
@@ -116,6 +122,9 @@ export function createPost(renderer, { scale = 0.5, samples = 4 } = {}) {
       comp.uniforms.lift.value = g.lift ?? 0;
       comp.uniforms.gain.value = g.gain ?? 1;
       comp.uniforms.strength.value = g.bloom ?? 0.9;
+      comp.uniforms.vignette.value = g.vignette ?? 0.22;
+      comp.uniforms.grain.value = g.grain ?? 0;
+      comp.uniforms.ca.value = g.ca ?? 0;
     },
     dispose() {
       for (const t of [scene, a1, b1, a2, b2]) t.dispose();

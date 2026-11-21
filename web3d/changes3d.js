@@ -8,6 +8,27 @@
 
 export const CHANGES = [
   {
+    build: 38,
+    date: '2026-11-21',
+    phase: 'N4.4 prototype',
+    changed: [
+      'District 1 only, as a prototype of a horror look in the direction of Amnesia and Silent Hill, with far more detail. Every other district is unchanged, so you can compare.',
+      'The light: brown foundry smog instead of a sky, thick from about 2 m and solid by 38 m; a torch in your hand; most street lamps smashed and a few still burning, flickering. Film grain, colour drained to about 60 %, colour fringing towards the edges, a heavy vignette.',
+      'The surfaces: grime laid over every wall and floor by world position, so it no longer repeats with the 1.5 m grid: dirt gathering at the foot of walls, long stains, wet patches on the ground that catch the torch.',
+      'The detail: real window frames, sills and lintels on the tenements; behind them dark glass, or a mattress or foam nailed over, or boards, or a broken pane, or a lamp behind a curtain. Door frames and steps, with shoes left in pairs on some. Cornices on every wall top, chimneys, drainpipes on the corners, a dark plinth at the foot of walls, cables sagging across the streets, street lamps, and leaves, paper, oil, rags, drains and manholes on the ground.',
+      'Chosen with the antialgorithm skill: no gore and no motel sign. The street shows how its people tried to be quiet before they were taken, because the aliens hunt by sound.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R) and play district 1, then district 2 to compare with the old look. Walk the tenement rows and look at the windows; find a burning lamp.',
+      'Glow and colour grade must be on (Settings) for the grain and the grade.',
+    ],
+    unverified: [
+      'Measured at 1080p: Medium 9-12 ms a frame (district 2, unchanged, 9.5-10 ms), High 11.6-13.5 ms with p95 up to 22 ms. Not tried on a weaker laptop.',
+      'The smog makes aliens visible only within about 30 m in district 1, so it plays harder; the stun gun\'s 72 m reach does not matter there.',
+      'This is the look to judge; if you want it everywhere, the detail layer needs cutting into chunks for the big cities, and each belt its own version of these choices.',
+    ],
+  },
+  {
     build: 37,
     date: '2026-11-18',
     phase: 'N6.1 throws',

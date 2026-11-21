@@ -17,7 +17,7 @@ import * as THREE from 'three';
 import { TILE } from '../../sim/grid.js';
 import { Rng, hashString } from '../../sim/prng.js';
 
-function merger() {
+export function merger() {
   const pos = [], nrm = [], col = [], idx = [];
   const v = new THREE.Vector3(), nm = new THREE.Matrix3(), c = new THREE.Color();
   return {

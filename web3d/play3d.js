@@ -442,6 +442,9 @@ export class Play3D {
     const cellM = this.tune.cellM;
     this.world = buildWorld(this.runner.level, { cellM, shadows: this.quality.shadows });
     this.view.post?.setGrade(this.world.art.grade);
+    // N4.4 prototype: the far plane follows the district's fog (district 1's smog ends at 38 m)
+    this.view.camera.far = (this.world.art.fog.far ?? 90) + 8;
+    this.view.camera.updateProjectionMatrix();
     this.view.scene.add(this.world.group);
     this.lights = lightScene(this.view.scene, this.world.palette, {
       cellM, mapW: this.runner.map.w, mapH: this.runner.map.h, shadows: this.quality.shadows, follow: true,

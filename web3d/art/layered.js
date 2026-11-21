@@ -58,6 +58,30 @@ export function layerTextures(layers) {
   return { map, normal, rm, emissive, count: layers.length };
 }
 
+// The grime, in the fragment shader: a fine layer (about 1.6 m a repeat) and a coarse one
+// (about 11 m), projected from whichever axis the surface faces. R dirt, G stain, B wet.
+const GRIME_ALBEDO = `
+#ifdef GRIME
+  vec3 gan = abs(vGNrm);
+  vec2 guv = gan.y > 0.5 ? vGPos.xz : (gan.x > gan.z ? vGPos.zy : vGPos.xy);
+  vec4 gFine = texture2D(grimeMap, guv * grimeScale.x);
+  vec4 gMacro = texture2D(grimeMap, guv * grimeScale.y + vec2(0.37, 0.61));
+  float gWall = 1.0 - step(0.5, gan.y);
+  // dirt gathers low on walls and pools in the coarse stains
+  float gFoot = gWall * (1.0 - smoothstep(0.0, 1.3, vGPos.y));
+  float gDirt = clamp(gFine.r * 0.55 + gMacro.g * 0.75 + gFoot * 0.45 - 0.22, 0.0, 1.0) * grimeStrength;
+  diffuseColor.rgb *= mix(vec3(1.0), grimeTint, gDirt);
+  diffuseColor.rgb *= 1.0 - gWall * gMacro.r * 0.18 * grimeStrength;
+#endif
+`;
+const GRIME_ROUGH = `
+#ifdef GRIME
+  // wet ground shines: puddles from the coarse layer, a damp sheen from the fine one
+  float gWet = (1.0 - gWall) * smoothstep(0.55, 0.75, gMacro.b) + (1.0 - gWall) * gFine.b * 0.04;
+  roughnessFactor = mix(roughnessFactor, 0.08, clamp(gWet, 0.0, 1.0));
+#endif
+`;
+
 let dummy = null;
 const placeholder = () => {
   if (!dummy) { dummy = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); dummy.needsUpdate = true; }
@@ -77,6 +101,11 @@ const swap = (chunk, from, to) => {
  */
 export function layeredMaterial(tex, params = {}) {
   const p = placeholder();
+  // N4.4: optional world-space grime (art/hd.js grimeTexture): dirt, stains and wet patches
+  // sampled by world position, so they ignore the 1.5 m cell grid the textures repeat on
+  params = { ...params };
+  const grime = params.grime || null;
+  delete params.grime;
   const mat = new THREE.MeshStandardMaterial({
     ...params, map: p, normalMap: p, roughnessMap: p, metalnessMap: p, roughness: 1, metalness: 1,
     ...(tex.emissive ? { emissiveMap: p, emissive: 0xffffff, emissiveIntensity: params.emissiveIntensity ?? 1 } : {}),
@@ -87,17 +116,32 @@ export function layeredMaterial(tex, params = {}) {
       layerEmissive: { value: tex.emissive || tex.map },
     });
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float aLayer;\nflat varying float vLayer;')
-      .replace('#include <uv_vertex>', '#include <uv_vertex>\n\tvLayer = aLayer;');
+      .replace('#include <common>', '#include <common>\nattribute float aLayer;\nflat varying float vLayer;\nvarying vec3 vGPos;\nvarying vec3 vGNrm;')
+      .replace('#include <uv_vertex>', '#include <uv_vertex>\n\tvLayer = aLayer;')
+      .replace('#include <project_vertex>', `#include <project_vertex>
+  vec4 gp = vec4(transformed, 1.0);
+  vec3 gn = objectNormal;
+  #ifdef USE_INSTANCING
+    gp = instanceMatrix * gp;
+    gn = mat3(instanceMatrix) * gn;
+  #endif
+  vGPos = (modelMatrix * gp).xyz;
+  vGNrm = normalize(mat3(modelMatrix) * gn);`);
+    if (grime) {
+      Object.assign(shader.uniforms, {
+        grimeMap: { value: grime.map }, grimeScale: { value: new THREE.Vector2(grime.fine, grime.macro) },
+        grimeStrength: { value: grime.strength }, grimeTint: { value: new THREE.Color(grime.tint) },
+      });
+    }
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nflat varying float vLayer;\nuniform sampler2DArray layerMap;\nuniform sampler2DArray layerNormal;\nuniform sampler2DArray layerRM;\nuniform sampler2DArray layerEmissive;')
-      .replace('#include <map_fragment>', swap('map_fragment', 'texture2D( map, vMapUv )', 'texture( layerMap, vec3( vMapUv, vLayer ) )'))
+      .replace('#include <common>', '#include <common>\n' + (grime ? '#define GRIME\nuniform sampler2D grimeMap;\nuniform vec2 grimeScale;\nuniform float grimeStrength;\nuniform vec3 grimeTint;\n' : '') + 'varying vec3 vGPos;\nvarying vec3 vGNrm;\nflat varying float vLayer;\nuniform sampler2DArray layerMap;\nuniform sampler2DArray layerNormal;\nuniform sampler2DArray layerRM;\nuniform sampler2DArray layerEmissive;')
+      .replace('#include <map_fragment>', swap('map_fragment', 'texture2D( map, vMapUv )', 'texture( layerMap, vec3( vMapUv, vLayer ) )') + GRIME_ALBEDO)
       .replace('#include <normal_fragment_maps>', swap('normal_fragment_maps', 'texture2D( normalMap, vNormalMapUv )', 'texture( layerNormal, vec3( vNormalMapUv, vLayer ) )'))
-      .replace('#include <roughnessmap_fragment>', swap('roughnessmap_fragment', 'texture2D( roughnessMap, vRoughnessMapUv )', 'texture( layerRM, vec3( vRoughnessMapUv, vLayer ) )'))
+      .replace('#include <roughnessmap_fragment>', swap('roughnessmap_fragment', 'texture2D( roughnessMap, vRoughnessMapUv )', 'texture( layerRM, vec3( vRoughnessMapUv, vLayer ) )') + GRIME_ROUGH)
       .replace('#include <metalnessmap_fragment>', swap('metalnessmap_fragment', 'texture2D( metalnessMap, vMetalnessMapUv )', 'texture( layerRM, vec3( vMetalnessMapUv, vLayer ) )'))
       .replace('#include <emissivemap_fragment>', swap('emissivemap_fragment', 'texture2D( emissiveMap, vEmissiveMapUv )', 'texture( layerEmissive, vec3( vEmissiveMapUv, vLayer ) )'));
   };
-  mat.customProgramCacheKey = () => `layered:${tex.emissive ? 'e' : '-'}`;
+  mat.customProgramCacheKey = () => `layered:${tex.emissive ? 'e' : '-'}:${grime ? 'g' : '-'}`;
   return mat;
 }
 

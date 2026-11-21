@@ -215,6 +215,28 @@ const ART = {
   },
 };
 
+/**
+ * N4.4 PROTOTYPE, district 1 only: the horror look the user asked for (Amnesia, Silent
+ * Hill) at far more detail, to judge before it goes to every district. Chosen with the
+ * antialgorithm skill's rule -- name the default, move away for a reason from NOISE:
+ *   fog    not Silent Hill's white: RUST is the foundry belt, its air is smog -- brown,
+ *          amber low down, darker above
+ *   light  a torch; most street lamps smashed (lamps hum), a few still burning amber
+ *   world  no gore: the street shows how people tried to be quiet before they were
+ *          taken -- mattresses nailed over windows, shoes left at doors, bell ropes cut
+ * web3d/art/hd.js builds the detail; this is its light, fog and grade.
+ */
+export const HD_DISTRICTS = Object.freeze([1]);
+const RUST_HD = Object.freeze({
+  fog: { color: '#3b342c', near: 2.0, far: 38 },
+  sky: { zenith: '#2a2520', horizon: '#3b342c' },
+  light: { hemiSky: '#7c7262', hemiGround: '#140f0c', hemi: 0.42, key: '#b89a7c', keyI: 0.28 },
+  torch: { color: '#ffe8c8', intensity: 20, angle: 0.38, penumbra: 0.7, distance: 32, decay: 1.15 },
+  lamp: { color: '#f2c58e', intensity: 9, distance: 11 },
+  grade: { tint: '#f4ece0', sat: 0.58, lift: 0.003, gain: 1.02, bloom: 0.5, grain: 0.11, ca: 0.0022, vignette: 0.62 },
+  dustRate: 1.1, dustSize: 0.035,
+});
+
 export const BELT_NAMES = Object.freeze(['RUST', 'TIDE', 'MOSS', 'EMBER', 'VIOLET', 'ASH', 'CORAL', 'JADE', 'SOLAR', 'COBALT']);
 export const beltOf = (district) => Math.floor((Math.max(1, Math.min(100, district)) - 1) / 10);
 export const depthOf = (district) => (Math.max(1, Math.min(100, district)) - 1) % 10;
@@ -285,6 +307,20 @@ export function artFor(district) {
       keyI: lerp(a.keyI, b.keyI, t), keyAz: body.az, keyElev: Math.max(6, body.elev),
     },
     fog: { color: mixHex(a.horizon, b.horizon, t) },
+    ...(HD_DISTRICTS.includes(district) && def === ART.RUST ? hdOverrides(def) : {}),
+  };
+}
+
+/** District 1's prototype look: dense smog instead of a sky, a torch, a film grade. */
+function hdOverrides(def) {
+  const H = RUST_HD;
+  return {
+    hd: H,
+    sky: { zenith: H.sky.zenith, horizon: H.sky.horizon, clouds: 0, cloud: H.sky.horizon, stars: 0, canopy: 0, body: { kind: 'sun', az: 250, elev: -5, color: '#000000', size: 0, glow: 0 }, beam: null, body2: null, aurora: null, ship: 0 },
+    light: { ...H.light, keyAz: 250, keyElev: 18 },
+    fog: { color: H.fog.color, near: H.fog.near, far: H.fog.far },
+    grade: H.grade,
+    weather: def.weather ? { ...def.weather, rate: H.dustRate, size: H.dustSize, speed: def.weather.speed * 0.6 } : null,
   };
 }
 
