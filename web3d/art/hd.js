@@ -106,7 +106,7 @@ function clutterAtlas(seed) {
  * @param {object} o  { cellM, seed, art, lookAt(x,y), heightAt(x,y), doorAt(x,y), track }
  * @returns {{ meshes: THREE.Object3D[], lamps: {x, y, z}[] }}
  */
-export function buildHD(level, { cellM, seed, art, lookAt, heightAt, doorAt, track }) {
+export function buildHD(level, { cellM, seed, art, lookAt, heightAt, doorAt, track, skip = () => false }) {
   const { map } = level;
   const { w, h } = map;
   const tile = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? TILE.WALL : map.tiles[y * w + x]);
@@ -135,6 +135,7 @@ export function buildHD(level, { cellM, seed, art, lookAt, heightAt, doorAt, tra
   }
 
   for (const f of faces) {
+    if (skip(f.x, f.y)) continue;   // a building in art/buildings.js dresses itself
     const L = lookAt(f.x, f.y), type = L?.type, top = heightAt(f.x, f.y);
     const r = rngAt(`f${f.x},${f.y},${f.dx},${f.dy}`);
     // a plinth at the foot and a cornice at the top, on every wall
@@ -188,7 +189,7 @@ export function buildHD(level, { cellM, seed, art, lookAt, heightAt, doorAt, tra
 
   // drainpipes on convex corners of tall walls
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    if (!isWall(x, y)) continue;
+    if (!isWall(x, y) || skip(x, y)) continue;
     const top = heightAt(x, y), L = lookAt(x, y);
     if (L?.type === 'park') continue;
     for (const [ax, ay, bx, by] of [[1, 0, 0, 1], [0, 1, -1, 0], [-1, 0, 0, -1], [0, -1, 1, 0]]) {

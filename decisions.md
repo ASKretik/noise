@@ -3225,11 +3225,75 @@ More code-drawn detail gives more of the same. The fix is art made by people.
 The OpenGameArt CC0 packs found by search could not be checked: their site's
 certificate is not trusted on this machine.
 
+## R70 · District 1: every building its own (3D build 40)
+
+**Asked:** "the buildings you have don't even have an entrance. can't distinguish whether
+the buildings are hotels, or house, bar, restaurants … they all look the same, which is
+what primarily makes it look like slop … every adjacent building [should be] very unlike
+… go all out … don't worry about the size." With two reference images: Amnesia's room and
+Halo concept art.
+
+**Assets.** The user's "don't worry about the size" answered the download question
+(R69). 15 CC0 material sets from ambientCG, 1K, colour, normal and roughness only (44 MB),
+are in `assets3d/materials/` with `assets3d/CREDITS.md`. They were chosen to keep the
+palette rule: the yellow painted brick and the red peeling metal were left out.
+
+**Built** (`web3d/art/buildings.js`, district 1 only):
+
+- **Splitting.** Each solid tenement block is cut along its street front into runs of
+  3–6 cells, each a building; the block's inner cells go to the nearest one. 254
+  buildings.
+- **Purpose.** House, apartments, shop, bar, cafe, pharmacy, launderette and garage,
+  plus one each of cinema, bank, hotel and clinic. A building never matches a neighbour's
+  purpose or wall material.
+- **Each building's own:** storeys, ground and storey heights, wall, paint colours,
+  damage, burnt or not, a sign (a trade and a surname drawn from many origins, not the
+  stock list), and a font.
+- **Ground floors by purpose:**
+  - shopfront: tiled riser, display glass, glazed door, shutter;
+  - pub: black panelling, small panes;
+  - cafe: awning;
+  - garage: roller door, tyres;
+  - cinema: doors and posters;
+  - bank: pilasters, steps, barred windows;
+  - hotel: canopy;
+  - clinic: double doors;
+  - house: stoop, railings;
+  - apartments: lobby door with an entry panel.
+- **Upper floors:** sash, grid, or tall windows with balconies. Each window is broken,
+  boarded, has a mattress over it, is glass with a curtain, or is lit. Apartments have
+  fire escapes; air-con units hang under some windows.
+- **Roofs:** pitched slate with chimneys, flat with vents, a water tank, or the hotel's
+  rooftop sign.
+- **Damage:** soot, signs missing letters, brick fallen onto the pavement.
+- **Construction.** Merged per material (25), with UVs from world position so nothing
+  stretches. Building cells drop out of the old wall instancing and decoration, and
+  district 1 loses the random wall art the user called meaningless.
+
+**Seen in the browser:**
+
+- buildings first came out one cell (1.5 m) wide, so runs were raised from 1–5 cells
+  to 3–6;
+- the scene was too dark, so the grade gain was raised to 1.4;
+- a street reads as a row of different businesses and homes: "BAR ESPOSITO", a clinic,
+  "BUTCHER", "HARDWA E" with a letter gone.
+
+**Measured** (1080p):
+
+| | Mean | p95 |
+|---|---|---|
+| Medium | 11–14 ms | — |
+| High | 14–15 ms | up to 23 ms |
+
+Everything in district 1 is drawn at once, so bigger districts will need it chunked.
+
+**Not built:** interiors.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 39; 3D-1 via the
+npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 40; 3D-1 via the
                   2D suites above, run alongside)
 ```

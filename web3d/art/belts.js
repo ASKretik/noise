@@ -235,7 +235,7 @@ const RUST_HD = Object.freeze({
   light: { hemiSky: '#a39a8a', hemiGround: '#1c1611', hemi: 1.9, key: '#c4a888', keyI: 0.18 },
   torch: { color: '#ffe8c8', intensity: 20, angle: 0.38, penumbra: 0.7, distance: 32, decay: 1.15 },
   lamp: { color: '#f2c58e', intensity: 9, distance: 11 },
-  grade: { tint: '#f4ece0', sat: 0.66, lift: 0.002, gain: 1.04, bloom: 0.5, grain: 0.07, ca: 0.0016, vignette: 0.42 },
+  grade: { tint: '#f4ece0', sat: 0.7, lift: 0.004, gain: 1.4, bloom: 0.5, grain: 0.07, ca: 0.0016, vignette: 0.38 },
   dustRate: 1.1, dustSize: 0.035,
 });
 

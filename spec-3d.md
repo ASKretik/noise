@@ -669,6 +669,14 @@ for a reason from NOISE (decisions.md R68).
 - **Before it can go everywhere:** the merged meshes cover a whole district (fine at
   district 1's size), so they need cutting into chunks for the big cities.
 
+### District 1's buildings (N4.4, 3D build 40)
+
+`web3d/art/buildings.js`: each solid block is cut into buildings along its street front
+(3–6 cells each), and each building gets a purpose of twelve. Neighbours never share a
+purpose or a wall material. Each has its own height, storeys, real CC0 material
+(ambientCG, `assets3d/`), purpose-specific ground floor and entrance, upper-floor window
+style, roof, sign and damage. See decisions.md R70 for the details.
+
 **Bolts thin out deeper into each belt** (`sim3d/bolts.js`): the generator's bolts are
 kept in full in a belt's first district and cut to `max(1, round(n × (1 − 2k/27)))` at
 depth `k` (0–9), about a third by its tenth; the next belt starts full again. The kept set

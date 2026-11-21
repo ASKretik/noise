@@ -8,6 +8,26 @@
 
 export const CHANGES = [
   {
+    build: 40,
+    date: '2026-11-21',
+    phase: 'N4.4 prototype',
+    changed: [
+      'District 1 only: every solid block is now cut into separate buildings, 4.5-9 m of street front each, and every building is its own. There are 254 of them.',
+      'Each has a purpose: house, apartments, shop (a trade and an owner), bar, cafe, pharmacy, launderette, garage, and one each of cinema, bank, hotel and clinic. No building has the same purpose or the same walls as the one next to it.',
+      'Real materials: 15 photographed surfaces (brick, painted brick, plaster, render, weatherboard, corrugated steel, concrete, painted wood, rusty metal, tiles; CC0, from ambientCG), laid by world position so they never stretch.',
+      'Every building has an entrance, and its ground floor says what it is. Shops have tiled stall risers, display glass, a lettered fascia and a glazed door, sometimes a roller shutter stuck half way. A pub has black panelling and small-paned windows; a cafe has an awning, some torn. A garage has a roller door, the cinema a double door and poster frames, the bank pilasters and steps, the hotel a canopy, a house a stoop with railings.',
+      'Upper floors in each building\'s own style: sash windows, steel grids, or tall windows with balconies. Apartments have fire escapes and a water tank on the roof, houses pitched slate roofs and chimneys, the hotel its name on the roof. Every storey height, cornice and roof line differs.',
+      'Each building has its own damage: windows broken, boarded, or with a mattress nailed over; soot over the ones that burned; letters fallen off the signs; brick on the pavement in front of the worst. The random graffiti and posters are gone from district 1.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R), play district 1 and walk the streets reading the signs. Compare with district 2.',
+    ],
+    unverified: [
+      '1080p Medium 11-14 ms a frame; High 14-15 ms with slow frames up to 23 ms. Every building is drawn at once in district 1, so before the bigger districts get this it needs cutting into chunks. The textures add 44 MB to the download.',
+      'Interiors are not built: doors and windows are shut, boarded or dark.',
+    ],
+  },
+  {
     build: 39,
     date: '2026-11-21',
     phase: 'N4.4 prototype',

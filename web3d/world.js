@@ -26,6 +26,7 @@ import { layerTextures, layeredMaterial, setLayers, patchDark } from './art/laye
 import { buildSigns } from './art/signs.js';
 import { buildLandmarks } from './art/landmarks.js';
 import { buildHD, grimeTexture } from './art/hd.js';
+import { planBuildings, buildBuildings } from './art/buildings.js';
 import { buildProps } from './art/props.js';
 import { makeSky, skyDir } from './art/sky.js';
 import { makeWeather } from './art/weather.js';
@@ -322,8 +323,11 @@ export function buildWorld(level, { cellM, shadows = false }) {
   }
   // N4.4 prototype (district 1): world-space grime on every wall and floor
   const grime = art.hd && wallLayers ? { map: track(grimeTexture(seed)), fine: 1 / 1.7, macro: 1 / 11, strength: 1, tint: '#2a2119' } : null;
-  /** How tall a wall cell is drawn: its place's walls (tenements 5.4 m, depots 4.4 m), else WALL_M. */
-  const heightAt = (x, y) => lookAt(x, y)?.height ?? WALL_M;
+  // N4.4 prototype: district 1's solid blocks are cut into separate buildings (art/buildings.js)
+  const plan = art.hd && looks ? planBuildings({ map, lookAt, seed }) : null;
+  const baseHeight = (x, y) => lookAt(x, y)?.height ?? WALL_M;
+  /** How tall a wall cell is drawn: its building's height, its place's walls (tenements 5.4 m, depots 4.4 m), else WALL_M. */
+  const heightAt = (x, y) => plan?.at(x, y)?.H ?? baseHeight(x, y);
 
   // ---- floor: one tile per non-wall cell, ground / groundAlt, seams in the texture
   const floorArt = styled ? surfaceTextures(art.floor, seed, false) : null;
@@ -355,7 +359,8 @@ export function buildWorld(level, { cellM, shadows = false }) {
   // sides shows no face to anyone at street level, so it gets a cap (the killcam looks
   // down on the roofs) but no body: on a city map that is about a third of all walls.
   const isWall = (x, y) => x < 0 || y < 0 || x >= map.w || y >= map.h || map.tiles[y * map.w + x] === TILE.WALL;
-  const walls = cellsOf(TILE.WALL);
+  // (N4.4: in district 1 a building's cells are drawn by art/buildings.js, not here)
+  const walls = cellsOf(TILE.WALL).filter(([x, y]) => !plan?.at(x, y));
   // (N4.2: walls differ in height, so a neighbour covers a face only if it is as tall)
   const covers = (x, y, hgt) => isWall(x, y) && heightAt(x, y) >= hgt;
   const faced = walls.filter(([x, y]) => {
@@ -572,16 +577,17 @@ export function buildWorld(level, { cellM, shadows = false }) {
   // ---- the belt's props on the walls (N4.1), chunked with the rest; not on a park's
   // hedges or a plaza's monuments, and hung from each wall's real top
   for (const prop of buildProps(level, art, cellM, seed, track, {
-    heightAt, skip: (x, y) => { const t = lookAt(x, y)?.type; return t === 'park' || t === 'plaza'; },
+    heightAt, skip: (x, y) => { const t = lookAt(x, y)?.type; return t === 'park' || t === 'plaza' || !!plan?.at(x, y); },
   })) group.add(prop);
   // ---- N4.2: every place's name at its gates, and the wall art on the street walls
-  if (looks) for (const m of buildSigns(level, { cellM, seed, art, lookAt, heightAt, track })) group.add(m);
+  if (looks) for (const m of buildSigns(level, { cellM, seed, art, lookAt, heightAt, track, wallArt: !plan })) group.add(m);
   // ---- N4.3: a centrepiece on every plaza, and one skyline landmark per district
   if (looks) for (const m of buildLandmarks(level, { cellM, seed, art, looks, heightAt, track })) group.add(m);
   // ---- N4.4 prototype: the detail layer (art/hd.js) and the lamps the torch scene lights
   pal.hdLamps = [];
   if (art.hd && looks) {
-    const hd = buildHD(level, { cellM, seed, art, lookAt, heightAt, doorAt, track });
+    const hd = buildHD(level, { cellM, seed, art, lookAt, heightAt, doorAt, track, skip: (x, y) => !!plan?.at(x, y) });
+    if (plan) for (const m of buildBuildings(plan, { map, cellM, seed, heightAt: baseHeight, track })) group.add(m);
     for (const m of hd.meshes) group.add(m);
     pal.hdLamps = hd.lamps;
   }
@@ -669,6 +675,8 @@ export function buildWorld(level, { cellM, shadows = false }) {
     palette: pal,
     /** N4.4: how much sky a cell sees, 0 (black alley) to 1 (open); 1 where there is no map */
     darkAt,
+    /** N4.4: district 1's buildings (art/buildings.js planBuildings), or null */
+    buildings: plan,
     chunkCount,
     art,
     /**

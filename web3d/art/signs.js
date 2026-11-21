@@ -186,7 +186,7 @@ const KIND_TILES = { poster: [0, 16], graffiti: [16, 36], stencil: [36, 48], war
  * @param {object} o       { cellM, seed, art, lookAt(x, y), heightAt(x, y), track }
  * @returns {THREE.Object3D[]}
  */
-export function buildSigns(level, { cellM, seed, art, lookAt, heightAt, track }) {
+export function buildSigns(level, { cellM, seed, art, lookAt, heightAt, track, wallArt = true }) {
   const { map } = level;
   const places = level.places || [];
   const out = [];
@@ -279,7 +279,8 @@ export function buildSigns(level, { cellM, seed, art, lookAt, heightAt, track })
   const atlas = decalAtlas(seed);
   const q = quadBuffer();
   const depth = 0.7 + 0.6 * (art.t || 0);
-  for (let y = 0; y < map.h; y++) for (let x = 0; x < map.w; x++) {
+  // (N4.4: not in district 1, whose buildings carry their own signs, nothing scattered)
+  if (wallArt) for (let y = 0; y < map.h; y++) for (let x = 0; x < map.w; x++) {
     if (tileAt(x, y) !== TILE.WALL) continue;
     const L = lookAt(x, y);
     const [chance, kinds] = ART_BY_TYPE[L ? L.type : 'street'];
