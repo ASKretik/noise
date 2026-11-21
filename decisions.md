@@ -3130,11 +3130,60 @@ where the sim says, and replays runs whose throws are rays.
 **Not verified:** balance. Unlimited range makes both items stronger. Prices are
 unchanged and the user's call.
 
+## R68 · N4.4 prototype: district 1 in a horror look, chosen with antialgorithm (3D build 38)
+
+**Asked:** "make the art work at least 10 times more detailed … like Amnesia, Silent Hill
+… design the rust level 1 alone in this format … install that skill, and use it. I want
+to see … how good does that make the game generation look like non-AI."
+
+**The skill** (github.com/mankidev/antialgorithm) was cloned into
+`~/.claude/skills/antialgorithm`, its scripts read first (they only touch a local
+history file), and loaded with the Skill tool. Its rule: name the default, then move away
+for a reason from this project. The user fixed the genre, so it was used only for what
+was still open:
+
+| Default | District 1 does instead | Reason (a NOISE fact) |
+|---|---|---|
+| Silent Hill's white fog | Brown foundry smog | RUST is the foundry belt |
+| Blood, dolls, wheelchairs, a motel sign | No gore: the street shows people trying to be quiet | The aliens hunt by sound and take people |
+| Boards on every window | Mattresses and foam nailed over, some boards, a few lit | Soundproofing |
+| *A Quiet Place*'s sand paths | Shoes left in pairs at doors, cut bell ropes | The same fear, not the famous image |
+| Every lamp dead, or every lamp flickering | Most smashed, about 45 % burning | Lamps hum |
+| A perfect grid of identical boxes | Frames, cornices, chimneys, pipes, cables; grime by world position | The skill's "AI finish": perfect geometry, unchanged repeats |
+
+**Built.**
+
+- **Light, fog and grade:** `belts.js RUST_HD`, `world.js lightScene` (torch, lamp pool)
+  and `post.js` (grain, fringe, vignette).
+- **Grime:** a world-space map in `layered.js`.
+- **Detail:** `art/hd.js`, seven merged meshes.
+
+**Seen and fixed in the browser:**
+
+- the torch's hot spot was blown out (intensity 42 → 20);
+- the dust read as glowing orbs (size 0.1 → 0.035);
+- the wet sheen sparkled like noise;
+- there was only one burning lamp (now 7).
+- High ran 15 ms with p95 22 ms because the sun and the torch each drew a shadow pass of
+  every merged mesh. The sun's shadows are dropped here, and only the trim casts:
+  11.6–13.5 ms.
+
+**Measured** (1080p):
+
+| | Mean |
+|---|---|
+| Medium, district 1 | 9.4–12.4 ms |
+| Medium, district 2 (unchanged, the control) | 9.5–9.9 ms |
+| High, district 1 | 11.6–13.5 ms (p95 to 22 ms) |
+
+**Not verified:** a weaker laptop; whether the user likes it. The detail meshes are
+district-wide, so they need chunking before the big cities get them.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 37; 3D-1 via the
+npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 38; 3D-1 via the
                   2D suites above, run alongside)
 ```
