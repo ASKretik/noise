@@ -119,6 +119,9 @@ export class Play3D {
     this.itemFx = [];
     this.controls.on('wheel', (open, cancel) => (open ? this.openWheel() : this.closeWheel(cancel)));
     this.controls.on('wheelmove', (x, y) => this.wheelMove(x, y));
+    // N4.4: the torch is off until you want it (F); dark alleys are where you will
+    this.torchOn = false;
+    this.controls.on('torch', () => { if (!this.lights?.torch) return; this.torchOn = !this.torchOn; this.audio.click(); });
     $('ov-primary').addEventListener('click', () => this.primary());
     $('ov-secondary').addEventListener('click', () => { this.start(this.district); this.controls.lock(); });
     $('ov-killcam').addEventListener('click', () => this.playKillcam());
@@ -415,7 +418,11 @@ export class Play3D {
   }
 
   inHandText(g) {
-    if (this.active === 'gun') return g.canUseItem ? `${g.dampers ? 'Dampers on · ' : ''}Space: inventory` : '';
+    // N4.4: in a dark alley without the torch on, say how to see
+    const b = this.runner.session.body;
+    const dark = this.lights?.torch && !this.torchOn && this.world.darkAt(Math.floor(b.x), Math.floor(b.y)) < 0.35;
+    if (dark && this.active === 'gun') return 'Too dark to see · F: torch';
+    if (this.active === 'gun') return g.canUseItem ? `${g.dampers ? 'Dampers on · ' : ''}${this.torchOn ? 'F: torch off · ' : ''}Space: inventory` : '';
     const it = ITEMS3D[this.active], have = g.loadout.items[this.active];
     const why = this.itemTarget && !this.itemTarget.ok && this.itemTarget.reason ? ` · ${this.itemTarget.reason}` : '';
     return `${it.label} ×${have} · click to ${this.active === 'dampers' ? 'put them on' : 'throw'}${why}`;
@@ -894,6 +901,7 @@ export class Play3D {
     });
     if (this.tune.debug) this.debugReadout();
     this.lights.follow(this.view.camera);
+    if (this.lights.torch) this.lights.torch.intensity = this.torchOn ? this.world.art.hd.torch.intensity : 0;
     this.view.render();
     // Read the world pass's counters before the gun pass resets them.
     this.worldInfo = { ...this.view.sceneInfo };

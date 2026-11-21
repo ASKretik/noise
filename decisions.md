@@ -3179,11 +3179,57 @@ was still open:
 **Not verified:** a weaker laptop; whether the user likes it. The detail meshes are
 district-wide, so they need chunking before the big cities get them.
 
+## R69 · Fixes after the prototype review; why the buildings still look generated (3D build 39)
+
+**The user said:**
+
+- the buildings carry random, repeating designs with no meaning, and look well kept for
+  a city under invasion;
+- a stunned alien sinks half into the ground;
+- the torch is annoying: make things visible, and keep the torch for dark alleys;
+- "is this what the antialgorithm gave you?"; if it cannot do better, suggest free
+  models to download.
+
+**Fixed:**
+
+- **The stunned pose.** It was a 72° tip about the feet plus a 0.35 m drop. Now the alien
+  falls flat on its back, raised by its body's thickness (lowest part within 5 cm of the
+  ground).
+- **The torch** is off until F.
+- **Open ground** is lit by the sky: hemisphere light 1.9, fog from 7 to 72 m.
+- **Darkness map.** How much sky each cell sees past the walls within 4 cells (weighted by
+  height and nearness), blurred, with walls taking their street's value. It scales only
+  the ambient light, through a patch on every standard material in the district. So an
+  alley is nearly black (0.10 at its darkest), while the torch and lamps, being direct
+  light, still light it. The sun is cut to 0.18 so it does not light the alleys.
+
+**The honest answer on the buildings.** The skill decided *what* the street shows:
+mattresses over windows, shoes at doors, smog. It does not and cannot make the craft
+look less generated. The generated look comes from the medium itself:
+
+- facades are canvas patterns drawn by code, one per kind of building;
+- every building is a stack of identical 1.5 m boxes;
+- decoration is placed by rules.
+
+More code-drawn detail gives more of the same. The fix is art made by people.
+
+**What is available:**
+
+- Poly Haven's **Hidden Alley** collection: photo-real, CC0. Apartment and factory
+  facades, fire escapes, gutters, chain-link, poles, roller shutters, lamps, bins, a
+  covered car, barriers, manholes, air-con units. 18 pieces come to about 95 MB at 1K
+  textures; the apartment facade is 118k triangles.
+- ambientCG: about 20 photo-scanned CC0 facades, dirty bricks and painted metal, 3–9 MB
+  each at 1K.
+
+The OpenGameArt CC0 packs found by search could not be checked: their site's
+certificate is not trusted on this machine.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 38; 3D-1 via the
+npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 39; 3D-1 via the
                   2D suites above, run alongside)
 ```

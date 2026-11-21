@@ -149,3 +149,38 @@ export function layeredMaterial(tex, params = {}) {
 export function setLayers(mesh, layers) {
   mesh.geometry.setAttribute('aLayer', new THREE.InstancedBufferAttribute(Float32Array.from(layers), 1));
 }
+
+/**
+ * N4.4: darkness by place. dark = { tex, wM, hM }: a map over the district (world.js)
+ * of how much sky each cell sees. It scales only the ambient (indirect) light, so an
+ * alley between tall walls goes nearly black while the torch and the lamps -- direct
+ * lights -- still light it. Above about 6 m (roofs, cornices) it fades back to full.
+ */
+export function patchDark(mat, dark) {
+  if (mat.userData.dark) return;
+  mat.userData.dark = true;
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (shader, renderer) => {
+    if (prev) prev.call(mat, shader, renderer);
+    shader.uniforms.darkMap = { value: dark.tex };
+    shader.uniforms.darkScale = { value: new THREE.Vector2(1 / dark.wM, 1 / dark.hM) };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vDkPos;')
+      .replace('#include <project_vertex>', `#include <project_vertex>
+  vec4 dkp = vec4(transformed, 1.0);
+  #ifdef USE_INSTANCING
+    dkp = instanceMatrix * dkp;
+  #endif
+  vDkPos = (modelMatrix * dkp).xyz;`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vDkPos;\nuniform sampler2D darkMap;\nuniform vec2 darkScale;')
+      .replace('#include <aomap_fragment>', `#include <aomap_fragment>
+  float dk = texture2D(darkMap, vDkPos.xz * darkScale).r;
+  dk = mix(dk, 1.0, smoothstep(4.0, 7.5, vDkPos.y));
+  reflectedLight.indirectDiffuse *= dk;
+  reflectedLight.indirectSpecular *= dk;`);
+  };
+  const key = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : null;
+  mat.customProgramCacheKey = () => `${key ? key() : ''}:dark`;
+  mat.needsUpdate = true;
+}

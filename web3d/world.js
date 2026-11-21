@@ -22,7 +22,7 @@ import { artFor, depthOf, beltOf, placeLook, PLACE_TYPE_ORDER, mixHex } from './
 import { surfaceTextures, styleCanvases } from './art/textures.js';
 import { PLACE_PATTERNS } from './art/places.js';
 import './art/beltstyles.js';   // registers belts 4-10's surfaces (N4.3)
-import { layerTextures, layeredMaterial, setLayers } from './art/layered.js';
+import { layerTextures, layeredMaterial, setLayers, patchDark } from './art/layered.js';
 import { buildSigns } from './art/signs.js';
 import { buildLandmarks } from './art/landmarks.js';
 import { buildHD, grimeTexture } from './art/hd.js';
@@ -616,9 +616,59 @@ export function buildWorld(level, { cellM, shadows = false }) {
   const weather = makeWeather(art.weather, seed, track);
   if (weather) group.add(weather.object);
 
+  // ---- N4.4 prototype: how much sky each open cell sees. Walls within 4 cells, weighted by
+  // their height and nearness, close it in: an alley between tenements is nearly black, an
+  // avenue or a square fully lit. Blurred so the light falls off rather than steps.
+  let darkAt = () => 1;
+  if (art.hd) {
+    const W2 = map.w, H2 = map.h, raw = new Float32Array(W2 * H2);
+    for (let y = 0; y < H2; y++) for (let x = 0; x < W2; x++) {
+      if (isWall(x, y)) { raw[y * W2 + x] = 0.5; continue; }
+      let shut = 0;
+      for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
+        if ((dx || dy) && isWall(x + dx, y + dy)) shut += (heightAt(x + dx, y + dy) / 5.4) / (0.6 + Math.hypot(dx, dy));
+      }
+      raw[y * W2 + x] = Math.max(0.05, Math.min(1, 1.55 - shut / 5.2));
+    }
+    const blur = (src) => {
+      const out = new Float32Array(src.length);
+      for (let y = 0; y < H2; y++) for (let x = 0; x < W2; x++) {
+        let sum = 0, n = 0;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const xx = x + dx, yy = y + dy;
+          if (xx < 0 || yy < 0 || xx >= W2 || yy >= H2) continue;
+          sum += src[yy * W2 + xx]; n++;
+        }
+        out[y * W2 + x] = sum / n;
+      }
+      return out;
+    };
+    // a wall is as dark as the street it faces
+    for (let y = 0; y < H2; y++) for (let x = 0; x < W2; x++) {
+      if (!isWall(x, y)) continue;
+      let sum = 0, n = 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!isWall(x + dx, y + dy) && x + dx >= 0 && y + dy >= 0 && x + dx < W2 && y + dy < H2) { sum += raw[(y + dy) * W2 + x + dx]; n++; }
+      raw[y * W2 + x] = n ? sum / n : 0.3;
+    }
+    const dk = blur(raw);
+    const data = new Uint8Array(W2 * H2 * 4);
+    for (let i = 0; i < dk.length; i++) { const v = Math.round(dk[i] * 255); data[i * 4] = data[i * 4 + 1] = data[i * 4 + 2] = v; data[i * 4 + 3] = 255; }
+    const tex = track(new THREE.DataTexture(data, W2, H2));
+    tex.magFilter = tex.minFilter = THREE.LinearFilter;
+    tex.needsUpdate = true;
+    const dark = { tex, wM: W2 * cellM, hM: H2 * cellM };
+    group.traverse((o) => {
+      if (!o.isMesh || o.name === 'sky') return;
+      for (const m of [].concat(o.material)) if (m && m.isMeshStandardMaterial) patchDark(m, dark);
+    });
+    darkAt = (x, y) => (x < 0 || y < 0 || x >= W2 || y >= H2 ? 1 : dk[y * W2 + x]);
+  }
+
   return {
     group,
     palette: pal,
+    /** N4.4: how much sky a cell sees, 0 (black alley) to 1 (open); 1 where there is no map */
+    darkAt,
     chunkCount,
     art,
     /**

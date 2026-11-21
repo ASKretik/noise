@@ -67,6 +67,7 @@ export class Controls {
           this.wheelOpen = true; this.wheelVec = { x: 0, y: 0 }; this.emit('wheel', true);
         }
       }
+      if (e.code === 'KeyF' && !e.repeat) this.emit('torch');
       if (e.code === 'KeyR') this.emit('restart');
       if (e.code === 'KeyL') this.emit('bolt');
       if (e.code === 'KeyH') this.emit('toggle', 'heatmap');

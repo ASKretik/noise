@@ -221,19 +221,21 @@ const ART = {
  * antialgorithm skill's rule -- name the default, move away for a reason from NOISE:
  *   fog    not Silent Hill's white: RUST is the foundry belt, its air is smog -- brown,
  *          amber low down, darker above
- *   light  a torch; most street lamps smashed (lamps hum), a few still burning amber
+ *   light  open streets and squares lit by the smoggy sky; narrow alleys and courtyards
+ *          nearly black (world.js darkness map), where you need the torch (F); most
+ *          street lamps smashed (lamps hum), a few still burning amber
  *   world  no gore: the street shows how people tried to be quiet before they were
  *          taken -- mattresses nailed over windows, shoes left at doors, bell ropes cut
  * web3d/art/hd.js builds the detail; this is its light, fog and grade.
  */
 export const HD_DISTRICTS = Object.freeze([1]);
 const RUST_HD = Object.freeze({
-  fog: { color: '#3b342c', near: 2.0, far: 38 },
+  fog: { color: '#3b342c', near: 7, far: 72 },
   sky: { zenith: '#2a2520', horizon: '#3b342c' },
-  light: { hemiSky: '#7c7262', hemiGround: '#140f0c', hemi: 0.42, key: '#b89a7c', keyI: 0.28 },
+  light: { hemiSky: '#a39a8a', hemiGround: '#1c1611', hemi: 1.9, key: '#c4a888', keyI: 0.18 },
   torch: { color: '#ffe8c8', intensity: 20, angle: 0.38, penumbra: 0.7, distance: 32, decay: 1.15 },
   lamp: { color: '#f2c58e', intensity: 9, distance: 11 },
-  grade: { tint: '#f4ece0', sat: 0.58, lift: 0.003, gain: 1.02, bloom: 0.5, grain: 0.11, ca: 0.0022, vignette: 0.62 },
+  grade: { tint: '#f4ece0', sat: 0.66, lift: 0.002, gain: 1.04, bloom: 0.5, grain: 0.07, ca: 0.0016, vignette: 0.42 },
   dustRate: 1.1, dustSize: 0.035,
 });
 

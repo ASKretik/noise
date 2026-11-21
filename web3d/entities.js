@@ -254,10 +254,12 @@ export class Entities {
       // body transform: stand, face the heading, slump when stunned, grow in when new
       const grow = Math.min(1, (t - a.born) * 3);
       q.setFromAxisAngle(UP, a.heading);
-      const slump = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), a.stun * 1.25);
+      // Stunned, it falls flat on its back and lies on the street, the thickness of its body
+      // above the ground (it used to tip 72 degrees and sink 0.35 m: half of it went under)
+      const slump = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -a.stun * 1.5);
       q.multiply(slump);
       const bob = inert ? 0 : Math.abs(Math.sin(a.gait)) * 0.04;
-      base.compose(v.set((a.x + 0.5) * c, bob - a.stun * 0.35, (a.y + 0.5) * c), q, s.setScalar(grow));
+      base.compose(v.set((a.x + 0.5) * c, bob + a.stun * 0.24 * grow, (a.y + 0.5) * c), q, s.setScalar(grow));
       // The jumpscare (web3d/play3d.js) pulls the alien that caught you to just in front of
       // your eyes, square on, jaw opening. Presentation only: the sim's run is already over.
       const scare = this.scare && this.scare.id === p.id ? this.scare : null;

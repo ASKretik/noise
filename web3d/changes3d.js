@@ -8,6 +8,22 @@
 
 export const CHANGES = [
   {
+    build: 39,
+    date: '2026-11-21',
+    phase: 'N4.4 prototype',
+    changed: [
+      'A stunned alien now falls flat on its back and lies on the street. It used to tip over and sink half into the ground.',
+      'District 1: the torch is off until you press F. Open streets and squares are lit by the smoggy sky and readable without it; the fog starts further out and lifts at 72 m.',
+      'Narrow alleys and courtyards between tall buildings are nearly black. How dark each spot is comes from how much sky it sees past the walls around it. The torch and the burning lamps still light them, so that is where you need F. Under the crosshair it says when it is too dark to see.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R), play district 1, walk from a square into a tenement alley, then press F. Stun an alien (dev mode) and look at it lying there.',
+    ],
+    unverified: [
+      'The buildings themselves are unchanged in this build; see the note about real assets.',
+    ],
+  },
+  {
     build: 38,
     date: '2026-11-21',
     phase: 'N4.4 prototype',
