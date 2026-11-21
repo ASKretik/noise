@@ -3289,11 +3289,89 @@ Everything in district 1 is drawn at once, so bigger districts will need it chun
 
 **Not built:** interiors.
 
+## R71 · District 1: a new art style, from artist-made models (3D build 41)
+
+**Asked:** "the walls still look like AI slop, they are not looking different. also, the
+art style as a whole itself is not the same. did you look at the images i previously
+sent? I want the entire art style to be changed, not just the design alone."
+
+**I was wrong in R68–R70.** I had taken only the *level of detail* from the two
+reference images, not their look: Halo's concept art is daylight, a blue sky, haze and
+big readable shapes; the Amnesia shot is darkness with warm local light. And code-drawn
+boxes with photo textures had hit their ceiling; the user could see it.
+
+**Asked back, and answered:**
+
+- Style: "Mix: day outside, dark inside": Halo daylight in the open streets, Amnesia
+  darkness in the alleys, courtyards and interiors.
+- Approach: "Yes, models and renderer": rebuild district 1 from artist-made CC0 models,
+  about 100 MB, and upgrade the renderer.
+
+**Downloaded** (Poly Haven, CC0, all credited in `assets3d/CREDITS.md`):
+
+- the 18 models of its "hidden alley" set, of which 7 went unused and were taken out
+  again (a car and a road barrier would block streets you walk through; the street lamp,
+  fence and poles are 20,000–60,000 triangles each);
+- three more small props (a wall lamp, a bench, a crate);
+- six ground textures and one sky. The 4K sky HDR was only used to make the 0.36 MB dome
+  image; it is not shipped.
+
+What ships: 65 MB of models, 12 MB of textures, 1.8 MB of sky. Trees and hedges were
+looked at and left out: 50,000–280,000 triangles each, and one tree is 100 MB.
+
+**Built** (spec-3d.md, "District 1's new art style"):
+
+- **Buildings** from two modular facade kits: plaster apartments and brick factories, in
+  3 m bays, with their own windows, doors and trim. build 40's plan (purposes, never
+  the same as a neighbour) is kept; each building now also gets a kit, window family,
+  facade and joinery colour unlike its neighbours'.
+- **Every other place** but the parks is built the same way: yard walls, warehouses,
+  market stalls, burnt ruins.
+- **Ground:** photographed asphalt, pavements with kerbs, cobbles, concrete, grass,
+  dirt.
+- **Props:** bins, bags, barrels, tyres, crates, benches, utility boxes, manholes,
+  air conditioners, downpipes, roller shutters, and wall lamps in the narrow places.
+- **Light:** a photographed sky that is also the light, a real sun with shadows (now at
+  Medium too), haze, ACES tone mapping, ambient occlusion. The darkness map is now a
+  sky-view factor, so only the true alleys go black.
+
+**Measured, and what it changed:**
+
+- The kits' walls are 6 cm grids (4,608 triangles for a blank 3 × 3 m bay). Re-meshed on
+  load into rectangles, UVs kept exactly: a blank bay is 2 triangles.
+- One `BatchedMesh` per material, culled per instance: the whole district is 33 draw
+  calls of kit, 3.6 M triangles in all.
+- The first full district ran at **40 ms** a frame at 1080p High. Toggling things one at
+  a time found it: the wall lamp's glass uses transmission, which re-renders the scene
+  every frame (17 ms). Drawn as plain glass now.
+- The air conditioners are 9,400 triangles each and were 0.84 M triangles; now one window
+  in fourteen, and they cast no shadow.
+- The rooms behind 1,000 windows were lit PBR cards, the costliest overdraw; now unlit.
+- The smog-era darkness map blacked out every street narrower than a square in daylight;
+  replaced by the sky-view factor.
+
+| 1080p | Mean | p95 |
+|---|---|---|
+| Medium, district 1 | 17–22 ms | up to 28 ms |
+| High, district 1 | 21–26 ms | up to 33 ms |
+| build 40, for comparison | 11–15 ms | up to 23 ms |
+
+The sun's shadows are about 6 ms of it. Shadow filter type made no difference; ambient
+occlusion costs 0.7 ms.
+
+**Not done:**
+
+- the parks' hedges and round trees;
+- interiors you can enter;
+- modelled roofs;
+- chunking for big cities;
+- every other district.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 40; 3D-1 via the
+npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 41; 3D-1 via the
                   2D suites above, run alongside)
 ```

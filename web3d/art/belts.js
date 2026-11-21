@@ -229,14 +229,26 @@ const ART = {
  * web3d/art/hd.js builds the detail; this is its light, fog and grade.
  */
 export const HD_DISTRICTS = Object.freeze([1]);
+// Build 41: the smog is gone. The user's references were Halo concept art for the
+// streets (daylight, blue sky, haze) and Amnesia for the dark places (black, with warm
+// pools of light), so: a photographed sky and its light (art/daylight.js), a real sun
+// with shadows, haze from the photograph's horizon, film tone mapping (post.js); the
+// darkness map keeps the alleys black and the lamps there burn warm.
 const RUST_HD = Object.freeze({
-  fog: { color: '#3b342c', near: 7, far: 72 },
-  sky: { zenith: '#2a2520', horizon: '#3b342c' },
-  light: { hemiSky: '#a39a8a', hemiGround: '#1c1611', hemi: 1.9, key: '#c4a888', keyI: 0.18 },
+  day: {
+    sky: 'kloofendal_48d_sky_4k.jpg', env: 'kloofendal_48d_partly_cloudy_puresky_1k.hdr',
+    skyGain: 2.857, drift: 0.0004,
+    haze: '#aeb4c4',
+    sun: { dir: [0.5547, 0.7415, 0.3775], color: '#fff0dc', intensity: 3.4 },
+    envIntensity: 1.0, exposure: 0.85,
+  },
+  fog: { color: '#aeb4c4', near: 22, far: 230 },
+  sky: { zenith: '#5d6780', horizon: '#aeb4c4' },
+  light: { hemiSky: '#9fb2d0', hemiGround: '#4a4136', hemi: 0.25, key: '#fff0dc', keyI: 3.4 },
   torch: { color: '#ffe8c8', intensity: 20, angle: 0.38, penumbra: 0.7, distance: 32, decay: 1.15 },
-  lamp: { color: '#f2c58e', intensity: 9, distance: 11 },
-  grade: { tint: '#f4ece0', sat: 0.7, lift: 0.004, gain: 1.4, bloom: 0.5, grain: 0.07, ca: 0.0016, vignette: 0.38 },
-  dustRate: 1.1, dustSize: 0.035,
+  lamp: { color: '#ffb46b', intensity: 14, distance: 13 },
+  grade: { tint: '#fffaf2', sat: 1.08, lift: 0.0, gain: 1.0, bloom: 0.35, grain: 0.035, ca: 0.0008, vignette: 0.28, aces: true, exposure: 0.85, ao: 0.85 },
+  dustRate: 0.35, dustSize: 0.02,
 });
 
 export const BELT_NAMES = Object.freeze(['RUST', 'TIDE', 'MOSS', 'EMBER', 'VIOLET', 'ASH', 'CORAL', 'JADE', 'SOLAR', 'COBALT']);
@@ -313,12 +325,12 @@ export function artFor(district) {
   };
 }
 
-/** District 1's prototype look: dense smog instead of a sky, a torch, a film grade. */
+/** District 1's prototype look: daylight in the streets, black alleys, a film grade. */
 function hdOverrides(def) {
   const H = RUST_HD;
   return {
     hd: H,
-    sky: { zenith: H.sky.zenith, horizon: H.sky.horizon, clouds: 0, cloud: H.sky.horizon, stars: 0, canopy: 0, body: { kind: 'sun', az: 250, elev: -5, color: '#000000', size: 0, glow: 0 }, beam: null, body2: null, aurora: null, ship: 0 },
+    sky: { zenith: H.sky.zenith, horizon: H.sky.horizon, clouds: 0, cloud: H.sky.horizon, stars: 0, canopy: 0, body: { kind: 'sun', az: 34, elev: 48, color: '#fff0dc', size: 0, glow: 0 }, beam: null, body2: null, aurora: null, ship: 0 },
     light: { ...H.light, keyAz: 250, keyElev: 18 },
     fog: { color: H.fog.color, near: H.fog.near, far: H.fog.far },
     grade: H.grade,

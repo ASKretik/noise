@@ -76,6 +76,11 @@ add(0, 'Build hygiene: vendored three.js matches its recorded hashes; 3D stylesh
     'three.module.min.js': 'hrzuJItk9EvPwjwzGudGGQYZV9WcqwQBcdy2+1kAvrY=',
     'three.core.min.js': 'BbJgkzjHbNZdr3TzrFFbyaUEXhs7M+3AfYyb1VJQ+pA=',
     LICENSE: 'izeOvmDi/lABWMsKxxy16LfZKVPCq8xjoOuQSZZTtbw=',
+    // build 41: the loaders for district 1's models and sky (examples/jsm, unmodified)
+    'addons/loaders/GLTFLoader.js': 'l2Qtcg8WzJoMmESTQZjk0MAjvqjolXbQ91RdA7LRA9I=',
+    'addons/loaders/HDRLoader.js': 'CYa1ePms0UzsdOXuheB/ReaBtAvNIppgGgORIB+bX/E=',
+    'addons/utils/BufferGeometryUtils.js': 'XFUiI6kwmIN0O4BTjW6c20XjIn8w0+xW+yw5tG541ZU=',
+    'addons/utils/SkeletonUtils.js': 'sWMqcDIGw9gw3p/L5RVpZ3DQS3GhXua1CvptLDKYyG8=',
   };
   for (const [f, h] of Object.entries(expected)) {
     const p = join(vdir, f);
@@ -92,7 +97,7 @@ add(0, 'Build hygiene: vendored three.js matches its recorded hashes; 3D stylesh
       if (Number(m[1]) !== BUILD3D) problems.push(`${rel(page)}: ?v=${m[1] ?? '(none)'} != ${BUILD3D}`);
     }
   }
-  return problems.length ? [FAIL, problems.join('; ')] : [PASS, `build ${BUILD3D}; 3 vendor files verified`];
+  return problems.length ? [FAIL, problems.join('; ')] : [PASS, `build ${BUILD3D}; ${Object.keys(expected).length} vendor files verified`];
 });
 
 add(1, 'The 2D suites are untouched: npm test 12 passed / 1 ND / 0 failed, npm run webcheck all green', async () => {

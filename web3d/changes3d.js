@@ -8,6 +8,30 @@
 
 export const CHANGES = [
   {
+    build: 41,
+    date: '2026-11-21',
+    phase: 'N4.4 prototype',
+    changed: [
+      'District 1 has a new art style, after your two reference images: daylight in the open streets (the Halo concept art: blue sky, big clouds, a hard sun, haze), and black alleys with warm pools of lamplight (Amnesia). The smog is gone.',
+      'The sky is a photograph (Poly Haven, CC0), and the same sky lights the whole district: blue light from above, the sun where it is in the photo, real shadows from every building (now at Medium too), haze that turns the far end of a street pale blue. Film tone mapping and ambient occlusion in the corners.',
+      'The buildings are no longer drawn by code. They are built from two artist-made modular kits (Poly Haven, CC0): plaster apartment facades and brick factory facades, in 3 m bays, with real window frames and glazing bars, panelled doors, sill bands, cornices, crowns, plinths and pilasters. Each building still has its own purpose, and now its own kit, colour, joinery colour and window type, never the same as its neighbour\'s.',
+      'Shops have glazed fronts or roller shutters, some sprayed with graffiti; garages and warehouses have roller doors; behind every window and door is a dark room, and in a few a lamp is still on. Air conditioners hang under windows, downpipes run to the street, some glass is gone, some windows are boarded.',
+      'The markets, yards, depots, canal sides and ruins are built the same way: brick yard walls with piers and copings, warehouses, market stalls, burnt-out shells.',
+      'The ground is photographed too: asphalt roads, slab pavements with kerb stones, cobbled squares and markets, cracked concrete yards, grass in the parks. Puddles are dark mirrors of the sky.',
+      'The streets are dressed with modelled bins, rubbish bags, barrels, tyres, crates, benches, utility boxes and manholes, and wall lamps in the narrow alleys, most still burning.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R) and play district 1. The first load downloads about 80 MB of models and textures; there is a percentage on the start screen.',
+      'Walk from a sunny street into a narrow alley, then press F there. Compare a pharmacy, a cafe and a garage side by side.',
+    ],
+    unverified: [
+      'Measured at 1080p on this Mac: Medium 17-22 ms a frame (about 50 fps), High 21-26 ms. Build 40 was 11-15 ms. The sun\'s shadows are about 6 ms of that. Not tried on a weaker laptop.',
+      'The parks still have the old hedges and round trees: the free tree and hedge models are 50,000-280,000 triangles each, too heavy to plant dozens of.',
+      'Interiors are not built: you see a dark room through the glass, but cannot go in. The roofs are still drawn by code.',
+      'Only district 1 has any of this. The other 99 are unchanged.',
+    ],
+  },
+  {
     build: 40,
     date: '2026-11-21',
     phase: 'N4.4 prototype',

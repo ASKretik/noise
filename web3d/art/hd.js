@@ -106,7 +106,7 @@ function clutterAtlas(seed) {
  * @param {object} o  { cellM, seed, art, lookAt(x,y), heightAt(x,y), doorAt(x,y), track }
  * @returns {{ meshes: THREE.Object3D[], lamps: {x, y, z}[] }}
  */
-export function buildHD(level, { cellM, seed, art, lookAt, heightAt, doorAt, track, skip = () => false }) {
+export function buildHD(level, { cellM, seed, art, lookAt, heightAt, doorAt, track, skip = () => false, kit = false }) {
   const { map } = level;
   const { w, h } = map;
   const tile = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? TILE.WALL : map.tiles[y * w + x]);
@@ -231,7 +231,8 @@ export function buildHD(level, { cellM, seed, art, lookAt, heightAt, doorAt, tra
 
   // street lamps against the walls, never two within 6 cells; most dead
   const taken = [];
-  for (const f of faces) {
+  // (build 41: with the model kit, art/kitbuild.js hangs real lamps instead)
+  for (const f of kit ? [] : faces) {
     const L = lookAt(f.x, f.y);
     if (L && L.type !== 'plaza' && L.type !== 'canal') continue;
     const r = rngAt(`l${f.x},${f.y},${f.dx},${f.dy}`);
@@ -279,11 +280,11 @@ export function buildHD(level, { cellM, seed, art, lookAt, heightAt, doorAt, tra
     if (nearWall && r.bool(0.06)) {
       const [dx, dy] = nearWall;
       decal(cx + dx * 0.55, cz + dy * 0.55, 0.7, Math.atan2(dx, dy), 5);
-    } else if (!nearWall && roll < 0.025) decal(cx, cz, 0.9, r.float() * 6.28, 6);
+    } else if (!nearWall && roll < 0.025) { if (!kit) decal(cx, cz, 0.9, r.float() * 6.28, 6); }   // (kit: modelled manholes)
     else if (roll < 0.16) decal(cx + (r.float() - 0.5) * 0.8, cz + (r.float() - 0.5) * 0.8, 0.6 + r.float() * 0.6, r.float() * 6.28, r.bool(0.6) ? 0 : 1);
     else if (roll < 0.2) decal(cx + (r.float() - 0.5) * 0.6, cz + (r.float() - 0.5) * 0.6, 0.45 + r.float() * 0.2, r.float() * 6.28, 2);
-    else if (roll < 0.24) decal(cx, cz, 0.8 + r.float() * 0.8, r.float() * 6.28, 3);
-    else if (roll < 0.26) decal(cx, cz, 0.6, r.float() * 6.28, 4);
+    else if (roll < 0.24) { if (!kit) decal(cx, cz, 0.8 + r.float() * 0.8, r.float() * 6.28, 3); }   // (kit: the photographed ground has its own stains)
+    else if (roll < 0.26) { if (!kit) decal(cx, cz, 0.6, r.float() * 6.28, 4); }
     else if (roll < 0.275) decal(cx, cz, 0.5, r.float() * 6.28, 7);
   }
 

@@ -29,19 +29,19 @@ import * as THREE from 'three';
 import { TILE } from '../../sim/grid.js';
 import { Rng, hashString } from '../../sim/prng.js';
 
-const DIR4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+export const DIR4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 const UP = new THREE.Vector3(0, 1, 0);
 
 // ------------------------------------------------------------------ materials
 
 /** Real surfaces (ambientCG, CC0), and how many metres one repeat covers. */
-const SURFACES = {
+export const SURFACES = {
   Bricks097: 1.5, Bricks051: 1.7, Bricks042: 1.6, Bricks005: 1.6, PaintedBricks001: 1.6, PaintedBricks003: 1.6,
   Plaster001: 2.6, Ground107: 2.3, WoodSiding009: 2.0, CorrugatedSteel007A: 1.8, Concrete042C: 2.8,
   PaintedWood007B: 1.3, PaintedWood005: 1.3, Metal041B: 1.5, Tiles143: 0.9,
 };
 const cache = new Map();
-function surface(id) {
+export function surface(id) {
   if (cache.has(id)) return cache.get(id);
   const L = new THREE.TextureLoader();
   const url = (m) => new URL(`../../assets3d/materials/${id}/${m}.jpg`, import.meta.url).href;
@@ -59,7 +59,7 @@ function surface(id) {
 
 // A batch: geometry merged from transformed pieces, UVs from world position on whichever
 // axis the surface faces, so a brick is the same size on every wall, sill and step.
-function batch(tile) {
+export function batch(tile) {
   const pos = [], nrm = [], uv = [], col = [], idx = [];
   const v = new THREE.Vector3(), n = new THREE.Vector3(), nm = new THREE.Matrix3(), c = new THREE.Color();
   return {
@@ -99,12 +99,12 @@ function batch(tile) {
   };
 }
 
-const BOX = new THREE.BoxGeometry(1, 1, 1);
-const PLANE = new THREE.PlaneGeometry(1, 1);
-const CYL = new THREE.CylinderGeometry(1, 1, 1, 12);
+export const BOX = new THREE.BoxGeometry(1, 1, 1);
+export const PLANE = new THREE.PlaneGeometry(1, 1);
+export const CYL = new THREE.CylinderGeometry(1, 1, 1, 12);
 const CONE = new THREE.ConeGeometry(1, 1, 12);
 // a pitched roof: a triangular prism 1 x 1 x 1, ridge along x, eaves at z = +-0.5
-const PRISM = (() => {
+export const PRISM = (() => {
   const s = new THREE.Shape();
   s.moveTo(-0.5, 0); s.lineTo(0.5, 0); s.lineTo(0, 1); s.lineTo(-0.5, 0);
   const g = new THREE.ExtrudeGeometry(s, { depth: 1, bevelEnabled: false });
@@ -120,7 +120,7 @@ const SURNAMES = ['Okafor', 'Marchetti', 'Kowalczyk', 'Haddad', 'Nguyen', 'Fisch
 const TRADES = ['BAKERY', 'HARDWARE', 'BUTCHER', 'GROCER', 'BOOKS', 'TAILOR', 'PAWNBROKER', 'RADIO REPAIR', 'SHOES', 'TOBACCO', 'BARBER', 'FISH'];
 const PAINT = ['#2f3b2c', '#283447', '#4b4f54', '#d6d4cc', '#5a4636', '#1f1f22', '#6b7a6a', '#7c8a96', '#8a7d6b'];
 
-const TYPES = {
+export const TYPES = {
   house: { weight: 4, storeys: [2, 3], walls: ['Bricks005', 'WoodSiding009', 'Ground107', 'Bricks097'], ground: 'house', upper: 'sash', roof: 'pitched' },
   apartments: { weight: 4, storeys: [3, 5], walls: ['Bricks042', 'Bricks097', 'Ground107', 'Bricks051'], ground: 'lobby', upper: 'grid', roof: 'tank', fireEscape: true },
   shop: { weight: 4, storeys: [2, 3], walls: ['Bricks051', 'Plaster001', 'Bricks005', 'PaintedBricks003', 'Bricks042'], ground: 'shopfront', upper: 'sash', roof: 'parapet' },
@@ -133,7 +133,14 @@ const TYPES = {
   bank: { weight: 1, unique: true, storeys: [3, 3], walls: ['Plaster001', 'Concrete042C'], ground: 'bank', upper: 'tall', roof: 'cornice' },
   hotel: { weight: 1, unique: true, storeys: [4, 6], walls: ['Bricks051', 'Plaster001', 'Bricks097'], ground: 'hotel', upper: 'balcony', roof: 'sign' },
   clinic: { weight: 1, unique: true, storeys: [2, 3], walls: ['Plaster001', 'Ground107'], ground: 'clinic', upper: 'grid', roof: 'parapet' },
+  // build 41: the other places' walls are buildings too (weight 0: never a tenement's)
+  warehouse: { weight: 0, storeys: [1, 2], walls: ['CorrugatedSteel007A', 'Bricks042'], ground: 'garage', upper: 'grid', roof: 'flat' },
+  stall: { weight: 0, storeys: [1, 1], walls: ['Plaster001', 'Bricks051'], ground: 'shopfront', upper: 'sash', roof: 'flat' },
+  ruin: { weight: 0, storeys: [2, 3], walls: ['Bricks097', 'Bricks042'], ground: 'plain', upper: 'grid', roof: 'flat' },
+  yardwall: { weight: 0, storeys: [1, 1], walls: ['Bricks042', 'Concrete042C'], ground: 'plain', upper: 'grid', roof: 'flat' },
 };
+/** build 41: what each kind of place's walls become when the model kit builds them */
+export const PLACE_BUILDS = { tenements: null, market: 'stall', plaza: 'stall', yards: 'warehouse', depot: 'warehouse', canal: 'warehouse', ruins: 'ruin' };
 
 function signText(type, r) {
   const sur = SURNAMES[r.int(SURNAMES.length)];
@@ -149,6 +156,8 @@ function signText(type, r) {
     case 'hotel': return { text: `HOTEL ${sur.toUpperCase()}`, sub: 'ROOMS' };
     case 'clinic': return { text: 'CLINIC', sub: 'NIGHT DOOR AT SIDE' };
     case 'apartments': return { text: `${[2, 4, 7, 9, 11, 14, 16, 21][r.int(8)]}-${[3, 5, 8, 12, 18, 23][r.int(6)]}`, sub: null };
+    case 'stall': { const t = TRADES[r.int(TRADES.length)]; return { text: t, sub: `${sur.toUpperCase()}`.slice(0, 22) }; }
+    case 'warehouse': return r.bool(0.5) ? { text: `${sur.toUpperCase()} & CO.`, sub: 'HAULAGE · STORAGE' } : null;
     default: return null;
   }
 }
@@ -159,9 +168,11 @@ function signText(type, r) {
  * Cut every solid tenement block into buildings. Returns { list, at(x, y) }, each building
  * { id, cells, main: [dx, dy], front: [[x, y]...], type, storeys, gH, sH, H, wall, paint, ... }.
  */
-export function planBuildings({ map, lookAt, seed }) {
+export function planBuildings({ map, lookAt, seed, allPlaces = false }) {
   const { w, h, tiles } = map;
-  const inBlock = (x, y) => x >= 0 && y >= 0 && x < w && y < h && tiles[y * w + x] === TILE.WALL && lookAt(x, y)?.type === 'tenements';
+  // (build 41: with allPlaces, every place but a park is cut into buildings)
+  const builds = (t) => t === 'tenements' || (allPlaces && t in PLACE_BUILDS);
+  const inBlock = (x, y) => x >= 0 && y >= 0 && x < w && y < h && tiles[y * w + x] === TILE.WALL && builds(lookAt(x, y)?.type);
   const open = (x, y) => x >= 0 && y >= 0 && x < w && y < h && tiles[y * w + x] !== TILE.WALL && tiles[y * w + x] !== TILE.BUILDING;
   const owner = new Int32Array(w * h).fill(-1);
   const seen = new Uint8Array(w * h);
@@ -176,8 +187,12 @@ export function planBuildings({ map, lookAt, seed }) {
       block.push([x, y]);
       for (const [dx, dy] of DIR4) if (inBlock(x + dx, y + dy) && !seen[(y + dy) * w + x + dx]) { seen[(y + dy) * w + x + dx] = 1; stack.push([x + dx, y + dy]); }
     }
-    if (block.length < 2) continue;
+    if (block.length < 2 && lookAt(block[0][0], block[0][1])?.type === 'tenements') continue;
     const r = new Rng(hashString(`${seed}:block:${bi++}`), 'block');
+    const place = lookAt(block[0][0], block[0][1])?.type || 'tenements';
+    const xs = block.map((c) => c[0]), ys = block.map((c) => c[1]);
+    // a block one cell thick outside the tenements is a wall round a yard, not a building
+    const thin = place !== 'tenements' && (Math.max(...xs) === Math.min(...xs) || Math.max(...ys) === Math.min(...ys) || block.length <= 3);
     // street fronts, cut into runs of 3-6 cells: each run is a building's face to the street
     const front = block.filter(([x, y]) => DIR4.some(([dx, dy]) => open(x + dx, y + dy)))
       .sort((a, b) => a[1] - b[1] || a[0] - b[0]);
@@ -185,7 +200,7 @@ export function planBuildings({ map, lookAt, seed }) {
       if (owner[y * w + x] >= 0) continue;
       const [dx, dy] = DIR4.find(([ddx, ddy]) => open(x + ddx, y + ddy));
       const tx = -dy, ty = dx, len = 3 + r.int(4);   // 4.5-9 m of street front: a real building's width
-      const b = { id: list.length, cells: [], main: [dx, dy], front: [] };
+      const b = { id: list.length, cells: [], main: [dx, dy], front: [], place, thin };
       for (let k = 0; k < len; k++) {
         const cx = x + tx * k, cy = y + ty * k;
         if (!inBlock(cx, cy) || owner[cy * w + cx] >= 0 || !open(cx + dx, cy + dy)) break;
@@ -222,12 +237,13 @@ export function planBuildings({ map, lookAt, seed }) {
   for (const b of list) {
     const r = new Rng(hashString(`${seed}:bld:${b.id}`), 'bld');
     const near = [...neighbours[b.id]].map((i) => list[i]).filter((n) => n.type);
-    let types = Object.keys(TYPES).filter((t) => !near.some((n) => n.type === t) && !(TYPES[t].unique && used.has(t)));
+    let types = Object.keys(TYPES).filter((t) => TYPES[t].weight > 0 && !near.some((n) => n.type === t) && !(TYPES[t].unique && used.has(t)));
     if (b.front.length >= 4) types = types.filter((t) => !['pharmacy', 'laundry', 'clinic'].includes(t));
     if (!types.length) types = ['house'];
     const wsum = types.reduce((s, t) => s + TYPES[t].weight, 0);
     let pick = r.float() * wsum;
-    b.type = types.find((t) => (pick -= TYPES[t].weight) < 0) || types[0];
+    b.type = b.place && b.place !== 'tenements' ? (b.thin ? 'yardwall' : PLACE_BUILDS[b.place])
+      : types.find((t) => (pick -= TYPES[t].weight) < 0) || types[0];
     used.add(b.type);
     const T = TYPES[b.type];
     const walls = T.walls.filter((m) => !near.some((n) => n.wall === m));
@@ -248,7 +264,7 @@ export function planBuildings({ map, lookAt, seed }) {
 
 // ------------------------------------------------------------------ the sign atlas
 
-function signAtlas(list) {
+export function signAtlas(list) {
   const W = 2048, cv = document.createElement('canvas');
   cv.width = W; cv.height = W;
   const g = cv.getContext('2d');
@@ -307,7 +323,7 @@ function signAtlas(list) {
   return { tex, wide, tall };
 }
 
-function canvasTex(size, paint, srgb = true) {
+export function canvasTex(size, paint, srgb = true) {
   const cv = document.createElement('canvas');
   cv.width = cv.height = size;
   paint(cv.getContext('2d'), size);

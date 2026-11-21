@@ -10,6 +10,9 @@ import { RESPONSE } from '../sim3d/body.js';
 import { createScene } from './scene.js';
 import { createPost } from './post.js';
 import { buildWorld, lightScene } from './world.js';
+import { artFor } from './art/belts.js';
+import { loadDayEnv } from './art/daylight.js';
+import { loadKit, kitReady } from './art/kit.js';
 import { currentQuality, setQuality } from './quality.js';
 import { Entities } from './entities.js';
 import { Audio3D } from './audio3d.js';
@@ -162,6 +165,15 @@ export class Play3D {
       addEventListener('resize', orient); orient();
     }
     this.view.resize();
+    // build 41: district 1 is built from downloaded models (art/kit.js, about 90 MB the
+    // first time); wait for them rather than show it half-made
+    if (artFor(this.district)?.hd) {
+      const note = $('ov-note'), was = note.textContent;
+      try {
+        await loadKit((f) => { note.textContent = `Loading the district's buildings and props... ${Math.round(f * 100)}%`; });
+      } catch (e) { console.warn('kit: the models did not load; drawing the buildings instead', e); }
+      note.textContent = was;
+    }
     this.start(this.district);
     requestAnimationFrame(this.frame);
   }
@@ -447,14 +459,36 @@ export class Play3D {
 
   buildScene() {
     const cellM = this.tune.cellM;
-    this.world = buildWorld(this.runner.level, { cellM, shadows: this.quality.shadows });
+    // build 41: district 1's daylight sun casts shadows at Medium too -- without them the
+    // streets lose the shapes the whole look is built on (Low still has none)
+    const day = artFor(this.runner.level.level)?.hd?.day || null;
+    const shadows = this.quality.shadows || (!!day && this.quality.id !== 'low');
+    const R = this.view.renderer, T = this.view.THREE;
+    R.shadowMap.enabled = shadows;
+    R.shadowMap.type = day ? T.PCFSoftShadowMap : T.PCFShadowMap;
+    if (day && !kitReady()) loadKit().catch(() => {});   // for the next time this district is built
+    this.world = buildWorld(this.runner.level, { cellM, shadows, kit: day ? kitReady() : null });
     this.view.post?.setGrade(this.world.art.grade);
+    // film tone mapping: in post.js when it runs, else (Low) by the renderer
+    R.toneMapping = day ? T.ACESFilmicToneMapping : T.NoToneMapping;
+    R.toneMappingExposure = this.world.art.grade?.exposure ?? 1;
+    // the sky's own light on every PBR surface (art/daylight.js), once it has loaded
+    const sc = this.view.scene;
+    sc.environment = null;
+    if (day) {
+      const world = this.world;
+      loadDayEnv(R, day).then((env) => {
+        if (this.world !== world) return;
+        sc.environment = env;
+        sc.environmentIntensity = day.envIntensity;
+      }).catch((e) => console.warn('daylight: the sky light did not load', e));
+    }
     // N4.4 prototype: the far plane follows the district's fog (district 1's smog ends at 38 m)
     this.view.camera.far = (this.world.art.fog.far ?? 90) + 8;
     this.view.camera.updateProjectionMatrix();
     this.view.scene.add(this.world.group);
     this.lights = lightScene(this.view.scene, this.world.palette, {
-      cellM, mapW: this.runner.map.w, mapH: this.runner.map.h, shadows: this.quality.shadows, follow: true,
+      cellM, mapW: this.runner.map.w, mapH: this.runner.map.h, shadows, follow: true,
     });
     this.entities = new Entities(this.view.scene, { cellM, district: this.runner.district });
     this.entities.reset(this.runner.game);

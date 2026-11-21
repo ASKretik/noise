@@ -677,6 +677,81 @@ purpose or a wall material. Each has its own height, storeys, real CC0 material
 (ambientCG, `assets3d/`), purpose-specific ground floor and entrance, upper-floor window
 style, roof, sign and damage. See decisions.md R70 for the details.
 
+### District 1's new art style: models, daylight, dark alleys (N4.4, 3D build 41)
+
+Build 41 replaces the smog and the code-drawn buildings of builds 38–40 in district 1.
+The style is the user's mix of their two references: **daylight in the open streets**
+(Halo concept art) and **black alleys with warm lamplight** (Amnesia). Other districts are
+unchanged. See decisions.md R71.
+
+- **Assets** (`assets3d/`, all CC0 from Poly Haven, credited in `assets3d/CREDITS.md`):
+  14 models (65 MB: two modular facade kits and street props), 6 ground textures (12 MB),
+  and a sky (1.4 MB HDR for the light; a 0.36 MB JPEG of the 4K sky's upper half for the
+  dome). Loaded with three's GLTFLoader and HDRLoader, vendored unmodified under
+  `vendor/three/0.185.1/addons/` and hash-checked by 3D-0.
+- **Loading** (`web3d/art/kit.js`). `boot()` waits for the models before district 1 is
+  first built, with a percentage on the start screen. Without them (Node, or a failed
+  download) `buildWorld` falls back to build 40's drawn buildings.
+  - The kits' flat walls come as 6 cm grids (4,608 triangles a blank bay). Their UVs are
+    planar, so `simplifyPlanar` re-meshes each flat part into the rectangles that cover
+    it, keeping the UVs exactly: a blank bay becomes 2 triangles.
+  - Every placement goes into one `BatchedMesh` per material: geometry stored once,
+    instances culled one by one for the camera and the sun's shadow box. Opaque batches
+    are not sorted.
+  - The wall lamp's glass asks for transmission, which re-renders the scene every frame
+    (17 ms); it is drawn as plain transparent glass.
+- **Buildings** (`web3d/art/kitbuild.js`). `planBuildings` now cuts every place but the
+  parks into buildings (`allPlaces`): tenements as before; markets and plazas into
+  stalls; yards, depots and canal sides into warehouses; ruins into burnt shells; blocks
+  one cell thick into brick yard walls. `planKit` gives each building a kit (plaster or
+  brick), a window family, a facade colour and a joinery colour, none matching a
+  neighbour's, and pilasters on some. Storeys and bays are the kits' 3 m.
+  - Each face of a building is a run of 3 m bays (scaled to fit). Ground floors by
+    purpose: doors (panelled, double, offset, recessed), shopfronts or roller shutters
+    (some sprayed), garage roller doors across two bays. Upper storeys in the family's
+    windows, a smaller attic row on top, French windows with railings on the hotel.
+  - Trim: a sill band at the top of every storey, a string course over the ground floor,
+    a crown on flat roofs, plinths under ground-floor windows, end caps.
+  - Behind every window and door, an unlit "room" card (dark, or warm in about one in
+    twenty). Glass is missing, or boarded over, by the building's damage; soot over some
+    windows of burnt ones; air conditioners under one window in fourteen; downpipes on
+    two fronts in five.
+  - Signs, awnings, canopies, steps and roofs are drawn as in build 40.
+- **Street dressing.** Modelled bins and bags near doors, crates, barrels and tyres in
+  yards and markets, benches in squares and parks, utility boxes, manholes in the road.
+  Wall lamps hang in narrow places (two cells or less across), at least 5 cells apart;
+  three in four burn, and the nearest four of those are real point lights.
+- **Ground** (`web3d/art/ground.js`). Photographed surfaces at their real size, one merged
+  mesh each: asphalt roads, slab pavements along every wall with a kerb stone where
+  pavement meets road, cobbles in squares and markets, grass in parks, cracked concrete
+  in yards and depots, dirt in ruins. Cover cells (water) are dark, glossy mirrors of the
+  sky.
+- **Light** (`web3d/art/daylight.js`, `belts.js` `RUST_HD.day`):
+  - the photographed sky as the dome, its horizon fading into haze;
+  - its HDR, prefiltered by PMREM, as `scene.environment` on every PBR surface;
+  - the sun where the photo has it (47.9° up) with soft shadows in a 64 m box that
+    follows you; at Medium as well as High in this district;
+  - linear haze from 22 m to 230 m in the photo's horizon colour; the far plane follows;
+  - the darkness map is now a sky-view factor: in 16 directions, the steepest wall within
+    14 cells, `cos²` of it averaged. Squares see nearly all the sky, a street between
+    four-storey fronts about half, a 1.5 m alley almost none. It scales the sky's light,
+    so alleys go black and the torch (F) is for them.
+- **Grade** (`post.js`): three's ACES filmic fit with exposure 0.85, then the grade
+  (saturation 1.08, grain 0.035, vignette 0.28, light bloom). Ambient occlusion from
+  depth at half resolution (12 taps, a depth-aware blur), strength 0.85. Low quality
+  has no post pass, so the renderer's own ACES does the tone mapping there.
+- **Measured** at 1080p on the development Mac:
+
+  | | Mean | p95 |
+  |---|---|---|
+  | Medium, district 1 | 17–22 ms | up to 28 ms |
+  | High, district 1 | 21–26 ms | up to 33 ms |
+
+  The district's own geometry is 3.6 M triangles. The sun's shadows cost about 6 ms of the
+  frame at Medium, ambient occlusion 0.7 ms.
+- **Not done:** the parks keep the old hedges and round trees (the free vegetation models
+  are 50,000–280,000 triangles each); no interiors; roofs still drawn; only district 1.
+
 **Bolts thin out deeper into each belt** (`sim3d/bolts.js`): the generator's bolts are
 kept in full in a belt's first district and cut to `max(1, round(n × (1 − 2k/27)))` at
 depth `k` (0–9), about a third by its tenth; the next belt starts full again. The kept set
