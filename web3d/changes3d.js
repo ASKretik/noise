@@ -8,6 +8,25 @@
 
 export const CHANGES = [
   {
+    build: 46,
+    date: '2026-11-25',
+    phase: 'N4.4 prototype',
+    changed: [
+      'Every district: tripping over something small (a stoop, a bin, a crate, a bag, rubble) is about twice as strong. Walking, the view pitches about 10 degrees forward, drops 8 cm, rolls toward the side you hit and turns your head a little, and you recover in about a second. Sprinting it is about twice that again (about 20 degrees, a 19 cm drop, a 13 degree roll), lasts 1.3 s, and you stagger to one side and then the other before you have your feet back. A jolt as your foot stops dead, and a lurch forward. Your speed is still not touched.',
+      'The first district of every belt (11, 21, 31 ... 91) now has district 1\'s finish, each in its own belt\'s light and colours: 2K buildings and props, 2K ground with real relief (cobbles, slabs, sand, ash, diamond plate), weathered walls (dirt at the foot, rain streaks, damp; heavier in the storm belt, lighter on the newer blocks), real enamel place-name plates, minted coins with their value, and key markers at the screen edge when a key is behind you.',
+      'All ten: a place-name plate is never put behind a black box, a roller shutter\'s box, a shop\'s fascia sign or a hotel canopy (each hid a plate somewhere). Checked by rendering every plate from in front: 33 to 279 plates per district, 95-97% of each plate visible on average, none hidden.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R). Run into a stoop or a bin walking, then sprinting.',
+      'Play districts 11, 21, 31, 41, 51, 61, 71, 81 and 91 and compare each with district 1: buildings up close, the ground at a low angle, a place-name plate, a coin.',
+    ],
+    unverified: [
+      'Frame time at 1080p Medium: district 1 20 ms, MOSS 21, VIOLET 21-22, COBALT 30-31. COBALT is as slow with the old 1K finish (measured the same way), so its cost is its searchlight\'s shadows over a big city, not this build; it is the one first district under 35 frames a second here.',
+      'The 2K buildings are loaded once and shared, but each first district now also loads its own 2K ground (about 7 MB a surface, 2-6 surfaces). Not measured on any machine but this Mac.',
+      'How the stronger stumble feels at full speed, and whether it is too much on a big screen: Reduce motion still keeps a third of it.',
+    ],
+  },
+  {
     build: 45,
     date: '2026-11-25',
     phase: 'scale',

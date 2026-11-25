@@ -34,28 +34,47 @@ const BY_PLACE = {
 // ------------------------------------------------------------------ 2K (build 43)
 
 /**
- * District 1's surfaces at 2K, GPU-compressed (assets3d/textures2k/, KTX2), each with its
- * height map for parallax: the relief (metres) is how deep the stones and slab joints
- * read when you look across them.
+ * The surfaces at 2K, GPU-compressed (assets3d/textures2k/, KTX2), each with its height
+ * map for parallax: the relief (metres) is how deep the stones and slab joints read when
+ * you look across them. Build 43: district 1's seven; build 46: the other belts' first
+ * districts' seven.
  */
 export const GROUND_2K = Object.freeze({
   asphalt_02: 0.008, concrete_pavement: 0.012, cobblestone_floor_04: 0.045, grass_path_2: 0.03,
   damaged_concrete_floor: 0.015, dirt: 0.035, forest_leaves_02: 0.03,
+  burned_ground_01: 0.03, checkered_pavement_tiles: 0.008, dense_sand: 0.02, granite_tile: 0.008,
+  leaves_forest_ground: 0.03, metal_plate: 0.006, mossy_cobblestone: 0.045,
 });
-const cache2k = new Map();
-/** Load every 2K set once (resolves when all are on the GPU-side loader's hands). */
-export function loadGround2k() {
+
+/**
+ * The surfaces a style's ground uses (buildKitGround's choices, plus the kerbs and the
+ * hedges), so a district loads only its own 2K sets -- about 7 MB each.
+ */
+export function groundIdsFor(style = {}) {
+  const pick = (k, d) => style[k] || d;
+  const ids = [pick('street', 'asphalt_02'), pick('pavement', 'concrete_pavement'), pick('plaza', BY_PLACE.plaza),
+    pick('park', BY_PLACE.park), pick('yards', BY_PLACE.yards), pick('ruins', BY_PLACE.ruins), 'concrete_pavement', 'forest_leaves_02'];
+  return [...new Set(ids)].filter((id) => id in GROUND_2K);
+}
+
+const cache2k = new Map(), pending2k = new Map();
+/** Load 2K sets once each (all of them by default); resolves when they are ready. */
+export function loadGround2k(ids = Object.keys(GROUND_2K)) {
   const K = ktx2Loader();
   if (!K) return Promise.reject(new Error('ground: the KTX2 decoder is not set up'));
-  return Promise.all(Object.keys(GROUND_2K).map(async (id) => {
-    if (cache2k.has(id)) return;
-    const url = (n) => new URL(`../../assets3d/textures2k/${id}/${n}.ktx2`, import.meta.url).href;
-    const [map, normalMap, roughnessMap, disp] = await Promise.all(['diff', 'nor_gl', 'arm', 'disp'].map((n) => K.loadAsync(url(n))));
-    for (const t of [map, normalMap, roughnessMap, disp]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; }
-    cache2k.set(id, { map, normalMap, roughnessMap, disp });
+  return Promise.all(ids.map((id) => {
+    if (cache2k.has(id)) return null;
+    if (!pending2k.has(id)) pending2k.set(id, load2k(K, id).finally(() => pending2k.delete(id)));
+    return pending2k.get(id);
   }));
 }
-export const ground2kReady = () => cache2k.size === Object.keys(GROUND_2K).length;
+async function load2k(K, id) {
+  const url = (n) => new URL(`../../assets3d/textures2k/${id}/${n}.ktx2`, import.meta.url).href;
+  const [map, normalMap, roughnessMap, disp] = await Promise.all(['diff', 'nor_gl', 'arm', 'disp'].map((n) => K.loadAsync(url(n))));
+  for (const t of [map, normalMap, roughnessMap, disp]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; }
+  cache2k.set(id, { map, normalMap, roughnessMap, disp });
+}
+export const ground2kReady = (ids = Object.keys(GROUND_2K)) => ids.every((id) => cache2k.has(id));
 /** one loaded 2K set ({ map, normalMap, roughnessMap, disp }), or undefined */
 export const ground2k = (id) => cache2k.get(id);
 

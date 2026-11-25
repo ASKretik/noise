@@ -13,7 +13,7 @@ import { buildWorld, lightScene } from './world.js';
 import { artFor } from './art/belts.js';
 import { loadDayEnv, envFromSky } from './art/daylight.js';
 import { loadKit, kitReady, initKtx2 } from './art/kit.js';
-import { loadGround2k } from './art/ground.js';
+import { loadGround2k, groundIdsFor } from './art/ground.js';
 import { currentQuality, setQuality } from './quality.js';
 import { Entities } from './entities.js';
 import { Audio3D } from './audio3d.js';
@@ -43,6 +43,13 @@ const TUNE_KEY = 'noise3d-tune-v1';
 /** Head bob per metre walked: one dip, and one footstep, about every 2 m (build 45: per metre, not per cell). */
 const BOB_PER_M = 2.4 / 1.5;
 const footfall = (bob) => Math.floor(bob / Math.PI - 0.75);
+/**
+ * A stumble's shape (build 46). Amplitudes at k = 1, about walking pace: radians for dip,
+ * roll, turn and jolt, metres for drop, sway and lurch. Sprinting multiplies k by
+ * sprintGain on top of the extra speed, which makes it about twice a walking stumble.
+ * Build 42-45 were dip 0.15, drop 0.09, roll 0.085, sway 0.06, 0.75 s, sprint x1.15.
+ */
+const TRIP = Object.freeze({ dip: 0.28, drop: 0.16, roll: 0.15, turn: 0.07, sway: 0.1, lurch: 0.14, jolt: 0.018, sprintGain: 1.6, durWalk: 0.95, durSprint: 1.3 });
 const DEFAULTS = Object.freeze({ cellM: CELL_M, tickHz: TICK_HZ_3D, response: RESPONSE, debug: false });
 
 function loadTune() {
@@ -179,7 +186,7 @@ export class Play3D {
       try {
         await Promise.all([
           loadKit((f) => { note.textContent = `Loading the district's buildings and props${res === '2k' ? ' (2K)' : ''}... ${Math.round(f * 100)}%`; }, res),
-          res === '2k' ? loadGround2k() : null,
+          res === '2k' ? loadGround2k(groundIdsFor(H0.ground)) : null,
         ]);
       } catch (e) {
         console.warn(`kit: the ${res} models did not load; trying 1K`, e);
@@ -193,11 +200,15 @@ export class Play3D {
 
   /**
    * Build 42, at the user's request: running into something small -- a stoop, a bin, a
-   * crate, a bag, rubble -- catches your foot. The view pitches forward and drops, rolls
-   * toward the side you hit it on, and swings back over about 0.7 s; a scuff and a heavy
-   * step, and the thing itself if it rings or knocks. Speed is untouched and the sim never
-   * knows: it is the camera only. Once per obstacle until you are clear of it; Reduce
-   * motion keeps a third of it and no roll. Returns the drop, for the gun to follow.
+   * crate, a bag, rubble -- catches your foot. Speed is untouched and the sim never knows:
+   * it is the camera only. Once per obstacle until you are clear of it; Reduce motion
+   * keeps a third of it, with no roll or head turn. Returns the drop, for the gun to follow.
+   *
+   * Build 46, asked for "more pronounced, and even more when sprinting": a jolt as the foot
+   * stops dead, the view pitching forward and down (about 10 degrees walking) and lurching
+   * on, rolling and turning toward the side you hit, then a stagger back. Sprinting it is
+   * about twice that (about 20 degrees), lasts 1.3 s instead of 0.95, and the recovery
+   * wobbles twice, one side and then the other, before you have your feet again.
    */
   stumble(dt, cam, b, speed, cellM, calm, sprinting) {
     const px = b.x * cellM, pz = b.y * cellM;
@@ -206,25 +217,37 @@ export class Play3D {
       // which side of your path it is on: a foot caught on the left throws you left
       const fx = -Math.sin(this.controls.yaw), fz = -Math.cos(this.controls.yaw);
       const side = Math.sign(fx * (hit.z - pz) - fz * (hit.x - px)) || 1;
-      const k = Math.min(1.25, 0.55 + speed / (this.runner.session.tickHz * 2.2)) * (sprinting ? 1.15 : 1);
-      this.tripState = { t0: this.t, side, k: calm ? k * 0.33 : k };
-      this.audio.stumble(hit.kind, Math.min(1, k));
+      const k = Math.min(1.3, 0.6 + speed / (this.runner.session.tickHz * 2.2)) * (sprinting ? TRIP.sprintGain : 1);
+      this.tripState = { t0: this.t, side, k: calm ? k * 0.33 : k, sprint: !!sprinting, dur: sprinting ? TRIP.durSprint : TRIP.durWalk };
+      this.audio.stumble(hit.kind, Math.min(1.3, 0.55 + 0.35 * k));
     }
     this.tripOn = hit;
     const st = this.tripState;
     if (!st) return 0;
-    const u = (this.t - st.t0) / 0.75;
+    const tau = this.t - st.t0, u = tau / st.dur;
     if (u >= 1) { this.tripState = null; return 0; }
+    const k = st.k, side = st.side;
     const catchUp = 1 - Math.exp(-u * 22);                 // the foot stops dead
-    const dip = -0.15 * st.k * catchUp * Math.exp(-u * 4.2);
-    const drop = -0.09 * st.k * catchUp * Math.exp(-u * 4.8);
-    const roll = calm ? 0 : st.side * 0.085 * st.k * Math.sin(u * 8.5) * Math.exp(-u * 3.4);
-    const sway = st.side * 0.06 * st.k * Math.sin(u * 6.5) * Math.exp(-u * 4);
+    const fall = catchUp * Math.exp(-u * 4.2);              // forward and down, then back up
+    const jolt = TRIP.jolt * k * Math.sin(tau * 70) * Math.exp(-tau * 18);
+    // the stagger: walking one swing to the side you hit; sprinting a second, smaller one
+    // to the other side as the next foot comes down
+    const wobble = st.sprint
+      ? Math.sin(u * 11) * Math.exp(-u * 2.4)
+      : Math.sin(u * 8.5) * Math.exp(-u * 3.4);
+    const dip = -TRIP.dip * k * fall + jolt;
+    const drop = -TRIP.drop * k * catchUp * Math.exp(-u * 4.8);
+    const roll = calm ? 0 : side * TRIP.roll * k * wobble;
+    const turn = calm ? 0 : side * TRIP.turn * k * Math.sin(u * 7) * Math.exp(-u * 4);
+    const sway = side * TRIP.sway * k * wobble;
+    const lurch = TRIP.lurch * k * fall;
+    const fx = -Math.sin(this.controls.yaw), fz = -Math.cos(this.controls.yaw);
     cam.rotation.x += dip;
+    cam.rotation.y += turn;
     cam.rotation.z += roll;
     cam.position.y += drop;
-    cam.position.x += Math.cos(this.controls.yaw) * sway;
-    cam.position.z -= Math.sin(this.controls.yaw) * sway;
+    cam.position.x += Math.cos(this.controls.yaw) * sway + fx * lurch;
+    cam.position.z += -Math.sin(this.controls.yaw) * sway + fz * lurch;
     return drop;
   }
 
@@ -522,7 +545,8 @@ export class Play3D {
     const res = H?.res || '1k', nextH = artFor(this.runner.level.level + 1)?.hd;
     if (H && !kitReady(res)) loadKit(undefined, res).catch(() => {});
     if (nextH && !kitReady(nextH.res || '1k')) loadKit(undefined, nextH.res || '1k').catch(() => {});
-    if (res === '2k' || nextH?.res === '2k') loadGround2k().catch(() => {});
+    if (res === '2k') loadGround2k(groundIdsFor(H.ground)).catch(() => {});
+    if (nextH?.res === '2k') loadGround2k(groundIdsFor(nextH.ground)).catch(() => {});
     this.world = buildWorld(this.runner.level, { cellM, shadows, kit: H ? (kitReady(res) || kitReady('1k') || kitReady('2k')) : null });
     this.view.post?.setGrade(this.world.art.grade);
     // film tone mapping: in post.js when it runs, else (Low) by the renderer

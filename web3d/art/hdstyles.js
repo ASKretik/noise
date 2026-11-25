@@ -38,6 +38,9 @@ const deg = (az, elev) => {
   return [Math.sin(a) * Math.cos(e), Math.sin(e), -Math.cos(a) * Math.cos(e)];
 };
 
+/** Builds 44 and 46: district 1's enamel plates, minted coins and edge markers, on every first district. */
+const PROTO = Object.freeze({ signs: true, coins: true, edgeMarkers: true });
+
 export const HD_STYLES = Object.freeze({
   // RUST, the foundry belt (the Greys). Default: a sunset glow on everything. Here the sun
   // is already under a roof of cloud: one band of light low in the west, the rest of the
@@ -51,7 +54,7 @@ export const HD_STYLES = Object.freeze({
     res: '2k', weathering: 1,
     // build 44, also district 1 first: real enamel street plates, minted coins with their
     // value, and key and portal markers held at the screen's edge when they are behind you
-    proto: { signs: true, coins: true, edgeMarkers: true },
+    proto: PROTO,
     sky: { photo: 'belfast_sunset_sky_4k.jpg', env: 'belfast_sunset_puresky_1k.hdr', gain: 1 / 0.09, dim: 0.55, haze: '#56545c', drift: 0.0003 },
     sun: { dir: [0.79, 0.09, 0.61], color: '#ffb27a', intensity: 2.2, shadow: true },
     env: 0.55,
@@ -77,6 +80,9 @@ export const HD_STYLES = Object.freeze({
   // throws back the sky. The harbour town has its storm shutters down, so most of what you
   // see of a building is shut; the few open windows are black.
   TIDE: {
+    // build 46: district 1's finish (builds 43-44) in this belt's own light -- 2K kit and
+    // ground with relief, weathering 1.25 (the storm: rain streaks run the full height), enamel plates, minted coins, edge markers
+    res: '2k', weathering: 1.25, proto: PROTO,
     sky: { photo: 'overcast_soil_sky_4k.jpg', env: 'overcast_soil_puresky_1k.hdr', gain: 1 / 0.31, dim: 0.42, haze: '#5c6668', drift: 0.0012 },
     sun: null,
     env: 0.62,
@@ -102,6 +108,9 @@ export const HD_STYLES = Object.freeze({
   // roofs -- so it is noon and nearly dark, and the sun comes through in coins and shafts
   // that move as you walk. Leaf litter in the streets, damp pitched-roof houses, spores.
   MOSS: {
+    // build 46: district 1's finish (builds 43-44) in this belt's own light -- 2K kit and
+    // ground with relief, weathering 1.1 (damp under the canopy), enamel plates, minted coins, edge markers
+    res: '2k', weathering: 1.1, proto: PROTO,
     sky: { photo: 'kloofendal_48d_sky_4k.jpg', env: 'kloofendal_48d_partly_cloudy_puresky_1k.hdr', gain: 2.857, dim: 0.5, tint: '#c8d6b8', haze: '#323a2e', drift: 0.0002 },
     sun: { dir: [0.5547, 0.7415, 0.3775], color: '#f0f4d8', intensity: 3.2, shadow: true },
     env: 0.32,
@@ -127,6 +136,9 @@ export const HD_STYLES = Object.freeze({
   // the district is black shells, and the only light is what still burns inside a few of
   // them, flickering on the street through empty windows. Embers drift; smoke hides the sky.
   EMBER: {
+    // build 46: district 1's finish (builds 43-44) in this belt's own light -- 2K kit and
+    // ground with relief, weathering 1.0 (soot and ash at the foot), enamel plates, minted coins, edge markers
+    res: '2k', weathering: 1.0, proto: PROTO,
     sky: { proc: { zenith: '#0a0807', horizon: '#1c1512', clouds: 0.85, cloud: '#1a1412', stars: 0, canopy: 0, body: { kind: 'sun', az: 0, elev: -20, color: '#000000', size: 0, glow: 0 }, beam: null, body2: null, aurora: null, ship: 0 } },
     sun: null,
     env: 0.35,
@@ -151,6 +163,9 @@ export const HD_STYLES = Object.freeze({
   // Here the power is out; there is no neon. The sky is the only light: an aurora, violet
   // and blue, over tall dark blocks, and the wet streets carry it.
   VIOLET: {
+    // build 46: district 1's finish (builds 43-44) in this belt's own light -- 2K kit and
+    // ground with relief, weathering 0.7, enamel plates, minted coins, edge markers
+    res: '2k', weathering: 0.7, proto: PROTO,
     sky: { proc: { zenith: '#07061a', horizon: '#1c1a33', clouds: 0.2, cloud: '#151428', stars: 0.8, canopy: 0, body: { kind: 'moon', az: 135, elev: 40, color: '#c8ccee', size: 0.022, glow: 0.12 }, beam: null, body2: null, aurora: { a: '#5a6cff', b: '#7a6cff', strength: 1.4 }, ship: 0 } },
     moonLight: { dir: deg(135, 40), color: '#9aa4e8', intensity: 0.9, shadow: true },
     env: 5.0,
@@ -176,6 +191,9 @@ export const HD_STYLES = Object.freeze({
   // the teal portal are the only colour left in the frame (post.js `mono`), which is the
   // game's legibility rule made into the look.
   ASH: {
+    // build 46: district 1's finish (builds 43-44) in this belt's own light -- 2K kit and
+    // ground with relief, weathering 1.0 (ash settled in every ledge), enamel plates, minted coins, edge markers
+    res: '2k', weathering: 1.0, proto: PROTO,
     sky: { photo: 'kloofendal_overcast_sky_4k.jpg', env: 'kloofendal_overcast_puresky_1k.hdr', gain: 1 / 0.26, dim: 0.62, haze: '#8a8a88', drift: 0.0004 },
     sun: null,
     env: 0.75,
@@ -200,6 +218,9 @@ export const HD_STYLES = Object.freeze({
   // at, everything is backlit and soft, shadows are blue. Faded pastel fronts with
   // balconies and checkered pavements -- a promenade nobody walks.
   CORAL: {
+    // build 46: district 1's finish (builds 43-44) in this belt's own light -- 2K kit and
+    // ground with relief, weathering 0.6 (a promenade kept up until lately), enamel plates, minted coins, edge markers
+    res: '2k', weathering: 0.6, proto: PROTO,
     sky: { photo: 'kloofendal_28d_misty_sky_4k.jpg', env: 'kloofendal_28d_misty_puresky_1k.hdr', gain: 1 / 0.14, dim: 0.5, tint: '#f0e8ec', haze: '#8c8890', drift: 0.0002 },
     sun: { dir: [0.8632, 0.4775, -0.1641], color: '#ffe8e0', intensity: 2.0, shadow: true, softShadow: 0.55 },
     env: 0.6,
@@ -225,6 +246,9 @@ export const HD_STYLES = Object.freeze({
   // tells you, without a word, that this is not Earth any more. Mist lies on the ground;
   // heavy grey-green stone fronts; mossy cobbles.
   JADE: {
+    // build 46: district 1's finish (builds 43-44) in this belt's own light -- 2K kit and
+    // ground with relief, weathering 0.9, enamel plates, minted coins, edge markers
+    res: '2k', weathering: 0.9, proto: PROTO,
     sky: { proc: { zenith: '#050a08', horizon: '#141e1a', clouds: 0.2, cloud: '#101814', stars: 0.6, canopy: 0, body: { kind: 'moon', az: 110, elev: 32, color: '#d0e0d8', size: 0.055, glow: 0.2 }, body2: { az: 160, elev: 24, color: '#c8d0e8', size: 0.035, glow: 0.14 }, beam: null, aurora: null, ship: 0 } },
     moonLight: { dir: deg(110, 32), color: '#c4dccf', intensity: 1.1, shadow: true },
     moon2: { dir: deg(160, 24), color: '#b4c0e0', intensity: 0.75, shadow: true },
@@ -250,6 +274,9 @@ export const HD_STYLES = Object.freeze({
   // ripples (post.js `shimmer`) -- the Mirages' belt, where you cannot trust what you see
   // at the end of a street. Low flat-roofed sand-coloured houses, awnings, sand in drifts.
   SOLAR: {
+    // build 46: district 1's finish (builds 43-44) in this belt's own light -- 2K kit and
+    // ground with relief, weathering 0.8 (sand-blasted, not rained on), enamel plates, minted coins, edge markers
+    res: '2k', weathering: 0.8, proto: PROTO,
     sky: { photo: 'kloofendal_48d_sky_4k.jpg', env: 'kloofendal_48d_partly_cloudy_puresky_1k.hdr', gain: 2.857, dim: 0.35, tint: '#c8a888', haze: '#7e7468', drift: 0.003, veil: 0.88, disc: 1.4, sunDir: [0.5547, 0.7415, 0.3775] },
     sun: { dir: [0.5547, 0.7415, 0.3775], color: '#ffe0b8', intensity: 1.4, shadow: true, softShadow: 0.45 },
     env: 0.5,
@@ -275,6 +302,9 @@ export const HD_STYLES = Object.freeze({
   // stark while it passes, black again after. Tall cold blocks; the pavements have been
   // plated over; the only lamps are emergency lights.
   COBALT: {
+    // build 46: district 1's finish (builds 43-44) in this belt's own light -- 2K kit and
+    // ground with relief, weathering 0.5 (newer blocks, less weathered), enamel plates, minted coins, edge markers
+    res: '2k', weathering: 0.5, proto: PROTO,
     sky: { proc: { zenith: '#04060c', horizon: '#0c1220', clouds: 0, cloud: '#0c1220', stars: 0, canopy: 0, body: { kind: 'moon', az: 0, elev: -20, color: '#000000', size: 0, glow: 0 }, beam: null, body2: null, aurora: null, ship: 1.0 } },
     env: 3.5,
     hemi: { sky: '#3a4a70', ground: '#04050a', i: 0.6 },

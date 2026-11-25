@@ -136,3 +136,14 @@ lays the 1K JPEGs.
 
 **Shipped:** 133 MB of models and 46 MB of ground, 179 MB in all (the 2K JPEGs and PNGs
 were 301 MB).
+
+## Build 46: every belt's first district at 2K
+
+The other seven ground textures in "Textures" above (same Poly Haven pages and authors,
+**CC0 1.0**), downloaded again on 2026-11-25 at 2K with their displacement maps, for the
+first districts of belts 2-10: burned_ground_01, checkered_pavement_tiles, dense_sand,
+granite_tile, leaves_forest_ground, metal_plate, mossy_cobblestone. Converted to KTX2
+exactly as above, into `assets3d/textures2k/`.
+
+**Shipped:** 39 MB (the 2K JPEGs and PNGs were 112 MB). The 2K models are the build 43
+set, shared by all ten districts.

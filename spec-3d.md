@@ -806,11 +806,16 @@ shutters, balconies, awnings, pitched roofs), lamps and effects. See decisions.m
   - the night belts' fog ends at 80–90 m.
 - **Stumbling** (`Play3D.stumble`): the kit builder records every small thing on the
   pavement: stoops, bank steps, bins, bags, crates, barrels, tyres, benches, utility
-  boxes, rubble, canopy poles. Walking at over 0.9 cells/s into one (0.22 m of foot
-  reach) pitches the view up to about 0.15 rad and drops it 9 cm, rolls it toward the
-  side you hit, and recovers in 0.75 s. Once per obstacle; Reduce motion keeps a third
-  of it and no roll. A scuff and a heavy step play, plus a ring or knock for metal or
-  wood. Camera only: speed, the sim and the noise you make are unchanged.
+  boxes, rubble, canopy poles. Moving at over 1.35 m/s into one (0.22 m of foot reach)
+  trips you. Build 46 (the user: "more pronounced ... and even more when sprinting"),
+  `TRIP` in `play3d.js`: a jolt as the foot stops dead; the view pitches forward and
+  down and lurches on (walking about 10°, an 8 cm drop), rolls and turns toward the side
+  you hit, and recovers in 0.95 s. Sprinting multiplies all of it by 1.6 on top of the
+  extra speed — about 20°, a 19 cm drop, a 13° roll — over 1.3 s, and the recovery
+  wobbles to one side and then the other. (Builds 42–45: 5° walking, 7° sprinting,
+  0.75 s.) Once per obstacle; Reduce motion keeps a third of it, with no roll or head
+  turn. A scuff and a heavy step play, louder sprinting, plus a ring or knock for metal
+  or wood. Camera only: speed, the sim and the noise you make are unchanged.
 - **Measured** at 1080p Medium:
 
   | Districts | Mean |
@@ -820,8 +825,8 @@ shutters, balconies, awnings, pitched roofs), lamps and effects. See decisions.m
 
 ### District 1 at 2K (N4.4, 3D build 43)
 
-A test of a higher-fidelity set on district 1 only (`RUST.res = '2k'` in `hdstyles.js`);
-the other first districts stay at 1K. See decisions.md R73.
+A test of a higher-fidelity set on district 1 first (`RUST.res = '2k'` in `hdstyles.js`);
+build 46 gave it to every belt's first district (below). See decisions.md R73.
 
 - **Assets.**
   - `assets3d/models2k/`: the same 14 Poly Haven models at 2K (133 MB).
@@ -889,6 +894,44 @@ first, the rest once approved. See decisions.md R74.
   to face it. It has an arrow and its distance, at mid-height when behind you.
 - **Every kit district:** a puddle's alpha now fills its cell with a frayed edge, so
   neighbouring water cells merge into one sheet.
+
+### Every belt's first district at district 1's finish (N4.4, 3D build 46)
+
+The user: "change the artstyle of just the first district of each of the belt like
+district 1". Each of districts 11–91 keeps its own belt's light, sky, palette, weather
+and grade (build 42) and takes district 1's finish (builds 43–44): `res: '2k'`, a
+`weathering` of its own and `proto: PROTO` (plates, coins, edge markers) in
+`hdstyles.js`. See decisions.md R76.
+
+- **Weathering** by belt: TIDE 1.25 (storm), MOSS 1.1, RUST, EMBER and ASH 1.0, JADE
+  0.9, SOLAR 0.8, VIOLET 0.7, CORAL 0.6, COBALT 0.5 (newer blocks).
+- **Ground at 2K**: the seven surfaces belts 2–10 use (burned ground, checkered tiles,
+  sand, granite, forest floor, metal plate, mossy cobbles) joined `GROUND_2K`, with
+  relief from 6 mm (metal plate) to 45 mm (mossy cobbles). `groundIdsFor(style)` names a
+  style's surfaces, and `loadGround2k(ids)` loads only those (2–6 per district, about
+  7 MB each), once.
+- **Where plates go**, now also: never behind a black box (`signs.js boxed`), a roller
+  shutter's box, a shop's fascia sign or a hotel canopy (`kitbuild.js faceUse`).
+  Measured by rendering each plate from 3 m in front, flat magenta, with and without
+  the rest of the scene:
+
+  | District | Plates | Visible, mean | Under 80% |
+  |---|---|---|---|
+  | 1 RUST | 33 | 97% | 0 |
+  | 11 TIDE | 60 | 94% | 0 |
+  | 21 MOSS | 104 | 95% | 0 |
+  | 31 EMBER | 88 | 97% | 0 |
+  | 41 VIOLET | 144 | 96% | 0 |
+  | 51 ASH | 170 | 95% | 1 (70%) |
+  | 61 CORAL | 189 | 95% | 0 |
+  | 71 JADE | 212 | 97% | 0 |
+  | 81 SOLAR | 239 | 96% | 0 |
+  | 91 COBALT | 279 | 97% | 1 (70%) |
+
+- **Measured** at 1080p Medium: district 1 19.9–20.3 ms, MOSS 20.8–21.6, VIOLET
+  21.0–21.6, COBALT 29.6–31.1. COBALT with build 45's 1K finish measured the same
+  (29.9–31.2): the 2K finish costs nothing there; the searchlight's shadows over a large
+  city do.
 
 **Bolts thin out deeper into each belt** (`sim3d/bolts.js`): the generator's bolts are
 kept in full in a belt's first district and cut to `max(1, round(n × (1 − 2k/27)))` at

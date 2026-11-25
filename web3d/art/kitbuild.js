@@ -288,6 +288,7 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
             const sb = kit.piece(name).box;
             const cx = s0 + wB + ((bx.min.x + bx.max.x) / 2) * sxB;
             K.put(name, F.at(cx - ((sb.min.x + sb.max.x) / 2) * gw / (sb.max.x - sb.min.x), bx.min.y - sb.min.y * gh / (sb.max.y - sb.min.y), 0.14, gw / (sb.max.x - sb.min.x), gh / (sb.max.y - sb.min.y), 0.6), colours);
+            markFace(F, run, s0, s0 + wB);   // build 46: the shutter's box stands where a plate would go
           }
           return;
         }
@@ -352,6 +353,7 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
         const sb = kit.piece(name).box;
         const fx2 = gw / (sb.max.x - sb.min.x), fy = gh / (sb.max.y - sb.min.y);
         K.put(name, FF.at(sMid - ((sb.min.x + sb.max.x) / 2) * fx2, y0 + bx.min.y - sb.min.y * fy, 0.14, fx2, fy, 0.6), colours);
+        if (y0 < 1) markFace(FF, run, sMid - gw / 2, sMid + gw / 2);   // build 46: its box hid a plate
       }
 
       // ---- boards nailed over an opening
@@ -438,6 +440,7 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
           m4.compose(F.point(F.L / 2, 2.78, 0.16), q.setFromEuler(e), s.set(width, hgt, 1));
           B('sign').add(PLANE, m4, '#ffffff', atlas.wide.get(b.id));
           box('paint', F, F.L / 2, 2.78, 0.1, width + 0.12, hgt + 0.1, 0.1, '#1a1a1a');
+          markFace(F, run, F.L / 2 - width / 2 - 0.1, F.L / 2 + width / 2 + 0.1);   // build 46: a fascia hid a plate
         }
         if (b.type === 'apartments' && b.sign) {
           e.set(0, F.yaw, 0, 'YXZ');
@@ -451,6 +454,7 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
         }
         if (T.ground === 'hotel') {
           box('paint', F, mid, 2.95, 1.0, 2.6, 0.18, 2.0, b.joinery);
+          markFace(F, run, mid - 1.3, mid + 1.3);   // build 46: nor under a hotel's canopy
           for (const sd of [-1, 1]) { const pp = F.point(mid + sd * 1.1, 1.45, 1.9); cyl('metal', pp, 0.04, 2.9, '#2a2a2a'); obstacles.push({ x: pp.x, z: pp.z, r: 0.1, kind: 'metal' }); }
         }
         if (T.ground === 'bank') {

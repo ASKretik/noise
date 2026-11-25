@@ -3630,11 +3630,66 @@ their belt's style is approved.
 **Not verified:** the feel. The sim sees pickups, the portal and capture every half
 second now; whether that shows is a person's call.
 
+## R76 · A harder stumble; every first district at district 1's finish (3D build 46)
+
+**Asked:** "before you extend it to all the districts, firstly, make the stumble on the
+small objects more pronounced than it is now, and even more pronounced when one is
+sprinting. after that, change the artstyle of just the first district of each of the belt
+like district 1. If I find the artstyle, then we can extend it to other districts in the
+same belt, after i suggest some modifications."
+
+**[ASSUMED] "Like district 1" means district 1's finish, not its look.** Build 42 gave
+each belt's first district its own light, sky and palette because the user asked for
+every belt to change style completely. So each keeps its style and takes what builds
+43–44 added to district 1: 2K models and ground with relief, weathering, enamel plates,
+minted coins, edge markers.
+
+**The stumble.** Measured on a real stoop in district 1, by the frame loop:
+
+| | Builds 42–45 | Build 46 |
+|---|---|---|
+| Walking | pitch 5°, roll 3°, drop 5 cm, 0.75 s | pitch 10°, roll 5°, drop 8 cm, 0.97 s |
+| Sprinting | pitch 7°, roll 4°, drop 7 cm, 0.75 s | pitch 19.5°, roll 13°, drop 19 cm, 1.32 s |
+
+New: a jolt as the foot stops, a lurch forward, a head turn toward the side you hit, and
+a two-way wobble when sprinting. Speed untouched, as the user asked in R72.
+
+**The first districts.**
+
+- **Download** (the user agreed, with names, source and sizes): the seven ground
+  textures belts 2–10 use, at 2K from Poly Haven, 111.8 MB. As KTX2 they are 39 MB.
+- **Loading.** `loadGround2k` used to load every 2K set. With 14 that would make each
+  district fetch all of them, so a style now loads only its own (`groundIdsFor`).
+- **Weathering by belt**, from what each style says about its place: TIDE 1.25 down to
+  COBALT 0.5.
+
+**What the browser showed.** One check was new: each plate rendered flat magenta from
+3 m in front, with and without the scene, to count what is left of it. A first version
+compared lit renders and flagged half of MOSS: dark plates in shadow match their own iron
+backing. A second drew the plates with their colour map as an alpha mask, which reads the
+green channel and holed the dark-green plates. Raycasts were no use either: they missed
+the batched kit pieces. Four kinds of thing hid plates:
+
+- **A roller shutter's box** over a shop window (MOSS, "RIVET ROW");
+- **a black box** in the cell in front (EMBER, and two in MOSS);
+- **a shop's fascia sign** (SOLAR, behind "BAR OKAFOR");
+- **(by the same reasoning, not seen) a hotel's canopy.**
+
+All four are now excluded. Every first district: 33–279 plates, 94–97% visible on
+average, none under 70%.
+
+**Measured** at 1080p Medium: district 1 20 ms, MOSS 21, VIOLET 21–22, COBALT 30–31.
+COBALT measured the same with the 1K finish, so the cost is its own and older (the
+searchlight's shadows over a district-91 city).
+
+**Not done:** the other districts of each belt, until the user has seen these and
+suggested changes.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 45; 3D-1 via the
+npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 46; 3D-1 via the
                   2D suites above, run alongside)
 ```

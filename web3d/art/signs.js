@@ -397,6 +397,8 @@ export function buildSigns(level, { cellM, seed, art, lookAt, heightAt, track, w
   const out = [];
   const tileAt = (x, y) => (x < 0 || y < 0 || x >= map.w || y >= map.h ? TILE.WALL : map.tiles[y * map.w + x]);
   const open = (x, y) => { const t = tileAt(x, y); return t !== TILE.WALL && t !== TILE.BUILDING; };
+  // build 46: a real plate is never put behind a black box (they hid one in EMBER, two in MOSS)
+  const boxed = (...cells) => real && cells.some(([x, y]) => tileAt(x, y) === TILE.SAFE);
   const inside = (pl, x, y) => x >= pl.x && y >= pl.y && x < pl.x + pl.w && y < pl.y + pl.h;
   const faceCentre = (x, y, dx, dy, along, hgt, off = 0.02) => ({
     x: (x + 0.5 + dx * 0.5) * cellM + dx * off + -dy * along, y: hgt, z: (y + 0.5 + dy * 0.5) * cellM + dy * off + dx * along,
@@ -428,9 +430,9 @@ export function buildSigns(level, { cellM, seed, art, lookAt, heightAt, track, w
           // a wall cell along the edge, beside the gate, to hang the plate on
           for (const s of [-1, 1]) {
             const wx = x + -dy * s, wy = y + dx * s;
-            if (inside(pl, wx, wy) && tileAt(wx, wy) === TILE.WALL && open(wx + dx, wy + dy) && !faceBusy?.(wx, wy, dx, dy)) gates.push({ wx, wy, dx, dy, side: `${dx},${dy}` });
+            if (inside(pl, wx, wy) && tileAt(wx, wy) === TILE.WALL && open(wx + dx, wy + dy) && !faceBusy?.(wx, wy, dx, dy) && !boxed([wx + dx, wy + dy])) gates.push({ wx, wy, dx, dy, side: `${dx},${dy}` });
           }
-          gates.push({ px: x, py: y, dx, dy, side: `${dx},${dy}` });
+          if (!boxed([x, y], [x + dx, y + dy], [x - dy, y + dx], [x + dy, y - dx], [x + dx - dy, y + dy + dx], [x + dx + dy, y + dy - dx])) gates.push({ px: x, py: y, dx, dy, side: `${dx},${dy}` });
         }
       }
       const onWall = gates.filter((gt) => gt.wx !== undefined), loose = gates.filter((gt) => gt.wx === undefined);
@@ -470,7 +472,7 @@ export function buildSigns(level, { cellM, seed, art, lookAt, heightAt, track, w
           const wx = av.axis === 'x' ? (s2 ? av.at + av.w : av.at - 1) : t;
           const wy = av.axis === 'x' ? t : (s2 ? av.at + av.w : av.at - 1);
           const dx = av.axis === 'x' ? (s2 ? -1 : 1) : 0, dy = av.axis === 'x' ? 0 : (s2 ? -1 : 1);
-          if (tileAt(wx, wy) !== TILE.WALL || !open(wx + dx, wy + dy) || faceBusy?.(wx, wy, dx, dy)) continue;
+          if (tileAt(wx, wy) !== TILE.WALL || !open(wx + dx, wy + dy) || faceBusy?.(wx, wy, dx, dy) || boxed([wx + dx, wy + dy])) continue;
           const top = heightAt(wx, wy);
           q.add(faceCentre(wx, wy, dx, dy, 0, real && faceBusy ? (top < 3.4 ? top - 0.62 : 2.76) : Math.min(2.95, top - 0.3)), { x: dx, z: dy }, 1.2, 0.3, uv);
           break;
