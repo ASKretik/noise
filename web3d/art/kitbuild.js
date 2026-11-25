@@ -119,6 +119,15 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
   const obstacles = [];
   // lamps that are real lights (the nearest four burn as point lights): wall lamps, and fires
   const lamps = [];
+  // build 44: which wall faces already carry something a sign must not cover -- a door, a
+  // shop's tall glazing, a garage door, a downpipe, a hedge -- by 'x,y,dx,dy'
+  const faceUse = new Set();
+  const markFace = (F, run, s0, s1) => {
+    for (let a = s0 + 0.05; a < s1; a += 0.4) {
+      const pt = F.point(Math.min(a, s1 - 0.05), 0, -0.2);
+      faceUse.add(`${Math.floor(pt.x / C)},${Math.floor(pt.z / C)},${run.dx},${run.dy}`);
+    }
+  };
   const batches = new Map();
   const B = (key, tile = 1.5) => { if (!batches.has(key)) batches.set(key, batch(tile)); return batches.get(key); };
   const atlas = signAtlas(plan.list);
@@ -212,7 +221,7 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
       const bw = F.L / n, sx = bw / ST;
       const r2 = new Rng(hashString(`${seed}:run:${b.id}:${run.dx},${run.dy},${run.plane},${run.a0}`), 'run');
 
-      if (b.type === 'parkwall') continue;   // a hedge: drawn whole with the roofs below
+      if (b.type === 'parkwall') { markFace(F, run, 0, F.L); continue; }   // a hedge: drawn whole with the roofs below
       if (b.type === 'yardwall') {
         // a brick wall round a yard: blank bays 2.4 m high between piers, a coping on top
         const sy = roofY / 3;
@@ -244,6 +253,7 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
         const at = (y, z = 0, sy = 1) => F.at(s0 + wB, y, z, sxB, sy);
         const gs = side ? 'plain' : T.ground;
         if (i === doorBay) {
+          markFace(F, run, s0, s0 + wB);
           let wall, ins, dado;
           if (k === 'apart') {
             if (['lobby', 'bank', 'hotel', 'clinic', 'cinema'].includes(gs)) { wall = 'wall_door_centered_large_01'; ins = 'door_centered_large_01'; dado = 'dado_door_centered_large_01'; }
@@ -261,6 +271,7 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
         }
         if (gs === 'shopfront' || gs === 'cafe' || gs === 'pharmacy' || gs === 'laundry') {
           // display glass; a third of them behind a roller shutter, half of those sprayed
+          if (k !== 'apart') markFace(F, run, s0, s0 + wB);     // brick shop glazing runs to 3 m
           const wall = k === 'apart' ? 'wall_door_window_small_01' : 'wall_window_tall_large_01';
           const ins = k === 'apart' ? 'door_window_small_01' : 'window_tall_large_01';
           const shut = r2.bool(0.2 + b.damage * 0.35);
@@ -361,6 +372,7 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
         ground(i, s0, bw);
       }
       if (garage) {
+        markFace(F, run, 0, garageW);
         const gsx = garageW / 6;
         const ins = r2.bool(0.5) ? 'door_garage_door_01' : 'door_garage_door_02';
         K.put('factory/wall_door_garage_door_01', F.at(garageW, 0, 0, gsx), colours);
@@ -410,6 +422,7 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
       // a downpipe from the roof at one end of most fronts
       if (r2.bool(0.4)) {
         const end = r2.bool(0.5) ? 0.22 : F.L - 0.22;
+        markFace(F, run, Math.max(0, end - 0.2), Math.min(F.L, end + 0.2));
         const pb = kit.piece('gutter/modular_metal_gutter_section').box;
         K.put('gutter/modular_metal_gutter_section', F.at(end - (pb.min.x + pb.max.x) / 2, 0, 0.1 - pb.min.z, 1, roofY / (pb.max.y - pb.min.y)), {});
       }
@@ -430,6 +443,7 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
           B('sign').add(PLANE, m4, '#ffffff', atlas.wide.get(b.id));
         }
         if ((T.ground === 'cafe' && r2.bool(0.85)) || (b.awning && ['shopfront', 'pharmacy', 'laundry', 'pub'].includes(T.ground))) {
+          markFace(F, run, 0, F.L);   // a sign would sit under the awning
           const torn = r2.bool(b.damage * 0.5);
           box('cloth', F, F.L / 2, 2.35, 0.75, F.L - 0.2, 0.04, 1.45, b.paint2, torn ? 0.95 : 0.35, torn ? 0.25 : 0);
         }
@@ -563,6 +577,7 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
     const tallEnough = wallB ? wallB.top >= 3 : heightAt(x + dx, y + dy) >= 3.3;
     if (tallEnough && (width <= 2 && r.bool(0.3) && !lampAt.some(([lx, ly]) => Math.abs(lx - x) + Math.abs(ly - y) < 5) && LS.intensity !== 0 || (LS.intensity === 0 && width <= 2 && r.bool(0.12) && !lampAt.some(([lx, ly]) => Math.abs(lx - x) + Math.abs(ly - y) < 7)))) {
       lampAt.push([x, y]);
+      faceUse.add(`${x + dx},${y + dy},${-dx},${-dy}`);   // no sign under a lamp
       const [lx, lz] = [cx + dx * (C / 2), cz + dy * (C / 2)];
       pm.compose(pv.set(lx, 2.9, lz), pq.setFromAxisAngle(UP, yawOut), ps.setScalar(1.25));
       K.put('walllamp/industrial_wall_lamp', pm, {});
@@ -645,7 +660,7 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
   add('soot', new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: soot, transparent: true, depthWrite: false, opacity: 0.7 }), false);
   add('sign', new THREE.MeshStandardMaterial({ map: atlas.tex, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, side: THREE.DoubleSide }), false);
   track(soot); track(canvasStripe); track(slate); track(atlas.tex);
-  return { meshes: out, lamps, obstacles };
+  return { meshes: out, lamps, obstacles, faceUse };
 }
 
 /** Wall and window piece names for a storey of a family: a smaller attic row on top. */

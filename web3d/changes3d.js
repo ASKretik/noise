@@ -8,6 +8,24 @@
 
 export const CHANGES = [
   {
+    build: 44,
+    date: '2026-11-25',
+    phase: 'N4.4 prototype',
+    changed: [
+      'District 1 only, to test: the place names (Zinc Wreck, Mirror Canal...) are now real enamel street plates, with rounded corners, a white border, condensed lettering, chipped enamel over rusty iron, rust run down from the bolts, grime along the bottom and a sun-bleached top. They hang a little off the wall on modelled bolts, or are clamped to round steel posts at park gates. They no longer glow, and never cover a door, a shop window, a downpipe, a lamp or an awning.',
+      'District 1 only: coins are minted metal with their value struck large on both faces, a raised rim, a beaded ring, "CITY · TOKEN" round the top and a reeded edge. Copper 1, nickel 2, brass 5, and a bimetallic 10 with a violet core. Polished where the relief stands up, darker in the recesses.',
+      'District 1 only: when a key or the portal is behind you or beside you, its marker stays on screen, held at the left or right edge on the side you would turn to face it, with an arrow and its distance.',
+      'All model-kit districts: neighbouring puddles run together into one uneven sheet instead of a row of separate pools.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R) and play district 1. Walk to a park gate and read its sign; find a coin and look at both faces; turn your back on a key and watch the screen edges.',
+    ],
+    unverified: [
+      'The plates use fonts on this Mac ("DIN Condensed"); another computer without it shows the nearest condensed sans-serif. District 1 has no 10-coin; the 10 was checked on a test coin.',
+      'Frame time unchanged at 1080p (High 22 ms at the start square, 19-21 ms in the streets).',
+    ],
+  },
+  {
     build: 43,
     date: '2026-11-25',
     phase: 'N4.4 prototype',

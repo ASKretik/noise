@@ -3525,11 +3525,56 @@ That is about 1 ms over 1K; compressed 2K costs little.
 - no real global illumination (the bounce is a hemisphere colour);
 - a weaker laptop.
 
+## R74 · Signs, coins and edge markers in district 1 (3D build 44)
+
+**Asked**, district 1 first:
+
+1. "the signboards, which have the names of the places are not looking good (like zinc
+   wreck, mirror canal, etc.) i want you to make them also very realistic just like the
+   buildings";
+2. "when i dont look in the direction of the key, i want the key marker … to show at the
+   right or the left side of the screen … if i turn my back on a key, I dont see the key
+   markers and I have to search for it";
+3. "make the coin with their numeric value in them. also make the coins look more
+   realistic like the rest of the game graphic".
+
+**Built** (spec-3d.md, "District 1's signs, coins and edge markers"):
+
+- **Signs** are vitreous enamel street plates on bolts or steel posts, drawn at twice the
+  old resolution with colour, relief and roughness maps and seeded wear.
+- **Coins** are struck metal with the value on both faces, in the same four value colours.
+- **Edge markers.** An off-screen key or portal is held at the side you would turn to.
+  The three features are gated by `proto` in RUST's style, so the other districts are
+  unchanged until approved.
+
+**What the browser showed:**
+
+- **Downpipes.** The first plate ("ANCHOR COURTS") had a downpipe running through it, and
+  plates could cover doors. The kit builder now records which wall faces carry doors,
+  tall glazing, garage doors, pipes, lamps, awnings or hedges; signs skip those, and are
+  built after the buildings so they can see them.
+- **Bands and copings.** Plates sank into the brick kit's 10 cm band and behind yard-wall
+  copings. Off the wall by 12.5 cm on kit fronts, below the coping on yard walls.
+- **Blocked plates.** A raycast from in front of each plate: 2 of 47 still clip a leaf
+  card or an awning's edge.
+- **Coin faces.** The "5" lay on its side: a stood-up cylinder's cap UVs run sideways.
+  The faces are re-mapped flat, and mirrored on the back so the value is not reversed.
+- **Pale coins.** The 2 and the 10 washed out in their own glow. Weaker glow on the pale
+  metals, a darker nickel, and a frosted field with polished relief made all four values
+  readable on a test row (the district has no 10).
+- **Puddles.** Cover cells side by side read as rows of discs; each puddle now nearly
+  fills its cell.
+
+**Measured:** frame time unchanged (1080p High, 22 ms at the start square).
+
+**Not done:** the other districts; the font is the system's ("DIN Condensed" on this
+Mac).
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 43; 3D-1 via the
+npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 44; 3D-1 via the
                   2D suites above, run alongside)
 ```

@@ -597,12 +597,11 @@ export function buildWorld(level, { cellM, shadows = false, kit = null }) {
     heightAt, skip: (x, y) => { const t = lookAt(x, y)?.type; return t === 'park' || t === 'plaza' || !!plan?.at(x, y); },
   })) group.add(prop);
   // ---- N4.2: every place's name at its gates, and the wall art on the street walls
-  if (looks) for (const m of buildSigns(level, { cellM, seed, art, lookAt, heightAt, track, wallArt: !plan })) group.add(m);
   // ---- N4.3: a centrepiece on every plaza, and one skyline landmark per district
   if (looks) for (const m of buildLandmarks(level, { cellM, seed, art, looks, heightAt, track })) group.add(m);
   // ---- N4.4 prototype: the detail layer (art/hd.js) and the lamps the torch scene lights
   pal.hdLamps = [];
-  let obstacles = [];
+  let obstacles = [], faceUse = null;
   if (art.hd && looks) {
     const hd = buildHD(level, { cellM, seed, art, lookAt, heightAt, doorAt, track, skip: (x, y) => !!plan?.at(x, y), kit: useKit });
     if (plan && useKit) {
@@ -610,10 +609,15 @@ export function buildWorld(level, { cellM, shadows = false, kit = null }) {
       for (const m of kb.meshes) group.add(m);
       pal.hdLamps = kb.lamps;
       obstacles = kb.obstacles;
+      faceUse = kb.faceUse;
     } else if (plan) for (const m of buildBuildings(plan, { map, cellM, seed, heightAt: baseHeight, track })) group.add(m);
     for (const m of hd.meshes) group.add(m);
     if (!useKit) pal.hdLamps = hd.lamps;
   }
+
+  // ---- place-name signs (after the buildings: build 44's real plates keep off the kit's
+  // doors, tall glazing, downpipes and hedges)
+  if (looks) for (const m of buildSigns(level, { cellM, seed, art, lookAt, heightAt, track, wallArt: !plan, real: !!art.hd?.proto?.signs, faceBusy: faceUse ? (x, y, dx, dy) => faceUse.has(`${x},${y},${dx},${dy}`) : null })) group.add(m);
 
   // ---- cut every instanced layer into chunks (N8.4)
   // (a few small layers -- containers, tree crowns -- cost less drawn whole: one call each)
@@ -791,12 +795,15 @@ function puddleShape(seed) {
   const g = cv.getContext('2d');
   const r = new Rng(seed, 'puddle');
   g.fillStyle = '#000'; g.fillRect(0, 0, n, n);
-  g.filter = 'blur(6px)';
+  g.filter = 'blur(5px)';
   g.fillStyle = '#fff';
-  for (let i = 0; i < 9; i++) {
-    const a = r.float() * 6.283, d = r.float() * n * 0.16;
+  // nearly the whole cell, so neighbouring water cells run together into one sheet; the
+  // edge is uneven where it frays
+  g.fillRect(n * 0.1, n * 0.1, n * 0.8, n * 0.8);
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * 6.283 + r.float() * 0.4, d = n * (0.3 + r.float() * 0.12);
     g.beginPath();
-    g.ellipse(n / 2 + Math.cos(a) * d, n / 2 + Math.sin(a) * d, n * (0.2 + r.float() * 0.16), n * (0.16 + r.float() * 0.14), r.float() * 3.14, 0, 6.283);
+    g.ellipse(n / 2 + Math.cos(a) * d, n / 2 + Math.sin(a) * d, n * (0.12 + r.float() * 0.1), n * (0.1 + r.float() * 0.08), r.float() * 3.14, 0, 6.283);
     g.fill();
   }
   const t = new THREE.CanvasTexture(cv);

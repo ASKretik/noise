@@ -385,11 +385,33 @@ export class Hud3D {
     this.compassTrack.innerHTML = marks.join('');
 
     // ---- waypoints over keys and the portal, through walls (the 2D player sees them)
+    // Build 44, at the user's request: with `edgeMarkers`, a key or the portal that is off
+    // the screen -- behind you, or beside you -- stays on it, held at the left or right edge
+    // on the side you would turn to face it, with an arrow and its distance.
     const v = new THREE.Vector3();
+    const camF = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)), camR = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
     const way = (x, y, h, color, label) => {
-      v.set((x + 0.5) * cellM, h, (y + 0.5) * cellM).project(camera);
+      const wx = (x + 0.5) * cellM, wz = (y + 0.5) * cellM;
+      v.set(wx, h, wz).project(camera);
+      let sx = (v.x + 1) / 2 * W, sy = (1 - v.y) / 2 * H;
+      const behind = v.z > 1, off = behind || sx < 0 || sx > W;
+      if (f.edgeMarkers && off) {
+        const rx = wx - camera.position.x, rz = wz - camera.position.z;
+        const side = rx * camR.x + rz * camR.z >= 0 ? 1 : -1;   // turn right, or left
+        sx = side > 0 ? W - 30 : 30;
+        sy = behind ? H * 0.5 : Math.max(70, Math.min(H - 90, sy));
+        o.save();
+        o.translate(sx, sy);
+        o.fillStyle = color; o.strokeStyle = 'rgba(0,0,0,0.75)'; o.lineWidth = 2;
+        o.beginPath(); o.moveTo(0, -9); o.lineTo(8, 0); o.lineTo(0, 9); o.lineTo(-8, 0); o.closePath(); o.stroke(); o.fill();
+        // the arrow: pointing off the edge, the way to turn
+        o.beginPath(); o.moveTo(side * 14, -7); o.lineTo(side * 22, 0); o.lineTo(side * 14, 7); o.closePath(); o.stroke(); o.fill();
+        o.font = '600 11px ui-monospace, Menlo, monospace'; o.textAlign = side > 0 ? 'right' : 'left';
+        o.lineWidth = 3; o.strokeText(label, side * -2, 24); o.fillText(label, side * -2, 24);
+        o.restore();
+        return;
+      }
       if (v.z > 1) return;
-      const sx = (v.x + 1) / 2 * W, sy = (1 - v.y) / 2 * H;
       if (sx < -40 || sx > W + 40 || sy < -40 || sy > H + 40) return;
       o.save();
       o.translate(sx, sy);

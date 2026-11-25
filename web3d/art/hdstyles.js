@@ -49,6 +49,9 @@ export const HD_STYLES = Object.freeze({
     // patches) and keeping a little of the plaster photo's own colour; a warm bounce from
     // the street into the shade
     res: '2k', weathering: 1,
+    // build 44, also district 1 first: real enamel street plates, minted coins with their
+    // value, and key and portal markers held at the screen's edge when they are behind you
+    proto: { signs: true, coins: true, edgeMarkers: true },
     sky: { photo: 'belfast_sunset_sky_4k.jpg', env: 'belfast_sunset_puresky_1k.hdr', gain: 1 / 0.09, dim: 0.55, haze: '#56545c', drift: 0.0003 },
     sun: { dir: [0.79, 0.09, 0.61], color: '#ffb27a', intensity: 2.2, shadow: true },
     env: 0.55,

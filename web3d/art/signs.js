@@ -90,6 +90,211 @@ function signAtlas(entries) {
   return { cv, rows, tile(k) { const u0 = (k % SIGN_COLS) / SIGN_COLS, row = Math.floor(k / SIGN_COLS); const v1 = 1 - row / rows; return [u0 + 0.5 / cv.width, v1 - 1 / rows + 0.5 / cv.height, u0 + 1 / SIGN_COLS - 0.5 / cv.width, v1 - 0.5 / cv.height]; } };
 }
 
+// ------------------------------------------------------------------ real plates (build 44)
+
+const RP_W = 512, RP_H = 128, RP_COLS = 4;
+
+/**
+ * Build 44, at the user's request ("make the signboards very realistic, just like the
+ * buildings"): vitreous enamel street plates, as cities hung them for a century -- a
+ * coloured ground, a white border and condensed white lettering, rounded corners, four
+ * fixing holes. And the years: the enamel chipped to black iron, mostly at the edges and
+ * round the bolts, each chip with a rust halo; rust run down from the fixings; city grime
+ * gathered along the bottom edge; the top bleached; fine scratches. Three maps per plate:
+ * colour (alpha cuts the corners), surface relief (the folded rim, raised bolts, chips as
+ * pits, a slight warp), and roughness (glossy enamel, rough rust and dirt).
+ */
+function realPlates(entries) {
+  const rows = Math.max(1, Math.ceil(entries.length / RP_COLS));
+  const W = RP_W * RP_COLS, H = RP_H * rows;
+  const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return [c, c.getContext('2d')]; };
+  const [colCv, g] = mk(), [hCv, hg] = mk(), [rCv, rg] = mk();
+  hg.fillStyle = '#808080'; hg.fillRect(0, 0, W, H);
+  rg.fillStyle = '#383838'; rg.fillRect(0, 0, W, H);     // enamel: glossy (roughness ~0.22)
+  const rr = (c, x, y, w, h, rad) => { c.beginPath(); c.moveTo(x + rad, y); c.arcTo(x + w, y, x + w, y + h, rad); c.arcTo(x + w, y + h, x, y + h, rad); c.arcTo(x, y + h, x, y, rad); c.arcTo(x, y, x + w, y, rad); c.closePath(); };
+  const FONT = (px) => `bold ${px}px "DIN Condensed", "Avenir Next Condensed", "Arial Narrow", "Helvetica Neue", sans-serif`;
+  entries.forEach((en, i) => {
+    const x0 = (i % RP_COLS) * RP_W, y0 = Math.floor(i / RP_COLS) * RP_H;
+    const r = new Rng(hashString(`realplate:${en.text}`), 'plate');
+    const wear = 0.35 + r.float() * 0.65;
+    g.save(); hg.save(); rg.save();
+    g.beginPath(); g.rect(x0, y0, RP_W, RP_H); g.clip();
+    hg.beginPath(); hg.rect(x0, y0, RP_W, RP_H); hg.clip();
+    rg.beginPath(); rg.rect(x0, y0, RP_W, RP_H); rg.clip();
+    // the plate: enamel ground with a slight mottle, rounded corners (alpha)
+    g.clearRect(x0, y0, RP_W, RP_H);
+    rr(g, x0 + 2, y0 + 2, RP_W - 4, RP_H - 4, 14); g.fillStyle = en.plate; g.fill();
+    for (let k = 0; k < 60; k++) { g.fillStyle = `rgba(${r.bool(0.5) ? '255,255,255' : '0,0,0'},${0.015 + r.float() * 0.03})`; g.beginPath(); g.ellipse(x0 + r.float() * RP_W, y0 + r.float() * RP_H, 10 + r.float() * 40, 6 + r.float() * 20, r.float() * 3, 0, 6.283); g.fill(); }
+    // the folded rim: raised in the relief, a darker edge in colour
+    rr(hg, x0 + 2, y0 + 2, RP_W - 4, RP_H - 4, 14); hg.lineWidth = 7; hg.strokeStyle = '#b0b0b0'; hg.stroke();
+    rr(g, x0 + 4, y0 + 4, RP_W - 8, RP_H - 8, 12); g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,0.35)'; g.stroke();
+    // the white border and the name
+    const ink = SIGN_COLOURS.lettering;
+    rr(g, x0 + 13, y0 + 13, RP_W - 26, RP_H - 26, 8); g.lineWidth = 4; g.strokeStyle = ink; g.stroke();
+    let size = en.sub ? 50 : 64;
+    g.font = FONT(size);
+    while (g.measureText(en.text).width > RP_W - 92 && size > 24) { size -= 2; g.font = FONT(size); }
+    g.fillStyle = ink; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(en.text, x0 + RP_W / 2, y0 + (en.sub ? RP_H * 0.4 : RP_H / 2 + 3));
+    if (en.sub) { g.font = FONT(22); g.fillText(en.sub, x0 + RP_W / 2, y0 + RP_H * 0.76); }
+    // fixing holes and bolt heads (the bolts themselves are modelled)
+    const holes = [[26, 26], [RP_W - 26, 26], [26, RP_H - 26], [RP_W - 26, RP_H - 26]];
+    // rust run down from each fixing
+    for (const [hx, hy] of holes) {
+      if (!r.bool(0.35 + wear * 0.55)) continue;
+      const len = 20 + r.float() * 70 * wear;
+      const grd = g.createLinearGradient(0, y0 + hy, 0, y0 + hy + len);
+      grd.addColorStop(0, `rgba(96,48,22,${0.55 * wear})`); grd.addColorStop(1, 'rgba(96,48,22,0)');
+      g.fillStyle = grd;
+      for (let k = 0; k < 3; k++) g.fillRect(x0 + hx - 4 + r.float() * 8 - 3, y0 + hy, 2 + r.float() * 4, len * (0.5 + r.float() * 0.5));
+      rg.fillStyle = 'rgba(200,200,200,0.5)'; rg.fillRect(x0 + hx - 5, y0 + hy, 10, len * 0.7);
+    }
+    // chips in the enamel: black iron with a rust halo; most at the edges and round the holes
+    const nChips = Math.round(4 + wear * 22);
+    for (let k = 0; k < nChips; k++) {
+      let cx, cy;
+      const pick = r.float();
+      if (pick < 0.5) { const e = r.int(4); cx = e === 0 ? 6 + r.float() * 14 : e === 1 ? RP_W - 6 - r.float() * 14 : r.float() * RP_W; cy = e === 2 ? 6 + r.float() * 12 : e === 3 ? RP_H - 6 - r.float() * 12 : r.float() * RP_H; }
+      else if (pick < 0.75) { const [hx, hy] = holes[r.int(4)]; cx = hx + (r.float() - 0.5) * 26; cy = hy + (r.float() - 0.5) * 22; }
+      else { cx = 20 + r.float() * (RP_W - 40); cy = 20 + r.float() * (RP_H - 40); }
+      const rad = 2 + r.float() * (5 + wear * 9);
+      const poly = (c, scale, fill) => {
+        c.beginPath();
+        const n = 6 + r.int(4);
+        for (let j = 0; j < n; j++) { const a = (j / n) * 6.283, d = rad * scale * (0.55 + r.float() * 0.6); const px = x0 + cx + Math.cos(a) * d, py = y0 + cy + Math.sin(a) * d * 0.8; if (j) c.lineTo(px, py); else c.moveTo(px, py); }
+        c.closePath(); c.fillStyle = fill; c.fill();
+      };
+      poly(g, 1.5, 'rgba(110,56,24,0.55)');     // the rust halo under the enamel's edge
+      poly(g, 1.0, '#1b1714');                   // bare iron
+      poly(hg, 1.05, '#5a5a5a');                 // a pit in the relief
+      poly(rg, 1.3, '#d8d8d8');                  // rough
+    }
+    // scratches
+    for (let k = 0; k < 6 + wear * 10; k++) {
+      const sx = x0 + r.float() * RP_W, sy = y0 + r.float() * RP_H, a = (r.float() - 0.5) * 0.8, l = 10 + r.float() * 40;
+      g.strokeStyle = `rgba(255,255,255,${0.06 + r.float() * 0.08})`; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx + Math.cos(a) * l, sy + Math.sin(a) * l); g.stroke();
+    }
+    // grime gathered along the bottom, the top bleached by the sun
+    let grd = g.createLinearGradient(0, y0 + RP_H * 0.55, 0, y0 + RP_H);
+    grd.addColorStop(0, 'rgba(40,34,26,0)'); grd.addColorStop(1, `rgba(40,34,26,${0.25 + wear * 0.35})`);
+    g.fillStyle = grd; g.fillRect(x0, y0, RP_W, RP_H);
+    grd = g.createLinearGradient(0, y0, 0, y0 + RP_H * 0.45);
+    grd.addColorStop(0, `rgba(255,255,255,${0.05 + wear * 0.07})`); grd.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grd; g.fillRect(x0, y0, RP_W, RP_H);
+    grd = rg.createLinearGradient(0, y0 + RP_H * 0.6, 0, y0 + RP_H);
+    grd.addColorStop(0, 'rgba(160,160,160,0)'); grd.addColorStop(1, 'rgba(160,160,160,0.6)');
+    rg.fillStyle = grd; rg.fillRect(x0, y0, RP_W, RP_H);
+    // a slight warp: the plate is not quite flat any more
+    grd = hg.createLinearGradient(x0, 0, x0 + RP_W, 0);
+    const bend = (r.float() - 0.5) * 30;
+    grd.addColorStop(0, `rgba(${128 + bend},${128 + bend},${128 + bend},0.3)`); grd.addColorStop(1, `rgba(${128 - bend},${128 - bend},${128 - bend},0.3)`);
+    hg.fillStyle = grd; hg.fillRect(x0 + 8, y0 + 8, RP_W - 16, RP_H - 16);
+    for (const [hx, hy] of holes) { hg.fillStyle = '#e0e0e0'; hg.beginPath(); hg.arc(x0 + hx, y0 + hy, 7, 0, 6.283); hg.fill(); }
+    g.restore(); hg.restore(); rg.restore();
+    en.holes = holes.map(([hx, hy]) => [hx / RP_W, hy / RP_H]);
+  });
+  // the relief as a normal map
+  const hd = hg.getImageData(0, 0, W, H).data, nCv = document.createElement('canvas');
+  nCv.width = W; nCv.height = H;
+  const ng = nCv.getContext('2d'), nd = ng.createImageData(W, H);
+  const hAt = (x, y) => hd[((Math.min(H - 1, Math.max(0, y)) * W) + Math.min(W - 1, Math.max(0, x))) * 4] / 255;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const dx = (hAt(x + 1, y) - hAt(x - 1, y)) * 3.2, dy = (hAt(x, y + 1) - hAt(x, y - 1)) * 3.2;
+    const l = Math.hypot(dx, dy, 1), i = (y * W + x) * 4;
+    nd.data[i] = (-dx / l * 0.5 + 0.5) * 255; nd.data[i + 1] = (dy / l * 0.5 + 0.5) * 255; nd.data[i + 2] = (1 / l * 0.5 + 0.5) * 255; nd.data[i + 3] = 255;
+  }
+  ng.putImageData(nd, 0, 0);
+  return {
+    colCv, nCv, rCv, rows,
+    tile(k) { const u0 = (k % RP_COLS) / RP_COLS, row = Math.floor(k / RP_COLS); const v1 = 1 - row / rows; return [u0 + 0.5 / W, v1 - 1 / rows + 0.5 / H, u0 + 1 / RP_COLS - 0.5 / W, v1 - 0.5 / H]; },
+  };
+}
+
+/**
+ * The same interface as quadBuffer (add, post, count), for the real plates: each plate
+ * a front and a back face a little off the wall, four modelled bolt heads, and posts as
+ * round steel tubes with a cap and two clamps.
+ */
+function realBuffer() {
+  const plates = quadBuffer(), backs = quadBuffer();
+  const metal = { pos: [], nrm: [], idx: [] };
+  const cyl = (x, y, z, rad, h, ax, segs = 10) => {
+    // an upright (ax 'y') or wall-facing (ax {x, z}) cylinder, capped at the outer end
+    const b = metal.pos.length / 3;
+    const up = ax === 'y' ? [0, 1, 0] : [ax.x, 0, ax.z];
+    const u = ax === 'y' ? [1, 0, 0] : [-ax.z, 0, ax.x], w = ax === 'y' ? [0, 0, 1] : [0, 1, 0];
+    for (let i = 0; i <= segs; i++) {
+      const a = (i / segs) * Math.PI * 2, c = Math.cos(a), s = Math.sin(a);
+      const n = [u[0] * c + w[0] * s, u[1] * c + w[1] * s, u[2] * c + w[2] * s];
+      for (const t of [0, h]) { metal.pos.push(x + n[0] * rad + up[0] * t, y + n[1] * rad + up[1] * t, z + n[2] * rad + up[2] * t); metal.nrm.push(...n); }
+    }
+    for (let i = 0; i < segs; i++) { const a = b + i * 2; metal.idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+    const cb = metal.pos.length / 3;
+    metal.pos.push(x + up[0] * h, y + up[1] * h, z + up[2] * h); metal.nrm.push(...up);
+    for (let i = 0; i <= segs; i++) { const a = (i / segs) * Math.PI * 2, c = Math.cos(a), s = Math.sin(a); metal.pos.push(x + (u[0] * c + w[0] * s) * rad + up[0] * h, y + (u[1] * c + w[1] * s) * rad + up[1] * h, z + (u[2] * c + w[2] * s) * rad + up[2] * h); metal.nrm.push(...up); }
+    for (let i = 0; i < segs; i++) metal.idx.push(cb, cb + 1 + i, cb + 2 + i);
+  };
+  const boxM = (x, y, z, sx, sy, sz) => {
+    for (const [n, a, b2] of [[[1, 0, 0], [0, 1, 0], [0, 0, 1]], [[-1, 0, 0], [0, 1, 0], [0, 0, -1]], [[0, 0, 1], [0, 1, 0], [-1, 0, 0]], [[0, 0, -1], [0, 1, 0], [1, 0, 0]], [[0, 1, 0], [0, 0, 1], [1, 0, 0]]]) {
+      const b = metal.pos.length / 3;
+      const c = [x + n[0] * sx / 2, y + n[1] * sy / 2, z + n[2] * sz / 2];
+      const ha = [a[0] * sx / 2, a[1] * sy / 2, a[2] * sz / 2], hb = [b2[0] * sx / 2, b2[1] * sy / 2, b2[2] * sz / 2];
+      for (const [p, q2] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { metal.pos.push(c[0] + ha[0] * p + hb[0] * q2, c[1] + ha[1] * p + hb[1] * q2, c[2] + ha[2] * p + hb[2] * q2); metal.nrm.push(...n); }
+      metal.idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+    }
+  };
+  let count = 0;
+  return {
+    standOff: 0.028,
+    add(c, n, w, h, uv, holes = [[0.05, 0.2], [0.95, 0.2], [0.05, 0.8], [0.95, 0.8]]) {
+      // standing off the wall on its bolts, so it throws a shadow -- on a model-kit front
+      // far enough to clear the band it hangs on (the brick kit's projects 10 cm)
+      const out = this.standOff;
+      const cc = { x: c.x + n.x * out, y: c.y, z: c.z + n.z * out };
+      plates.add(cc, n, w, h, uv);
+      // the back: plain iron, facing the wall (seen from the side, or on a post)
+      backs.add({ x: cc.x - n.x * 0.004, y: cc.y, z: cc.z - n.z * 0.004 }, { x: -n.x, z: -n.z }, w, h, uv);
+      const rx = n.z, rz = -n.x;
+      for (const [hx, hy] of holes) {
+        const px = cc.x + rx * (hx - 0.5) * w, py = cc.y + (0.5 - hy) * h, pz = cc.z + rz * (hx - 0.5) * w;
+        cyl(px - n.x * out, py, pz - n.z * out, 0.006, out + 0.006, n, 6);    // the bolt
+        cyl(px, py, pz, 0.014, 0.008, n, 8);                                   // its head
+      }
+      count++;
+    },
+    post(x, z, wP, hP) {
+      cyl(x, 0, z, 0.038, hP, 'y', 14);
+      cyl(x, hP, z, 0.045, 0.02, 'y', 14);                      // the cap
+      cyl(x, 0, z, 0.06, 0.12, 'y', 14);                        // a collar at the foot
+      for (const y of [2.12, 2.44]) boxM(x, y, z, 0.11, 0.035, 0.11);   // clamps for the plate
+      count++;
+    },
+    get count() { return count; },
+    meshes(atlas, track) {
+      const L = (cv, srgb) => { const t = track(new THREE.CanvasTexture(cv)); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
+      const map = L(atlas.colCv, true), normalMap = L(atlas.nCv, false), roughnessMap = L(atlas.rCv, false);
+      const out = [];
+      const front = new THREE.Mesh(track(plates.geometry()), track(new THREE.MeshStandardMaterial({
+        map, normalMap, roughnessMap, roughness: 1, metalness: 0.05, alphaTest: 0.5, normalScale: new THREE.Vector2(1.2, 1.2),
+      })));
+      front.name = 'signs'; front.castShadow = true; front.receiveShadow = true;
+      // (the colour map only for its alpha: the same rounded corners; darkened to iron)
+      const back = new THREE.Mesh(track(backs.geometry()), track(new THREE.MeshStandardMaterial({ map, color: '#2e2a26', alphaTest: 0.5, roughness: 0.8, metalness: 0.5 })));
+      back.castShadow = true; back.receiveShadow = true;
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(metal.pos, 3));
+      g.setAttribute('normal', new THREE.Float32BufferAttribute(metal.nrm, 3));
+      g.setIndex(metal.idx);
+      g.computeBoundingSphere();
+      const steel = new THREE.Mesh(track(g), track(new THREE.MeshStandardMaterial({ color: '#3b3d3f', roughness: 0.55, metalness: 0.75 })));
+      steel.name = 'sign-steel'; steel.castShadow = true; steel.receiveShadow = true;
+      out.push(front, back, steel);
+      return out;
+    },
+  };
+}
+
 /** How high a name plate sits on each kind of place's walls, in metres (its centre). */
 const SIGN_Y = { tenements: 2.45, market: 2.85, depot: 3.7, yards: 2.4, park: 2.3, ruins: 2.2, plaza: 2.3, canal: 2.3 };
 
@@ -186,7 +391,7 @@ const KIND_TILES = { poster: [0, 16], graffiti: [16, 36], stencil: [36, 48], war
  * @param {object} o       { cellM, seed, art, lookAt(x, y), heightAt(x, y), track }
  * @returns {THREE.Object3D[]}
  */
-export function buildSigns(level, { cellM, seed, art, lookAt, heightAt, track, wallArt = true }) {
+export function buildSigns(level, { cellM, seed, art, lookAt, heightAt, track, wallArt = true, real = false, faceBusy = null }) {
   const { map } = level;
   const places = level.places || [];
   const out = [];
@@ -200,12 +405,17 @@ export function buildSigns(level, { cellM, seed, art, lookAt, heightAt, track, w
   // ---- signs: at the gates
   const avenues = level.avenues || [];
   if (places.length) {
-    const atlas = signAtlas([
+    const entries = [
       ...places.map((pl) => ({ text: pl.name.toUpperCase(), plate: SIGN_COLOURS[pl.type] || SIGN_COLOURS.yards })),
       ...avenues.map((av) => ({ text: av.name.toUpperCase(), sub: `DISTRICT ${level.level}`, plate: SIGN_COLOURS.canal })),
-    ]);
-    const q = quadBuffer();
-    const post = atlas.tile(0);
+    ];
+    // build 44: real enamel plates (realPlates) where the style asks; tile k of the drawn
+    // atlas is k + 1 (tile 0 is its post colour), of the real one k
+    const atlas = real ? realPlates(entries) : signAtlas(entries);
+    const tileOf = (k) => atlas.tile(real ? k - 1 : k);
+    const q = real ? realBuffer() : quadBuffer();
+    if (real && faceBusy) q.standOff = 0.125;
+    const post = real ? [0, 0, 0, 0] : atlas.tile(0);
     places.forEach((pl, i) => {
       const r = new Rng(hashString(`${seed}:sign:${pl.id}`), 'sign');
       // every opening in the place's edge onto the outside: an edge cell that is open,
@@ -218,7 +428,7 @@ export function buildSigns(level, { cellM, seed, art, lookAt, heightAt, track, w
           // a wall cell along the edge, beside the gate, to hang the plate on
           for (const s of [-1, 1]) {
             const wx = x + -dy * s, wy = y + dx * s;
-            if (inside(pl, wx, wy) && tileAt(wx, wy) === TILE.WALL && open(wx + dx, wy + dy)) gates.push({ wx, wy, dx, dy, side: `${dx},${dy}` });
+            if (inside(pl, wx, wy) && tileAt(wx, wy) === TILE.WALL && open(wx + dx, wy + dy) && !faceBusy?.(wx, wy, dx, dy)) gates.push({ wx, wy, dx, dy, side: `${dx},${dy}` });
           }
           gates.push({ px: x, py: y, dx, dy, side: `${dx},${dy}` });
         }
@@ -230,25 +440,29 @@ export function buildSigns(level, { cellM, seed, art, lookAt, heightAt, track, w
         sides.add(gt.side); chosen.push(gt);
         if (chosen.length === 2) break;
       }
-      const uv = atlas.tile(i + 1);
+      const uv = tileOf(i + 1);
       for (const gt of chosen) {
         const n = { x: gt.dx, z: gt.dy };
         if (gt.wx !== undefined) {
-          const y = Math.min(SIGN_Y[pl.type] || 2.4, heightAt(gt.wx, gt.wy) - 0.35);
+          // (real plates on the model kit's fronts sit on the band over the ground floor)
+          // (and on a yard wall, below its coping)
+          const top = heightAt(gt.wx, gt.wy);
+          const y = real && faceBusy ? (top < 3.4 ? top - 0.62 : 2.76) : Math.min(SIGN_Y[pl.type] || 2.4, top - 0.35);
           q.add(faceCentre(gt.wx, gt.wy, gt.dx, gt.dy, 0, y), n, 1.3, 0.325, uv);
         } else {
           // an open place: a plate on a post at the edge of the gate cell, both faces
           const px = (gt.px + 0.5 + gt.dx * 0.42) * cellM, pz = (gt.py + 0.5 + gt.dy * 0.42) * cellM;
           const along = { x: -gt.dy, z: gt.dx };
           q.post(px, pz, 0.07, 2.65, [(post[0] + post[2]) / 2, (post[1] + post[3]) / 2]);
-          q.add({ x: px + along.x * 0.04, y: 2.3, z: pz + along.z * 0.04 }, along, 1.1, 0.275, uv);
-          q.add({ x: px - along.x * 0.04, y: 2.3, z: pz - along.z * 0.04 }, { x: -along.x, z: -along.z }, 1.1, 0.275, uv);
+          const off = real ? 0.02 : 0.04;
+          q.add({ x: px + along.x * off, y: 2.3, z: pz + along.z * off }, along, 1.1, 0.275, uv);
+          q.add({ x: px - along.x * off, y: 2.3, z: pz - along.z * off }, { x: -along.x, z: -along.z }, 1.1, 0.275, uv);
         }
       }
     });
     // N4.3: every avenue's name, with the district's number, on the walls along it
     avenues.forEach((av, j) => {
-      const uv = atlas.tile(places.length + 1 + j);
+      const uv = tileOf(places.length + 1 + j);
       const len = av.axis === 'x' ? map.h : map.w;
       for (let t = 6, side = 0; t < len - 3; t += 18, side ^= 1) {
         for (const s2 of [side, side ^ 1]) {
@@ -256,13 +470,15 @@ export function buildSigns(level, { cellM, seed, art, lookAt, heightAt, track, w
           const wx = av.axis === 'x' ? (s2 ? av.at + av.w : av.at - 1) : t;
           const wy = av.axis === 'x' ? t : (s2 ? av.at + av.w : av.at - 1);
           const dx = av.axis === 'x' ? (s2 ? -1 : 1) : 0, dy = av.axis === 'x' ? 0 : (s2 ? -1 : 1);
-          if (tileAt(wx, wy) !== TILE.WALL || !open(wx + dx, wy + dy)) continue;
-          q.add(faceCentre(wx, wy, dx, dy, 0, Math.min(2.95, heightAt(wx, wy) - 0.3)), { x: dx, z: dy }, 1.2, 0.3, uv);
+          if (tileAt(wx, wy) !== TILE.WALL || !open(wx + dx, wy + dy) || faceBusy?.(wx, wy, dx, dy)) continue;
+          const top = heightAt(wx, wy);
+          q.add(faceCentre(wx, wy, dx, dy, 0, real && faceBusy ? (top < 3.4 ? top - 0.62 : 2.76) : Math.min(2.95, top - 0.3)), { x: dx, z: dy }, 1.2, 0.3, uv);
           break;
         }
       }
     });
-    if (q.count) {
+    if (q.count && real) out.push(...q.meshes(atlas, track));
+    else if (q.count) {
       const tex = track(new THREE.CanvasTexture(atlas.cv));
       tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
       const mesh = new THREE.Mesh(track(q.geometry()), track(new THREE.MeshStandardMaterial({

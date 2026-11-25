@@ -15,6 +15,7 @@ import { COLORS } from '../web/render.js';
 import { euclid } from '../sim/grid.js';
 import { AlienKit, MAX_ALIENS, twitchOffset } from './alien.js';
 import { speciesFor } from './species.js';
+import { artFor } from './art/belts.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -43,6 +44,8 @@ function boltShape() {
 
 export class Entities {
   constructor(scene, { cellM, district = 1 }) {
+    // build 44: a district whose style asks for them gets minted coins (mintedCoin)
+    this.realCoins = !!artFor(district)?.hd?.proto?.coins;
     this.scene = scene;
     this.cellM = cellM;
     this.group = new THREE.Group();
@@ -116,13 +119,15 @@ export class Entities {
     // Coins are instanced by value: a district-10 floor carries thirty or more, and one
     // draw call each (plus a halo) was most of the frame's draw calls. Only the 5s and 10s
     // keep a halo -- worth is still readable from colour and size alone.
-    const coinGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.045, 24).rotateX(Math.PI / 2);
+    const coinGeo = this.realCoins ? mintedCoinGeometry()
+      : new THREE.CylinderGeometry(0.24, 0.24, 0.045, 24).rotateX(Math.PI / 2);
     this.coinSets = [];
     const byValue = new Map();
     for (const k of game.coins) (byValue.get(k.value) || byValue.set(k.value, []).get(k.value)).push(k);
     for (const [value, list] of byValue) {
       const color = COLORS[`coin${value}`] || COLORS.coin1;
-      const mat = new THREE.MeshStandardMaterial({ color, metalness: 0.8, roughness: 0.3, emissive: new THREE.Color(color).multiplyScalar(0.22) });
+      const mat = this.realCoins ? mintedCoin(value, color)
+        : new THREE.MeshStandardMaterial({ color, metalness: 0.8, roughness: 0.3, emissive: new THREE.Color(color).multiplyScalar(0.22) });
       const mesh = new THREE.InstancedMesh(coinGeo, mat, list.length);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.frustumCulled = false;
@@ -403,4 +408,114 @@ export class Entities {
   alienVoices() {
     return [...this.vis.entries()].map(([id, a]) => ({ id, x: (a.x + 0.5) * this.cellM, z: (a.y + 0.5) * this.cellM, inert: a.stun > 0.5 }));
   }
+}
+
+// ------------------------------------------------------------------ minted coins (build 44)
+
+/**
+ * The coin standing on its edge, faces toward +-z. A cylinder's cap UVs run sideways once
+ * it is stood up, so the faces are re-mapped flat: the value reads upright from the front,
+ * and from the back too (mirrored there, so it is not reversed).
+ */
+function mintedCoinGeometry() {
+  const R = 0.24, g = new THREE.CylinderGeometry(R, R, 0.045, 48).rotateX(Math.PI / 2);
+  const P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv;
+  for (let i = 0; i < P.count; i++) {
+    const nz = N.getZ(i);
+    if (Math.abs(nz) < 0.9) continue;
+    U.setXY(i, (nz > 0 ? P.getX(i) : -P.getX(i)) / (2 * R) + 0.5, P.getY(i) / (2 * R) + 0.5);
+  }
+  U.needsUpdate = true;
+  return g;
+}
+
+const coinCache = new Map();
+/**
+ * Build 44, at the user's request: a coin you could pick out of a gutter. Its value
+ * struck large on both faces, a raised rim and a beaded ring, a reeded edge; struck in its
+ * value's metal -- copper 1, nickel 2, brass 5, and the 10 bimetallic, a violet core in a
+ * nickel ring -- so the colours that tell value from value stay what they were. Worn:
+ * polished where a thumb rubs, dark in the recesses. Returns [edge, face, face] for the
+ * cylinder's groups (side, top, bottom); a faint glow of its own colour keeps it readable
+ * in the dark districts.
+ */
+function mintedCoin(value, colour) {
+  if (coinCache.has(value)) return coinCache.get(value);
+  const N = 512;
+  const mk = () => { const c = document.createElement('canvas'); c.width = c.height = N; return [c, c.getContext('2d')]; };
+  const [colCv, g] = mk(), [hCv, h] = mk(), [rCv, rg] = mk();
+  const C = N / 2;
+  // (nickel struck a shade darker than the 2's flat colour: as bright metal it washed out)
+  const base = new THREE.Color(colour).multiplyScalar(value === 2 ? 0.74 : 1), ring = new THREE.Color('#cfd8e3').multiplyScalar(0.82);
+  const hex = (c, k = 1) => `#${c.clone().multiplyScalar(k).getHexString()}`;
+  const bimetal = value >= 10;
+  // the blank
+  g.fillStyle = hex(bimetal ? ring : base); g.fillRect(0, 0, N, N);
+  if (bimetal) { g.fillStyle = hex(base); g.beginPath(); g.arc(C, C, N * 0.33, 0, 6.283); g.fill(); }
+  h.fillStyle = '#7a7a7a'; h.fillRect(0, 0, N, N);
+  rg.fillStyle = '#9a9a9a'; rg.fillRect(0, 0, N, N);              // a frosted field (roughness ~0.6)
+  // the raised rim and the beaded ring
+  h.lineWidth = N * 0.06; h.strokeStyle = '#e8e8e8'; h.beginPath(); h.arc(C, C, N * 0.465, 0, 6.283); h.stroke();
+  rg.lineWidth = N * 0.06; rg.strokeStyle = '#2a2a2a'; rg.beginPath(); rg.arc(C, C, N * 0.465, 0, 6.283); rg.stroke();
+  for (let i = 0; i < 48; i++) {
+    const a = (i / 48) * 6.283, x = C + Math.cos(a) * N * 0.39, y = C + Math.sin(a) * N * 0.39;
+    h.fillStyle = '#d0d0d0'; h.beginPath(); h.arc(x, y, N * 0.011, 0, 6.283); h.fill();
+  }
+  if (bimetal) { h.lineWidth = 3; h.strokeStyle = '#5a5a5a'; h.beginPath(); h.arc(C, C, N * 0.33, 0, 6.283); h.stroke(); }
+  // the value, struck large, and the issuer round the top
+  const numeral = String(value);
+  const fs = numeral.length > 1 ? N * 0.4 : N * 0.5;
+  for (const [c, fill] of [[h, '#f0f0f0'], [rg, '#262626']]) {   // the relief polished: it catches the light
+    c.font = `900 ${fs}px "Didot", "Bodoni 72", Georgia, serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillStyle = fill; c.fillText(numeral, C, C + N * 0.03);
+  }
+  h.font = `bold ${N * 0.05}px Georgia, serif`;
+  const word = 'CITY · TOKEN', span = 1.6;
+  [...word].forEach((ch, i) => {
+    const a = -Math.PI / 2 - span / 2 + (i / (word.length - 1)) * span;
+    h.save(); h.translate(C + Math.cos(a) * N * 0.31, C + Math.sin(a) * N * 0.31); h.rotate(a + Math.PI / 2);
+    h.fillStyle = '#c8c8c8'; h.textAlign = 'center'; h.textBaseline = 'middle'; h.fillText(ch, 0, 0); h.restore();
+  });
+  // wear: tarnish settles in the low field, the high points are rubbed bright
+  const hd = h.getImageData(0, 0, N, N).data, cd = g.getImageData(0, 0, N, N);
+  let seed = value * 7919;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < N * N; i++) {
+    const height = hd[i * 4] / 255;
+    const k = height > 0.7 ? 1.12 : height < 0.45 ? 0.6 : 0.86 + rnd() * 0.08;
+    for (let j = 0; j < 3; j++) cd.data[i * 4 + j] = Math.min(255, cd.data[i * 4 + j] * k);
+  }
+  g.putImageData(cd, 0, 0);
+  for (let i = 0; i < 40; i++) {   // scratches
+    const x = rnd() * N, y = rnd() * N, a = rnd() * 6.283, l = 10 + rnd() * 50;
+    g.strokeStyle = `rgba(255,255,255,${0.08 + rnd() * 0.12})`; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+  }
+  // the relief as a normal map
+  const nCv = document.createElement('canvas'); nCv.width = nCv.height = N;
+  const ng = nCv.getContext('2d'), nd = ng.createImageData(N, N);
+  const at = (x, y) => hd[((Math.min(N - 1, Math.max(0, y)) * N) + Math.min(N - 1, Math.max(0, x))) * 4] / 255;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const dx = (at(x + 1, y) - at(x - 1, y)) * 4, dy = (at(x, y + 1) - at(x, y - 1)) * 4;
+    const l = Math.hypot(dx, dy, 1), i = (y * N + x) * 4;
+    nd.data[i] = (-dx / l * 0.5 + 0.5) * 255; nd.data[i + 1] = (dy / l * 0.5 + 0.5) * 255; nd.data[i + 2] = (1 / l * 0.5 + 0.5) * 255; nd.data[i + 3] = 255;
+  }
+  ng.putImageData(nd, 0, 0);
+  // the reeded edge: fine ridges round the rim
+  const eCv = document.createElement('canvas'); eCv.width = 512; eCv.height = 16;
+  const eg = eCv.getContext('2d');
+  for (let x = 0; x < 512; x++) { const v = 0.5 + 0.5 * Math.sin((x / 512) * Math.PI * 2 * 120); eg.fillStyle = `rgb(${(0.5 + 0.45 * Math.cos((x / 512) * Math.PI * 2 * 120)) * 255},128,${(0.75 + 0.2 * v) * 255})`; eg.fillRect(x, 0, 1, 16); }
+  const T = (cv, srgb) => { const t = new THREE.CanvasTexture(cv); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
+  // a faint glow of its own, weaker on the pale metals, which the light already finds
+  const glow = base.clone().multiplyScalar(value === 2 ? 0.035 : value >= 10 ? 0.06 : 0.1);
+  const face = new THREE.MeshStandardMaterial({
+    map: T(colCv, true), normalMap: T(nCv, false), roughnessMap: T(rCv, false), roughness: 1, metalness: 1,
+    emissive: glow, emissiveMap: T(colCv, true), emissiveIntensity: 1, normalScale: new THREE.Vector2(1.4, 1.4),
+  });
+  const edge = new THREE.MeshStandardMaterial({
+    color: bimetal ? ring : base, normalMap: T(eCv, false), roughness: 0.35, metalness: 1, emissive: glow,
+  });
+  const mats = [edge, face, face];
+  coinCache.set(value, mats);
+  return mats;
 }

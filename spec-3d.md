@@ -842,6 +842,41 @@ the other first districts stay at 1K. See decisions.md R73.
 - **Measured** in district 1 at 1080p: Medium 19–20 ms, High 19–21 ms, about 1 ms over
   1K. 471 textures resident.
 
+### District 1's signs, coins and edge markers (N4.4, 3D build 44)
+
+Turned on by `RUST.proto` in `hdstyles.js` (`signs`, `coins`, `edgeMarkers`), district 1
+first, the rest once approved. See decisions.md R74.
+
+- **Place-name plates** (`signs.js realPlates`, `realBuffer`):
+  - 512 × 128 vitreous enamel plates: the place's colour, a white border, condensed white
+    lettering, rounded corners (alpha), four fixing holes;
+  - wear seeded by the name: chips to black iron with rust halos, mostly at edges and
+    holes; rust runs from the fixings; scratches; grime along the bottom; a bleached
+    top;
+  - colour, relief (normal) and roughness maps, no glow;
+  - each plate has a front and an iron back, stands 2.8 cm off a wall (12.5 cm on the
+    model kit's fronts, clear of their bands), and hangs on four modelled bolts;
+  - posts are round steel tubes with a cap, a collar and two clamps.
+- **Where plates go.** `kitbuild.js` records each face that carries a door, a brick
+  shop's tall glazing, a garage door, a downpipe, a wall lamp, an awning or a hedge
+  (`faceUse`). `buildSigns` (now built after the buildings) skips those faces. A gate
+  with no clear wall gets a post. On the kit's fronts a plate hangs on the band over the
+  ground floor (2.76 m); on a yard wall, below its coping.
+- **Coins** (`entities.js mintedCoin`, `mintedCoinGeometry`):
+  - the value struck large on both faces (each face re-mapped so it reads upright, and
+    not mirrored on the back), "CITY · TOKEN" round the top, a beaded ring, a raised
+    rim, a reeded edge;
+  - copper 1, nickel 2 (struck darker than its flat colour), brass 5, and a bimetallic
+    10 with a violet core in a nickel ring;
+  - frosted field, polished relief, tarnish in the recesses;
+  - a faint glow of their own colour, weaker on the pale metals; the 5 and 10 keep their
+    halos.
+- **Edge markers** (`hud3d.js`): a key or the revealed portal that is behind you or off
+  the side of the screen is drawn at the left or right edge, on the side you would turn
+  to face it. It has an arrow and its distance, at mid-height when behind you.
+- **Every kit district:** a puddle's alpha now fills its cell with a frayed edge, so
+  neighbouring water cells merge into one sheet.
+
 **Bolts thin out deeper into each belt** (`sim3d/bolts.js`): the generator's bolts are
 kept in full in a belt's first district and cut to `max(1, round(n × (1 − 2k/27)))` at
 depth `k` (0–9), about a third by its tenth; the next belt starts full again. The kept set

@@ -992,7 +992,7 @@ export class Play3D {
     this.hud.update({
       game: g, level: r.level, body: b, camera: cam, yaw: this.controls.yaw,
       tickHz: r.session.tickHz, cellM, prediction: r.prediction, entities: this.entities,
-      lock: this.lock,
+      lock: this.lock, edgeMarkers: !!this.world.art.hd?.proto?.edgeMarkers,
     });
     if (this.tune.debug) this.debugReadout();
     this.lights.follow(this.view.camera);
