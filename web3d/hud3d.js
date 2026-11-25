@@ -13,7 +13,7 @@ import * as THREE from 'three';
 import { Renderer, COLORS } from '../web/render.js';
 import { euclid, TILE } from '../sim/grid.js';
 import { buildState, templated } from '../web/dispatch.js';
-import { realSeconds } from '../sim3d/units.js';
+import { realSeconds, sprintRealSeconds } from '../sim3d/units.js';
 
 const MINI_TILE = 16;            // px per cell in the offscreen board, on a 2D-sized map
 /**
@@ -477,11 +477,11 @@ export class Hud3D {
     }
     this.begin.hidden = game.started;
 
-    const sprintLeft = realSeconds(game.sprintTicks, tickHz);
+    const sprintLeft = sprintRealSeconds(game.sprintTicks, tickHz);   // build 48: charge is spent every other tick
     this.sprint.hidden = sprintLeft <= 0;
     this.sprintLabel.textContent = `SPRINT ${sprintLeft.toFixed(1)} s`;
     this.sprintBar.style.width = `${Math.min(1, sprintLeft / 12) * 100}%`;
-    this.sprint.classList.toggle('on', game.sprinting);
+    this.sprint.classList.toggle('on', f.sprinting ?? game.sprinting);
 
     const lo = game.loadout;
     this.ammo.hidden = !lo.stunGun;

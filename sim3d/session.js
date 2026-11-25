@@ -8,7 +8,7 @@
 import { createBody, moveBody, placeBody, RESPONSE } from './body.js';
 import { Leash } from './leash.js';
 import { InputRecord } from './record.js';
-import { TICK_HZ_3D } from './units.js';
+import { TICK_HZ_3D, SPRINT_FACTOR } from './units.js';
 
 /** Never run more than this many ticks in one frame: a backgrounded tab must not catch up. */
 const MAX_TICKS_PER_UPDATE = 4;
@@ -41,8 +41,8 @@ export class Session3D {
 
   sprintHeld(controls) { return !!controls.sprint && this.game.sprintTicks > 0; }
 
-  /** Body speed in cells per second. */
-  speed(controls) { return (this.sprintHeld(controls) ? 2 : 1) * this.tickHz; }
+  /** Body speed in cells per second: one cell a tick walking, SPRINT_FACTOR sprinting (build 48). */
+  speed(controls) { return (this.sprintHeld(controls) ? SPRINT_FACTOR : 1) * this.tickHz; }
 
   /** Queue a trigger pull at an alien id; it resolves on the next tick. */
   /** @param {number[]|null} [aim]  game3d.js aimOf(): the line the shot travels */

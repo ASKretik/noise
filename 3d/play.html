@@ -9,8 +9,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../web/style.css?v=47">
-<link rel="stylesheet" href="../web3d/style3d.css?v=47">
+<link rel="stylesheet" href="../web/style.css?v=48">
+<link rel="stylesheet" href="../web3d/style3d.css?v=48">
 <script type="importmap">
 { "imports": { "three": "../vendor/three/0.185.1/three.module.min.js" } }
 </script>
@@ -68,7 +68,7 @@
 
 <aside id="tune" class="g3-tune" hidden aria-label="Tuning panel">
   <h3>Tuning <span class="g3-mono">phase 2</span></h3>
-  <p>Try values and say which felt right. They are remembered on this device.</p>
+  <p>Try values for this session. Only acceleration and the readout are remembered; the cell size and tick rate go back to the game's on reload.</p>
   <label>Cell size <output id="o-cell"></output><input type="range" id="t-cell" min="1" max="2.5" step="0.05"></label>
   <label>Tick rate <output id="o-hz"></output><input type="range" id="t-hz" min="2" max="8" step="0.5"></label>
   <label>Acceleration <output id="o-resp"></output><input type="range" id="t-resp" min="6" max="40" step="1"></label>

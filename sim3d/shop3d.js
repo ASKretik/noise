@@ -5,7 +5,7 @@
 // inventory.items3d, written through the store's single active-id path (persist3d.js).
 // Their rules are Game3DNext's (sim3d/next/game.js): the `next` ruleset only.
 //
-// Times are sim ticks: at TICK_HZ_3D (2 Hz since build 45) two ticks are one real second.
+// Times are sim ticks: at TICK_HZ_3D (4 Hz; 2 Hz in builds 45-47) four ticks are one real second.
 
 export const ITEMS3D = Object.freeze({
   decoy: Object.freeze({
@@ -38,7 +38,7 @@ export function throwRayOf(eye, dir, cellM) {
   return [q(eye.x / cellM), q(eye.z / cellM), q(eye.y), dq(dir.x / cellM), dq(dir.z / cellM), dq(dir.y)];
 }
 
-/** How long a decoy holds the aliens it drew, unless they see you: 40 of your steps (20 real seconds at 2 Hz; 10 at build 44's 4 Hz). */
+/** How long a decoy holds the aliens it drew, unless they see you: 40 of your steps, 10 real seconds at 4 Hz. */
 export const DECOY_TICKS = 40;
 /** Patrolling aliens within this many cells of a decoy go to it. */
 export const DECOY_PULL = 14;

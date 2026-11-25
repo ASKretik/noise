@@ -453,7 +453,7 @@ N6 adds the items on top of it. As designed: `sim3d/rules.js` exports
 storing counts in `inventory.items3d`. `sim3d/shop3d.js` holds the item table and
 `canBuy3d` / `applyPurchase3d`, in the same shape as `sim/shop.js`.
 
-**Items.** Times in **sim ticks**; at 2 Hz (since 3D build 45; 4 Hz before), 2 ticks are one real second. Distances in cells, 2.5 m each.
+**Items.** Times in **sim ticks**; at 4 Hz (2 Hz in 3D builds 45–47), 4 ticks are one real second. Distances in cells, 2.5 m each.
 
 | Item | Key | Price | Carry | Effect | Implementation |
 |---|---|---|---|---|---|

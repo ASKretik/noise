@@ -47,9 +47,9 @@ export const Z_FULL = 2.0;
 /** "Under threat": an alien within this many cells, or an alert running. */
 export const THREAT_CELLS = 12;
 /**
- * The habit file's unit of time: 240 ticks, which was one real minute at the 4 Hz the file
- * was built at (two minutes at build 45's 2 Hz). A unit, not a clock: the priors are
- * measured in it, so changing it would only rescale both sides.
+ * The habit file's unit of time: 240 ticks, one real minute at 4 Hz (two minutes in
+ * builds 45-47 at 2 Hz). A unit, not a clock: the priors are measured in it, so changing
+ * it would only rescale both sides.
  */
 export const TICKS_PER_MINUTE = 240;
 

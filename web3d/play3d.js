@@ -5,7 +5,7 @@
 // /sim; nothing there knows this file exists.
 
 import { DIRS, isWalkable, TILE } from '../sim/grid.js';
-import { CELL_M, TICK_HZ_3D, EYE_M, realSeconds } from '../sim3d/units.js';
+import { CELL_M, TICK_HZ_3D, SPRINT_FACTOR, EYE_M, realSeconds } from '../sim3d/units.js';
 import { RESPONSE } from '../sim3d/body.js';
 import { createScene } from './scene.js';
 import { createPost } from './post.js';
@@ -39,7 +39,15 @@ const $ = (id) => document.getElementById(id);
 /** Dispatch is asked for a line this often (ticks), plus whenever a hunt starts. */
 const DISPATCH_EVERY_TICKS = 32;
 
-const TUNE_KEY = 'noise3d-tune-v1';
+/**
+ * The tuning panel's memory. Build 48: only acceleration and the debug readout are kept.
+ * v1 also kept the cell size and tick rate, so a value once tried there overrode the game's
+ * own scale on every later build: builds 45-47's 5 and 10 m/s never reached the user, who
+ * was running at 15 and 30. The scale is now the game's (sim3d/units.js); the sliders still
+ * try other values for the session.
+ */
+const TUNE_KEY = 'noise3d-tune-v2', OLD_TUNE_KEY = 'noise3d-tune-v1';
+const KEPT = ['response', 'debug'];
 /** Head bob per metre walked: one dip, and one footstep, about every 2 m (build 45: per metre, not per cell). */
 const BOB_PER_M = 2.4 / 1.5;
 const footfall = (bob) => Math.floor(bob / Math.PI - 0.75);
@@ -60,9 +68,18 @@ const TRIP = Object.freeze({
 const DEFAULTS = Object.freeze({ cellM: CELL_M, tickHz: TICK_HZ_3D, response: RESPONSE, debug: false });
 
 function loadTune() {
-  try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(TUNE_KEY) || '{}') }; } catch { return { ...DEFAULTS }; }
+  try {
+    const old = localStorage.getItem(OLD_TUNE_KEY);
+    if (old != null) {
+      // carry over what is still kept, drop the scale
+      if (localStorage.getItem(TUNE_KEY) == null) localStorage.setItem(TUNE_KEY, JSON.stringify(pick(JSON.parse(old || '{}'))));
+      localStorage.removeItem(OLD_TUNE_KEY);
+    }
+    return { ...DEFAULTS, ...pick(JSON.parse(localStorage.getItem(TUNE_KEY) || '{}')) };
+  } catch { return { ...DEFAULTS }; }
 }
-function saveTune(t) { try { localStorage.setItem(TUNE_KEY, JSON.stringify(t)); } catch { /* not remembered */ } }
+function pick(t) { return Object.fromEntries(KEPT.filter((k) => t?.[k] !== undefined).map((k) => [k, t[k]])); }
+function saveTune(t) { try { localStorage.setItem(TUNE_KEY, JSON.stringify(pick(t))); } catch { /* not remembered */ } }
 
 export class Play3D {
   constructor() {
@@ -902,6 +919,10 @@ export class Play3D {
     this.fps += ((dt > 0 ? 1 / dt : 60) - this.fps) * 0.05;
     // awake aliens are solid to your body: you bump into one and it gets you
     if (!this.paused && !g.over) r.update(dt, intent, this.entities.solids());
+    // build 48: sprinting as you feel it -- Shift held with charge left. The sim's own flag
+    // is on only on the ticks it takes a double step (every other tick at 1.5x).
+    const sprinting = !g.over && r.session.sprintHeld(intent);
+    this.sprintHeldNow = sprinting;
 
     if (this.killcam) {
       this.killcamFrame(dt);
@@ -925,15 +946,15 @@ export class Play3D {
     if (footfall(this.bob) > stepWas && !g.over) {
       const { w, h, tiles } = r.map, tx = Math.floor(b.x), ty = Math.floor(b.y);
       const tile = tx >= 0 && ty >= 0 && tx < w && ty < h ? tiles[ty * w + tx] : TILE.FLOOR;
-      this.audio.footstep(tile === TILE.COVER ? 'water' : tile === TILE.SAFE ? 'safe' : 'floor', g.sprinting);
+      this.audio.footstep(tile === TILE.COVER ? 'water' : tile === TILE.SAFE ? 'safe' : 'floor', sprinting);
     }
     const bobY = calm ? 0 : Math.sin(this.bob * 2) * 0.035 * Math.min(1, speed / r.session.tickHz);
     cam.position.set(b.x * cellM, EYE_M + bobY, b.y * cellM);
     cam.rotation.set(this.controls.pitch, this.controls.yaw, 0);
     // build 42: a foot caught on a step, a bin, a bag: a stumble you recover from at once
-    const trip = !this.paused && !g.over && !this.fx.run && !this.endAnim ? this.stumble(dt, cam, b, speed, cellM, calm, g.sprinting) : 0;
+    const trip = !this.paused && !g.over && !this.fx.run && !this.endAnim ? this.stumble(dt, cam, b, speed, cellM, calm, sprinting) : 0;
     // A small FOV kick while actually sprinting.
-    const kick = !calm && g.sprinting && speed > r.session.tickHz * 1.2 ? 5 : 0;
+    const kick = !calm && sprinting && speed > r.session.tickHz * 1.2 ? 5 : 0;
     this.fovKick += (kick - this.fovKick) * (1 - Math.exp(-dt * 8));
     this.view.setHFov(this.settings.fov + this.fovKick + (this.tripFov || 0));
 
@@ -1030,14 +1051,14 @@ export class Play3D {
     if (this.touch) {
       // RUN latches, but the sim refuses sprint on an empty charge: keep the latch honest.
       if (this.touch.run && g.sprintTicks <= 0) this.touch.run = false;
-      this.touch.setState({ running: g.sprinting, charges: g.loadout.bullets, gun: g.loadout.stunGun, locked: this.lock?.ok });
+      this.touch.setState({ running: !!this.sprintHeldNow, charges: g.loadout.bullets, gun: g.loadout.stunGun, locked: this.lock?.ok });
     }
     this.gun.update(dt, cam, g, { yaw: this.controls.yaw, pitch: this.controls.pitch, bob: bobY + trip, reduceMotion: calm });
     if (this.active !== 'gun') this.gun.model.visible = false;   // an item in hand, not the gun
     this.hud.update({
       game: g, level: r.level, body: b, camera: cam, yaw: this.controls.yaw,
       tickHz: r.session.tickHz, cellM, prediction: r.prediction, entities: this.entities,
-      lock: this.lock, edgeMarkers: !!this.world.art.hd?.proto?.edgeMarkers,
+      lock: this.lock, edgeMarkers: !!this.world.art.hd?.proto?.edgeMarkers, sprinting: !!this.sprintHeldNow,
     });
     if (this.tune.debug) this.debugReadout();
     this.lights.follow(this.view.camera);
@@ -1174,7 +1195,7 @@ export class Play3D {
     ];
     const derived = () => {
       const walk = this.tune.cellM * this.tune.tickHz;
-      $('t-derived').textContent = `walk ${walk.toFixed(1)} m/s · sprint ${(walk * 2).toFixed(1)} m/s · map ${(32 * this.tune.cellM).toFixed(0)}×${(20 * this.tune.cellM).toFixed(0)} m`;
+      $('t-derived').textContent = `walk ${walk.toFixed(1)} m/s · sprint ${(walk * SPRINT_FACTOR).toFixed(1)} m/s · map ${(32 * this.tune.cellM).toFixed(0)}×${(20 * this.tune.cellM).toFixed(0)} m`;
     };
     for (const [inp, out, key, fmt] of fields) {
       const el = $(inp);

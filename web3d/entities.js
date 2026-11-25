@@ -5,7 +5,7 @@
 // Aliens are built and posed by web3d/alien.js (the body) from web3d/species.js (what it
 // looks like), drawn by part across all aliens, so twelve aliens cost the same draw calls
 // as one. They glide toward their sim cell at the speed their move period implies instead
-// of hopping, which at 2 Hz with a 2.33-tick period would be a jump every 1.2 s.
+// of hopping, which at 4 Hz with a 2.33-tick period would be a jump every 580 ms.
 //
 // Entity colours are the 2D game's vocabulary (web/render.js COLORS) and never change
 // with the belt: red alien, gold key, coin colour = value, electric bolt, teal portal.

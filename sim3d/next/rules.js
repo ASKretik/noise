@@ -119,7 +119,7 @@ export function paramsFor(ruleset, district, tier) {
  * Measured at build 23's 4 Hz: walking the route with no aliens takes 0.9 min at district 1
  * and 4.4 at 100 (par 1.2 and 6.0), so six times par is about eight times the walk: a
  * backstop no careful run meets, never under six real minutes. The HUD counts down the
- * last minute. Par is in ticks, so at build 45's 2 Hz all of these double in minutes.
+ * last minute. Par is in ticks: at 4 Hz (again since build 48) these are the minutes.
  * (N8.1 used 180 s x 8 ticks x sqrt(A), 13-46 min, before anyone had measured.)
  */
 export const LIMIT_PAR = 6;

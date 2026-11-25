@@ -19,7 +19,7 @@ export const RESPONSE = 18;
  * heading from 0 to 45 degrees.
  */
 export const WALK_DIAGONAL_HEADROOM = 0.10;
-export const SPRINT_DIAGONAL_HEADROOM = 0.25;
+export const SPRINT_DIAGONAL_HEADROOM = 0.10;   // 0.25 until build 48, when sprint fell to 1.5 cells a tick: half a cell of spare capacity
 /** Largest distance moved in one collision substep, in cells. Under the radius. */
 const MAX_SUBSTEP = 0.1;
 

@@ -3732,11 +3732,59 @@ pavement filling a dark, smeared view, then the street rolled hard over.
 **What goes:** the dusk-to-midnight drift within a belt (builds 29–34) no longer shows.
 Its tables remain for the drawn fallback.
 
+## R78 · Walking 10 m/s, sprinting 15 m/s; the tuning panel stops overriding (3D build 48)
+
+**Asked:** "the walking speed is very very fast. keep the the walking speed as 10m/s and
+the sprinting at 15m/s. Right now it is at walking 15m/s and sprinting 30m/s".
+
+**Why the user saw 15 and 30.** Builds 45–47 ran 5 and 10 m/s, measured in the frame loop.
+But "15 and 30", sprint exactly twice walk, is the tuning panel's own readout
+(cell × tick rate). The panel saved its whole state, cell size and tick rate included,
+and `loadTune` laid that over the defaults on every load. A cell of 2.5 m (the slider's
+maximum, and the size the user then asked for in build 45) at 6 Hz is 15 and 30 m/s. So
+for the user, builds 45–47's scale never applied: they played at 6 Hz, the aliens and
+every timer three times as fast as intended. The browser pane that checked those builds
+had no saved panel. This is the build 17–19 lesson again (a saved "mild" setting hid the
+jumpscare), and the fix is the same kind:
+
+- **The panel's memory.** It keeps only acceleration and the debug readout, under a new
+  key. On load, the old key's cell size and tick rate are dropped and its acceleration is
+  kept. Checked: a planted `{cellM: 2.5, tickHz: 6, response: 20}` loads as 2.5 m, 4 Hz,
+  20/s, with the old key gone.
+
+**The speeds.**
+
+- **Walking, 10 m/s.** At 2.5 m cells, one cell a tick is 4 Hz, which is where builds
+  2–44 ran. Timers are back to those builds' seconds: a stun 10 s, an alert 5 s.
+- **Sprinting, 15 m/s, is 1.5 cells a tick.** The sim's sprint is a double step, fixed
+  in `/sim`, which the 2D game shares. So nothing in the sim changes. The body sprints at
+  1.5 × (`SPRINT_FACTOR`), and the leash already takes a double step only when the body
+  is two cells ahead, so it does so about every other tick.
+- **Measured** at cruise in the page: 10.00 and 15.00 m/s. Charge drains at 2.02 ticks a
+  second while Shift is held (predicted 2).
+
+**What a 1.5× sprint broke, and the fixes:**
+
+- **The sim's `sprinting` flag** is now on only on double-step ticks. The HUD's sprint
+  light, the FOV kick, the louder footsteps and the sprint stumble read it, and the light
+  would have flickered. They now read "Shift held with charge left" (the light was on in
+  100% of frames).
+- **The sprint meter and the shop** counted a tick of charge per tick. They now count
+  per double step (`sprintRealSeconds`): a bought lightning second is 4 s of holding Shift.
+- **The diagonal headroom** for sprinting was 0.25, sized for a body at the sim's full
+  2 cells a tick. At 1.5 there is half a cell to spare, so it is 0.10 like walking.
+
+3D-5 (worst lead 2, catch-up 1 tick) and 3D-13 (no stalled frame) pass; bot play is
+unchanged, so the priors are byte-identical.
+
+**Aliens** follow your walking speed by tier, as the user asked in build 45. On Hard a
+hunting alien runs 5.7–7.0 m/s and travels at 20 m/s out of sight; on Ultra 7.4–9.1 m/s.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 47; 3D-1 via the
+npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 48; 3D-1 via the
                   2D suites above, run alongside)
 ```

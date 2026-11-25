@@ -8,6 +8,24 @@
 
 export const CHANGES = [
   {
+    build: 48,
+    date: '2026-11-25',
+    phase: 'scale',
+    changed: [
+      'You walk at 10 m/s and sprint at 15 m/s (measured in the game: 10.00 and 15.00). Builds 45-47 were meant to be 5 and 10, but the tuning panel (the ` key) had saved a cell size and tick rate from an earlier try, and those overrode the game every time it loaded: you were really at 15 and 30. The panel now remembers only acceleration and the debug readout, and any old saved cell size and tick rate are thrown away when the page loads.',
+      'Aliens keep their speed relative to your walking speed on each difficulty. On Hard a hunting alien now runs 5.7-7.0 m/s, on Ultra 7.4-9.1 m/s, so a 15 m/s sprint still outruns all of them; out of your sight they travel at 20 m/s on Hard.',
+      'The game clock is back to 4 steps a second: a stun lasts 10 s again and an alert 5 s, and pickups, the portal and capture register within a quarter of a second.',
+      'Sprint charge now lasts 1.5 times as long per second held compared with a full double-speed sprint; the sprint meter counts real seconds of holding Shift, and a bought second of lightning lasts 4 of them.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R) once; the panel\'s old saved speed is cleared on that load. Walk, then sprint, down a long street. Open the tuning panel (`) to see "walk 10.0 m/s · sprint 15.0 m/s".',
+    ],
+    unverified: [
+      'How 10 and 15 m/s feel to play: fast for a person (a sprinter tops out near 10), so the city will go by quickly. Nobody has played it at this speed with the art as it is now.',
+      'A saved panel value is cleared on each device and browser separately, the first time it loads build 48.',
+    ],
+  },
+  {
     build: 47,
     date: '2026-11-25',
     phase: 'N4.4',

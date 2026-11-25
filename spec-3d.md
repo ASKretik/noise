@@ -53,7 +53,7 @@ sim/        The authoritative rules for both games, unchanged in behaviour. Sinc
             gen.js exports scatterBolts and scatterCoins for the city builder; 3D-20
             proves 2D levels are byte-identical.
 sim3d/      pure, Node-runnable, imports only sim/ and sim3d/
-  units.js      CELL_M 2.5, TICK_HZ_3D 2, WALK_M_S 5, conversions (realSeconds, simSecondsToReal)
+  units.js      CELL_M 2.5, TICK_HZ_3D 4, SPRINT_FACTOR 1.5 (10 / 15 m/s), conversions (realSeconds, sprintRealSeconds, simSecondsToReal)
   body.js       continuous body: circle (r 0.2 cell) sliding against blocked tiles
   leash.js      continuous body -> four-direction sim input
   raycast.js    Amanatides-Woo grid march; lineOfSight, and shotClear (with heights) for the stun gun
@@ -114,32 +114,53 @@ an import map from the repository, never a CDN; criterion 3D-0 checks the hashes
 | Constant | Value | Meaning |
 |---|---|---|
 | `CELL_M` | 2.5 m | One sim cell (1.5 m in builds 2–44) |
-| `TICK_HZ_3D` | 2 | Sim ticks per real second (2D runs at 8; 4 in builds 2–44) |
+| `TICK_HZ_3D` | 4 | Sim ticks per real second (2D runs at 8; 2 in builds 45–47) |
+| `SPRINT_FACTOR` | 1.5 | Sprinting speed over walking (2 until build 48) |
 | Walls / eye / body | 3.2 m / 1.65 m / 0.3 m radius | |
 
-Walking is 5 m/s and sprinting 10 m/s — the user's numbers, with the 2.5 m cell (3D build
-45). The sim moves you one cell a tick, two sprinting, so the tick rate is not a free
-choice: 5 / 2.5 = 2 Hz. A district is a city from 180 × 112 m (district 1) to about
-620 × 387 m (district 100); see "Districts are cities" below. The `classic` ruleset keeps
-the 2D game's 80 × 50 m.
+Walking is 10 m/s and sprinting 15 m/s, the user's numbers (3D build 48), with the user's
+2.5 m cell (build 45). The sim moves you one cell a tick, so the tick rate is not a free
+choice: 10 / 2.5 = 4 Hz. The sim can step two cells a tick; sprinting, the body runs at
+1.5 cells a tick and the leash takes a double step whenever it is two behind, about every
+other tick. Measured in the page: 10.00 and 15.00 m/s at cruise. A district is a city from
+180 × 112 m (district 1) to about 620 × 387 m (district 100); see "Districts are cities"
+below. The `classic` ruleset keeps the 2D game's 80 × 50 m.
+
+(Builds 45–47 were meant to run at 5 and 10 m/s and did, except for anyone who had once
+moved the tuning panel's sliders: the panel saved its cell size and tick rate and they
+overrode the game's on every load. The user had, and was running at 15 and 30 m/s. Since
+build 48 the panel remembers only acceleration and the debug readout.)
 
 Everything the sim plays by is unchanged **in cells and ticks** — chase periods, alert
 length, stun length, division, arrivals (17–40 cells away), travel (beyond 27 cells), par,
 the score — so a change of scale changes the world's size and the clock, not the game:
-the 3D page runs the 2D rules at a quarter of their speed. The aliens' speeds are
-fractions of yours per tier (`TIER_SPEED_3D`, `HUNT_CEILING`, `TRAVEL_SPEED`), so on Hard
-a hunting alien runs 2.9–3.5 m/s and travels at 10 m/s out of sight. Only what you see is
+the 3D page runs the 2D rules at half their speed. The aliens' speeds are fractions of
+your walking speed per tier (`TIER_SPEED_3D`, `HUNT_CEILING`, `TRAVEL_SPEED`):
+
+| Tier | Hunting you | Patrolling | Travelling, out of sight |
+|---|---|---|---|
+| Easy | 2.9–3.5 m/s | 2.0–2.8 | 10 m/s |
+| Medium | 4.3–5.3 m/s | 3.0–4.2 | 15 m/s |
+| Hard | 5.7–7.0 m/s | 4.0–5.6 | 20 m/s |
+| Ultra | 7.4–9.1 m/s | 5.2–7.3 | 26 m/s |
+
+(District 1 to district 100.) Sprinting at 15 m/s outruns every hunting alien. Only what you see is
 set in metres: the fog (clear to 26 m, solid at 90 m) and the stun gun's reach (72 m, now
 28.8 cells). Presentation that used to count cells now counts metres: footsteps and head
 bob (a step about every 2 m), the aliens' stride, render chunks (48 m), wall lamps and
 street clutter per metre of wall.
 
-The 3D HUD converts ticks with `TICK_HZ_3D` and never shows a sim-computed "seconds". One
-visible consequence: a bought second of lightning (8 ticks) lasts four real seconds in 3D,
-and the 3D shop says so. A stun lasts 20 s and an alert 10 s.
+The 3D HUD converts ticks with `TICK_HZ_3D` and never shows a sim-computed "seconds". A
+sprint spends a tick of charge per double step, half the ticks at 1.5×, so the sprint
+meter and the shop count `sprintRealSeconds` (ticks / (TICK_HZ_3D × 0.5)): a bought second
+of lightning (8 ticks) lasts four real seconds of holding Shift, and the 3D shop says so.
+"Sprinting" on the page -- the HUD's indicator, the FOV kick, louder footsteps, the
+sprint stumble -- means Shift held with charge left, not the sim's flag, which is on only
+on double-step ticks. A stun lasts 10 s and an alert 5 s.
 
-Both constants are adjustable live from the tuning panel (backquote). The 2.5 m and
-5 / 10 m/s are the user's; how 2 Hz feels in play has not yet been confirmed by a person.
+The tuning panel (backquote) still tries other cell sizes and tick rates live, for the
+session only. The scale is the user's; how 4 Hz with a 1.5× sprint feels has not yet been
+confirmed by a person.
 
 ## The player
 
@@ -1171,10 +1192,8 @@ date and who measured — in both cases Claude in the browser pane, not a human.
 1. **Nobody has played it.** Every check was a test, a script or a screenshot. Whether the
    leash feels like a shooter or a dungeon crawler with smoothing — the phase-2 go/no-go —
    is still open, and it is a person's call.
-2. **Is 2 Hz right?** The user set the scale (2.5 m cells, 5 and 10 m/s, build 45), which
-   fixes the rate at 2 Hz: the sim sees pickups, the portal and capture every half second.
-   The body is continuous, so movement is smooth; whether the half-second shows is a
-   person's call. Bots cannot answer this: they have perfect information.
+2. ~~**Is 2 Hz right?**~~ The user set the scale: 2.5 m cells (build 45), 10 and 15 m/s
+   (build 48), which makes it 4 Hz, as builds 2–44 ran.
 3. **Full radar or hear-only?** v1 shows every alien on the minimap for parity with what
    the balance was measured against.
 4. **One dossier or two?** Separate for now; the same person's trait profile in 2D and 3D
