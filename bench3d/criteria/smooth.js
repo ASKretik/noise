@@ -6,7 +6,7 @@
 // SMOOTHLY the body moved, only whether it ended up in the right place. This does.
 //
 // Open ground for walking at every heading and sprinting off-axis; long straight lanes
-// for sprinting straight, because at 8 cells/s a small open patch ends in a wall within
+// for sprinting straight, because at 4-8 cells/s a small open patch ends in a wall within
 // a second and that is a wall, not a stall.
 
 import { DIRS, isWalkable } from '../../sim/grid.js';

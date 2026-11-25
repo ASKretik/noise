@@ -5,7 +5,7 @@
 // Aliens are built and posed by web3d/alien.js (the body) from web3d/species.js (what it
 // looks like), drawn by part across all aliens, so twelve aliens cost the same draw calls
 // as one. They glide toward their sim cell at the speed their move period implies instead
-// of hopping, which at 4 Hz with a 2.33-tick period would be a jump every 580 ms.
+// of hopping, which at 2 Hz with a 2.33-tick period would be a jump every 1.2 s.
 //
 // Entity colours are the 2D game's vocabulary (web/render.js COLORS) and never change
 // with the belt: red alien, gold key, coin colour = value, electric bolt, teal portal.
@@ -16,6 +16,12 @@ import { euclid } from '../sim/grid.js';
 import { AlienKit, MAX_ALIENS, twitchOffset } from './alien.js';
 import { speciesFor } from './species.js';
 import { artFor } from './art/belts.js';
+import { TICK_HZ_3D } from '../sim3d/units.js';
+
+/** Leg cycle per metre walked: the stride the aliens were drawn with at 1.5 m cells. */
+const GAIT_PER_M = 5.2 / 1.5;
+/** How wide an awake alien is to your body: you cannot walk through it. */
+const ALIEN_SOLID_M = 0.36;
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -196,7 +202,7 @@ export class Entities {
    */
   sync(game, alpha, t, o = {}) {
     const dt = o.dt ?? 1 / 60;
-    const tickHz = o.tickHz ?? 4;
+    const tickHz = o.tickHz ?? TICK_HZ_3D;
     const c = this.cellM;
     const m4 = new THREE.Matrix4(), base = new THREE.Matrix4(), local = new THREE.Matrix4();
     const q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3();
@@ -231,7 +237,7 @@ export class Entities {
       else if (d > 1e-4 && !inert) {
         const step = Math.min(d, speed * dt);
         a.x += (dx / d) * step; a.y += (dy / d) * step;
-        a.gait += step * 5.2;
+        a.gait += step * c * GAIT_PER_M;
         const want = Math.atan2(-dx, -dy);
         let diff = want - a.heading;
         diff = Math.atan2(Math.sin(diff), Math.cos(diff));
@@ -400,7 +406,7 @@ export class Entities {
   /** Awake aliens as circles in cell units, for the body to collide with. */
   solids() {
     const out = [];
-    for (const a of this.vis.values()) if (a.stun < 0.5) out.push({ x: a.x + 0.5, y: a.y + 0.5, r: 0.24 });
+    for (const a of this.vis.values()) if (a.stun < 0.5) out.push({ x: a.x + 0.5, y: a.y + 0.5, r: ALIEN_SOLID_M / this.cellM });
     return out;
   }
 

@@ -4,7 +4,8 @@
 // (bench3d/bots3d.js):
 //
 //   predicts   tier 1 is geometry only, and it still names the region you will be in
-//              20 ticks (5 s) later far better than a uniform guess, for every bot
+//              20 ticks (10 s at 2 Hz; 5 s before build 45) later far better than a
+//              uniform guess, for every bot
 //   recognises a habit file trained on six runs of each habit bot names that bot's own
 //              habit as its strongest
 //   harmless   a bot with no habit plays exactly the same game with tactics on as off --
@@ -22,6 +23,7 @@ import { HabitFile } from '../../sim3d/dispatch/habits.js';
 import { drive, makeBot3d, HABIT_BOTS, HABIT_OF, POPULATION } from '../bots3d.js';
 import { replay } from '../../sim3d/record.js';
 import { Rng } from '../../sim/prng.js';
+import { TICK_HZ_3D } from '../../sim3d/units.js';
 
 const PASS = 'PASS', FAIL = 'FAIL';
 
@@ -93,7 +95,7 @@ export const criteria = [{
         effects.push(`run: ${off.toFixed(1)} -> ${on.toFixed(1)} detections`);
         if (!(on > off)) problems.push(`runner: detections ${on.toFixed(1)} with the run tactic, ${off.toFixed(1)} without`);
       } else {
-        const on = mean(p.on, (x) => x.first) / 4, off = mean(p.off, (x) => x.first) / 4;
+        const on = mean(p.on, (x) => x.first) / TICK_HZ_3D, off = mean(p.off, (x) => x.first) / TICK_HZ_3D;
         effects.push(`${own}: first seen ${off.toFixed(0)} s -> ${on.toFixed(0)} s`);
         if (!(on < off)) problems.push(`${bot}: first seen at ${on.toFixed(0)} s with the ${own} tactic, ${off.toFixed(0)} s without`);
       }

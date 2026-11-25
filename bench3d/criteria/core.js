@@ -12,7 +12,7 @@ import { makeBot, BOT_NAMES } from '../../bots/policies.js';
 
 import { Game3D, aimOf, STUN_RANGE, AIM_Q, AIM_FROM_SLACK, AIM_AT_SLACK, BODY_AIM_M } from '../../sim3d/game3d.js';
 import { solidTops } from '../../sim3d/solid.js';
-import { EYE_M, WALL_M } from '../../sim3d/units.js';
+import { EYE_M, WALL_M, CELL_M } from '../../sim3d/units.js';
 import { Session3D } from '../../sim3d/session.js';
 import { replay } from '../../sim3d/record.js';
 import { BODY_RADIUS } from '../../sim3d/body.js';
@@ -294,16 +294,20 @@ export const criteria = [
           worstLead = Math.max(worstLead, d);
         }
         if (game.over) continue;
-        // let go of the controls: once the body has stopped, the sim must agree in <= 2 ticks
+        // let go of the controls: once the body has stopped, the sim must agree in <= 3 ticks.
+        // Watched for a second to stop plus twice the allowance in ticks, at the session's
+        // rate (build 45: 120 frames was 8 ticks at 4 Hz and only 4 at 2 Hz).
         let stoppedAt = -1, t0 = 0;
-        for (let f = 0; f < 120; f++) {
+        const LETGO = Math.ceil(60 * (1 + (2 * LEAD_SPRINT) / s.tickHz));
+        for (let f = 0; f < LETGO; f++) {
           s.update(1 / 60, { moveX: 0, moveY: 0, sprint: false });
+          if (game.over) break;     // the run ended (as the walk above allows): nothing left to agree
           if (stoppedAt < 0 && s.body.vx === 0 && s.body.vy === 0) { stoppedAt = f; t0 = s.record.length; }
           if (stoppedAt >= 0 && Math.floor(s.body.x) === game.player.x && Math.floor(s.body.y) === game.player.y) {
             catchupWorst = Math.max(catchupWorst, s.record.length - t0);
             break;
           }
-          if (f === 119) catchupWorst = Math.max(catchupWorst, 99);
+          if (f === LETGO - 1) catchupWorst = Math.max(catchupWorst, 99);
         }
         snaps += s.snapped; s.snapped = 0;
       }
@@ -389,7 +393,8 @@ export const criteria = [
         if (bad.length > 5) break;
       }
 
-      // Reach, on a district-100 city: down a long open street, in range at 47 cells, not at 49.
+      // Reach, on a district-100 city: down a long open street, in range just inside
+      // STUN_RANGE_M, not just past it (47 and 49 cells at 1.5 m; 28 and 29 at 2.5 m).
       const { DistrictRunner } = await import('../../web3d/runner.js');
       const r = new DistrictRunner({ profileId: 'reach', district: 100, tier: 'hard' });
       const g = r.game, m = g.map;
@@ -402,17 +407,19 @@ export const criteria = [
         }
       }
       let reach = 'no street long enough';
-      if (lane.len >= 52) {
+      const nearC = Math.floor(STUN_RANGE - 0.25), farC = Math.ceil(STUN_RANGE + 0.05);
+      if (lane.len >= farC + 3) {
         g.loadout.stunGun = true; g.loadout.bullets = 6;
         g.player.x = lane.x0; g.player.y = lane.y;
         const a = g.patrols[0] || null;
         if (a) {
           a.stunnedUntil = 0; a.y = lane.y;
-          const at = (d) => { a.x = lane.x0 + d; return g.canStun(a.id, aimOf({ x: (lane.x0 + 0.5) * 1.5, z: (lane.y + 0.5) * 1.5, y: EYE_M }, { x: (lane.x0 + d + 0.5) * 1.5, z: (lane.y + 0.5) * 1.5, y: 1.2 }, 1.5)); };
-          const near = at(47), far = at(49);
-          if (!near.ok) bad.push(`reach: refused at 47 cells (${near.reason})`);
-          if (far.ok || far.reason !== 'out of range') bad.push(`reach: at 49 cells got ${far.ok ? 'a stun' : far.reason}`);
-          reach = `on a ${lane.len}-cell street at district 100: lands at 47 cells (70.5 m), out of range at 49 (73.5 m)`;
+          const C = CELL_M;
+          const at = (d) => { a.x = lane.x0 + d; return g.canStun(a.id, aimOf({ x: (lane.x0 + 0.5) * C, z: (lane.y + 0.5) * C, y: EYE_M }, { x: (lane.x0 + d + 0.5) * C, z: (lane.y + 0.5) * C, y: 1.2 }, C)); };
+          const near = at(nearC), far = at(farC);
+          if (!near.ok) bad.push(`reach: refused at ${nearC} cells (${near.reason})`);
+          if (far.ok || far.reason !== 'out of range') bad.push(`reach: at ${farC} cells got ${far.ok ? 'a stun' : far.reason}`);
+          reach = `on a ${lane.len}-cell street at district 100: lands at ${nearC} cells (${(nearC * C).toFixed(1)} m), out of range at ${farC} (${(farC * C).toFixed(1)} m)`;
         } else reach = 'no alien to test reach on';
       }
       return bad.length ? [FAIL, bad.slice(0, 3).join('; ')]

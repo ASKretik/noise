@@ -3570,11 +3570,71 @@ That is about 1 ms over 1K; compressed 2K costs little.
 **Not done:** the other districts; the font is the system's ("DIN Condensed" on this
 Mac).
 
+## R75 · The scale: 2.5 m cells, 5 and 10 m/s (3D build 45)
+
+**Asked:** "fix the cell size to 2.5m and keep the walking speed as 5m/s and the sprinting
+as 10m/s. the aliens will move in proportion to this speed of the player as per the
+difficulty mode chosen."
+
+**What follows from it.** The sim moves you one cell a tick (two sprinting), so walking
+speed is `CELL_M × TICK_HZ_3D`: 5 m/s at 2.5 m cells needs 2 Hz, and sprinting is then
+10 m/s by itself. Builds 2–44 were 1.5 m at 4 Hz (6 and 12 m/s).
+
+**[ASSUMED] Keep the game the same in cells and ticks; change only its size and clock.**
+The user's size curve is in cells (×5 to ×60) and is not to be touched, so every city is
+1.67× wider in metres (district 1 180 × 112 m, district 100 620 × 388 m). The aliens'
+speeds were already fractions of your walking speed per tier, so they follow with no
+change: on Hard a hunting alien runs 2.9–3.5 m/s, on Ultra up to 4.6 m/s, and they travel
+at 10 m/s on Hard out of sight. The cost is the clock: every timer kept in ticks lasts
+twice as long in seconds (a stun 20 s, an alert 10 s, a district about twice as long to
+cross), but exactly as many of your steps as before. The alternative — keeping timers in
+real seconds — would halve them in steps and change the balance that 3D-22 and R60
+measured. Put to the user.
+
+**Metres or cells, item by item:**
+
+- **Cells (what the sim plays by).** Alien arrivals and the travel threshold were written
+  in metres (25–60 m, 40 m), so the new scale moved arrivals 40% closer in steps (10–24
+  cells instead of 17–40). Two Dispatch tactics then stopped helping (3D-22: the map
+  tactic found you later, 32 s vs 24 s, and the run tactic saw fewer chases, 25.5 vs 27.4).
+  They are now set in cells — 17–40 and 27, exactly build 44's — and 3D-22 passes as
+  before. Bot play is unchanged, so `npm run priors3d` reproduces the checked-in priors
+  byte for byte.
+- **Metres (what you see).** Fog (26–90 m) and the stun gun's reach (72 m, now 28.8 cells).
+  Render chunks were 32 cells; now 48 m, as before.
+- **Per metre, not per cell (presentation).** Head bob and footsteps (a footstep was a
+  change of sim cell: at 2.5 m, and 5 m a sprint tick, far too slow; now one at each low
+  point of the bob, about every 2 m), the aliens' stride (they would have skated), their
+  collision size (0.36 m), the trip threshold (1.35 m/s), wall-lamp spacing (7.5 m) and the
+  odds of street clutter per metre of wall.
+
+**Tests that assumed the old scale:**
+
+- **3D-6** hard-coded the reach test at 47 and 49 cells of 1.5 m; now from `STUN_RANGE`
+  and `CELL_M` (28 and 29 cells).
+- **3D-5** watched a stopped body for 120 frames (8 ticks at 4 Hz, 4 at 2 Hz); now a
+  second plus twice the allowance in ticks. It then still failed on 1 of 9,999 sequences
+  whose run ended during the let-go, where the body is no longer moved; such a run is
+  now skipped, as the walk phase already did. Worst catch-up: 1 tick.
+- **3D-22** printed "seconds" as ticks / 4; now `TICK_HZ_3D`.
+
+**Measured in the page:** walking 5.03 m/s, sprinting 9.89 m/s including the run-up, a
+footstep every 1.9–2.0 m. 1080p Medium: district 1 mean 20.7–21.2 ms (build 44: 19–20),
+VIOLET district 41 20.0–21.3 ms (was 25–29: the same fog covers fewer cells).
+
+**Looked at:** district 1 (a one-cell alley is now a believable 2.5 m lane; puddle cells
+merge into larger sheets) and district 2 on the older art, whose per-cell textures now
+draw bricks and cobbles 1.67× larger. Left as they are: those districts are replaced when
+their belt's style is approved.
+
+**Not verified:** the feel. The sim sees pickups, the portal and capture every half
+second now; whether that shows is a person's call.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 44; 3D-1 via the
+npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 45; 3D-1 via the
                   2D suites above, run alongside)
 ```

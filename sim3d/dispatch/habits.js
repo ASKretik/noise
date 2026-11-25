@@ -46,7 +46,11 @@ export const Z_ON = 0.5;
 export const Z_FULL = 2.0;
 /** "Under threat": an alien within this many cells, or an alert running. */
 export const THREAT_CELLS = 12;
-/** Sim ticks per real minute on the 3D page (4 Hz). */
+/**
+ * The habit file's unit of time: 240 ticks, which was one real minute at the 4 Hz the file
+ * was built at (two minutes at build 45's 2 Hz). A unit, not a clock: the priors are
+ * measured in it, so changing it would only rescale both sides.
+ */
 export const TICKS_PER_MINUTE = 240;
 
 /**

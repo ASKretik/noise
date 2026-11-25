@@ -156,7 +156,7 @@ function renderGrid() {
 const LABEL_3D = {
   stunGun: 'The frame, empty. In first person you aim it: one alien per charge, the one under your crosshair, if it can hear you and nothing solid is in between.',
   bullet: `Reloads the gun, up to ${STUN_GUN_CAPACITY}.`,
-  boltSecond: `Banked sprint. In 3D one bought second lasts ${simSecondsToReal(1).toFixed(0)} real seconds, because the 3D city runs at half speed. Hold Shift to spend it.`,
+  boltSecond: `Banked sprint. In 3D one bought second lasts ${simSecondsToReal(1).toFixed(0)} real seconds, because the 3D city's clock runs at a quarter of the 2D game's. Hold Shift to spend it.`,
 };
 
 function renderShop() {

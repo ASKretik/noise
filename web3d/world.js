@@ -44,19 +44,20 @@ export const FOG_NEAR = 26;
 export const FOG_FAR = 90;
 
 /**
- * Render chunks (N8.4): every instanced layer is cut into squares of CHUNK_CELLS cells
- * (48 m), each its own InstancedMesh with its own bounds, so three's frustum culling --
- * which tests one bounding sphere per mesh -- skips whatever is behind you or past the
- * fog. One mesh per tile type for the whole district is never culled at all.
+ * Render chunks (N8.4): every instanced layer is cut into squares of CHUNK_M metres, each
+ * its own InstancedMesh with its own bounds, so three's frustum culling -- which tests one
+ * bounding sphere per mesh -- skips whatever is behind you or past the fog. One mesh per
+ * tile type for the whole district is never culled at all. (32 cells until build 45,
+ * when a cell grew to 2.5 m: kept at 48 m so the culling stays as fine.)
  */
-export const CHUNK_CELLS = 32;
+export const CHUNK_M = 48;
 
 /** The shadow box that follows you: half its width in metres (N8.4). */
 export const SHADOW_HALF_M = 45;
 
 /** Split an instanced layer into per-chunk meshes sharing its geometry and material. */
 function chunked(mesh, cellM, track = (x) => x) {
-  const size = CHUNK_CELLS * cellM;
+  const size = Math.max(1, Math.round(CHUNK_M / cellM)) * cellM;
   const buckets = new Map();
   const m = new THREE.Matrix4();
   for (let i = 0; i < mesh.count; i++) {
@@ -664,7 +665,7 @@ export function buildWorld(level, { cellM, shadows = false, kit = null }) {
       // build 41, daylight: how much of the sky a cell sees (its sky-view factor), from
       // the tallest wall in each of 16 directions within 14 cells. Light from a uniform
       // sky above elevation e is cos^2 e of the whole, so a square sees nearly all of it,
-      // a street between four-storey fronts about half, and a 1.5 m alley between them
+      // a street between four-storey fronts about half, and a one-cell alley between them
       // almost none -- that is where it goes black and the torch is for.
       const dirs = [...Array(16).keys()].map((i) => [Math.cos((i * Math.PI) / 8), Math.sin((i * Math.PI) / 8)]);
       for (let y = 0; y < H2; y++) for (let x = 0; x < W2; x++) {

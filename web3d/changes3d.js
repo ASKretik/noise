@@ -8,6 +8,26 @@
 
 export const CHANGES = [
   {
+    build: 45,
+    date: '2026-11-25',
+    phase: 'scale',
+    changed: [
+      'Every district: one square of the map is now 2.5 m instead of 1.5 m, so streets, alleys and yards are wider and every city is 1.67 times bigger across (district 1: 180 x 112 m). You walk at 5 m/s and sprint at 10 m/s (were 6 and 12).',
+      'Aliens keep their speed relative to yours on each difficulty (Easy 0.5, Medium 0.75, Hard 1, Ultra 1.3 of the base). On Hard a hunting alien runs 2.9-3.5 m/s, on Ultra up to 4.6 m/s; patrolling is slower; out of your sight they travel at twice your walking speed on Hard (10 m/s).',
+      'The game plays the same, step for step: arrivals, alerts, stuns, decoys, sprint charge and par are counted in your steps, and a step is now half a second. So in seconds they last twice as long: a stun 20 s (was 10), an alert 10 s (was 5), and a district takes about twice as long to cross. Aliens still arrive 17-40 squares away (now 42-100 m).',
+      'Footsteps and head bob follow the distance you walk (a step about every 2 m), not the map square, and the aliens\' legs stride per metre, so nobody skates at the new scale. Street clutter and wall lamps keep the same spacing per metre.',
+      'The stun gun still reaches 72 m (now 28 squares). The EMP still covers 3 squares, now 7.5 m.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R) and play district 1 on your usual difficulty: walk and sprint down a long street, then let an alien hunt you and see whether you can still break contact.',
+    ],
+    unverified: [
+      'Nobody has played at the new scale yet. The sim now updates twice a second instead of four times, so picking up a key, reaching the portal or being caught can register up to half a second after your body gets there. Your movement itself stays smooth (measured 5.0 and 9.9 m/s).',
+      'Districts outside the ten styled first districts still use the older wall and floor textures, which repeat once per square, so their bricks and cobbles are drawn 1.67 times larger.',
+      'Frame time at 1080p Medium: district 1 21 ms (was 19-20), VIOLET district 41 20-21 ms (was 25-29: the fog now covers fewer squares).',
+    ],
+  },
+  {
     build: 44,
     date: '2026-11-25',
     phase: 'N4.4 prototype',

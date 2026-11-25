@@ -31,6 +31,8 @@ import { KitBatch, setWallLook } from './kit.js';
 import { ground2k } from './ground.js';
 
 const ST = 3;   // the kits' storey and bay, metres
+/** Wall lamps at least this far apart, walking the grid (7.5 m and 10.5 m: 5 and 7 cells of 1.5 m). */
+const LAMP_GAP_M = 7.5, LAMP_GAP_DARK_M = 10.5;
 
 const PLASTER = ['#e6d6b6', '#dbb98a', '#d29c84', '#b7c3a3', '#a7b6c3', '#dcc9c0', '#c9a467', '#c2baab', '#d8aea4', '#9db19f', '#ebe3d2', '#c78c69', '#b8a2c0'];
 const JOINERY = ['#ece7dc', '#2c4a38', '#5c2320', '#24314a', '#1c1c1e', '#4b3425', '#7e8386', '#6d5a3c', '#3d5f6e'];
@@ -555,6 +557,7 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
     }
   };
   const lampAt = [];
+  const PROP_PER_CELL = C / 1.5;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     if (!floorT(x, y)) continue;
     const r = new Rng(hashString(`${seed}:street:${x},${y}`), 'street');
@@ -575,7 +578,7 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
     // yard wall: it is lower than the lamp)
     const wallB = plan.at(x + dx, y + dy);
     const tallEnough = wallB ? wallB.top >= 3 : heightAt(x + dx, y + dy) >= 3.3;
-    if (tallEnough && (width <= 2 && r.bool(0.3) && !lampAt.some(([lx, ly]) => Math.abs(lx - x) + Math.abs(ly - y) < 5) && LS.intensity !== 0 || (LS.intensity === 0 && width <= 2 && r.bool(0.12) && !lampAt.some(([lx, ly]) => Math.abs(lx - x) + Math.abs(ly - y) < 7)))) {
+    if (tallEnough && (width <= 2 && r.bool(0.3) && !lampAt.some(([lx, ly]) => (Math.abs(lx - x) + Math.abs(ly - y)) * C < LAMP_GAP_M) && LS.intensity !== 0 || (LS.intensity === 0 && width <= 2 && r.bool(0.12) && !lampAt.some(([lx, ly]) => (Math.abs(lx - x) + Math.abs(ly - y)) * C < LAMP_GAP_DARK_M)))) {
       lampAt.push([x, y]);
       faceUse.add(`${x + dx},${y + dy},${-dx},${-dy}`);   // no sign under a lamp
       const [lx, lz] = [cx + dx * (C / 2), cz + dy * (C / 2)];
@@ -587,8 +590,9 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
         lamps.push({ x: lx - dx * 0.5, y: 2.6, z: lz - dy * 0.5 });
       }
     }
-    // things against the wall, by place
-    const roll = r.float();
+    // things against the wall, by place; the odds are per 1.5 m of wall, so a longer cell
+    // gets proportionally more (build 45: the same clutter per metre as at 1.5 m cells)
+    const roll = r.float() / PROP_PER_CELL;
     if ((place === 'street' || place === 'tenements') && roll < 0.05) {
       const [px, pz] = at(0.36);
       prop(r.bool(0.55) ? 'can/rusty' : 'can/clean', px, pz, yawOut + (r.float() - 0.5) * 0.5);

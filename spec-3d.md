@@ -53,7 +53,7 @@ sim/        The authoritative rules for both games, unchanged in behaviour. Sinc
             gen.js exports scatterBolts and scatterCoins for the city builder; 3D-20
             proves 2D levels are byte-identical.
 sim3d/      pure, Node-runnable, imports only sim/ and sim3d/
-  units.js      CELL_M 1.5, TICK_HZ_3D 4, conversions (realSeconds, simSecondsToReal)
+  units.js      CELL_M 2.5, TICK_HZ_3D 2, WALK_M_S 5, conversions (realSeconds, simSecondsToReal)
   body.js       continuous body: circle (r 0.2 cell) sliding against blocked tiles
   leash.js      continuous body -> four-direction sim input
   raycast.js    Amanatides-Woo grid march; lineOfSight, and shotClear (with heights) for the stun gun
@@ -113,20 +113,33 @@ an import map from the repository, never a CDN; criterion 3D-0 checks the hashes
 
 | Constant | Value | Meaning |
 |---|---|---|
-| `CELL_M` | 1.5 m | One sim cell |
-| `TICK_HZ_3D` | 4 | Sim ticks per real second (2D runs at 8) |
+| `CELL_M` | 2.5 m | One sim cell (1.5 m in builds 2–44) |
+| `TICK_HZ_3D` | 2 | Sim ticks per real second (2D runs at 8; 4 in builds 2–44) |
 | Walls / eye / body | 3.2 m / 1.65 m / 0.3 m radius | |
 
-Walking is 6 m/s and sprinting 12 m/s. A district is a city from 108 × 67 m (district 1)
-to 372 × 232 m (district 100); see "Districts are cities" below. The `classic` ruleset
-keeps the 2D game's 48 × 30 m. Everything is unchanged **in ticks** — chase periods, alert
-length, stun length, division, par, the score — so the 3D game runs the 2D rules at half
-speed. The 3D HUD converts ticks with `TICK_HZ_3D` and
-never shows a sim-computed "seconds". One visible consequence: a bought second of
-lightning (8 ticks) lasts two real seconds in 3D, and the 3D shop says so.
+Walking is 5 m/s and sprinting 10 m/s — the user's numbers, with the 2.5 m cell (3D build
+45). The sim moves you one cell a tick, two sprinting, so the tick rate is not a free
+choice: 5 / 2.5 = 2 Hz. A district is a city from 180 × 112 m (district 1) to about
+620 × 387 m (district 100); see "Districts are cities" below. The `classic` ruleset keeps
+the 2D game's 80 × 50 m.
 
-Both constants are adjustable live from the tuning panel (backquote) so they can be
-settled by feel; the defaults have not yet been confirmed by a person playing.
+Everything the sim plays by is unchanged **in cells and ticks** — chase periods, alert
+length, stun length, division, arrivals (17–40 cells away), travel (beyond 27 cells), par,
+the score — so a change of scale changes the world's size and the clock, not the game:
+the 3D page runs the 2D rules at a quarter of their speed. The aliens' speeds are
+fractions of yours per tier (`TIER_SPEED_3D`, `HUNT_CEILING`, `TRAVEL_SPEED`), so on Hard
+a hunting alien runs 2.9–3.5 m/s and travels at 10 m/s out of sight. Only what you see is
+set in metres: the fog (clear to 26 m, solid at 90 m) and the stun gun's reach (72 m, now
+28.8 cells). Presentation that used to count cells now counts metres: footsteps and head
+bob (a step about every 2 m), the aliens' stride, render chunks (48 m), wall lamps and
+street clutter per metre of wall.
+
+The 3D HUD converts ticks with `TICK_HZ_3D` and never shows a sim-computed "seconds". One
+visible consequence: a bought second of lightning (8 ticks) lasts four real seconds in 3D,
+and the 3D shop says so. A stun lasts 20 s and an alert 10 s.
+
+Both constants are adjustable live from the tuning panel (backquote). The 2.5 m and
+5 / 10 m/s are the user's; how 2 Hz feels in play has not yet been confirmed by a person.
 
 ## The player
 
@@ -734,7 +747,7 @@ unchanged. See decisions.md R71.
   - linear haze from 22 m to 230 m in the photo's horizon colour; the far plane follows;
   - the darkness map is now a sky-view factor: in 16 directions, the steepest wall within
     14 cells, `cos²` of it averaged. Squares see nearly all the sky, a street between
-    four-storey fronts about half, a 1.5 m alley almost none. It scales the sky's light,
+    four-storey fronts about half, a one-cell alley almost none. It scales the sky's light,
     so alleys go black and the torch (F) is for them.
 - **Grade** (`post.js`): three's ACES filmic fit with exposure 0.85, then the grade
   (saturation 1.08, grain 0.035, vignette 0.28, light bloom). Ambient occlusion from
@@ -1080,8 +1093,10 @@ date and who measured — in both cases Claude in the browser pane, not a human.
 1. **Nobody has played it.** Every check was a test, a script or a screenshot. Whether the
    leash feels like a shooter or a dungeon crawler with smoothing — the phase-2 go/no-go —
    is still open, and it is a person's call.
-2. **Is 4 Hz right?** Half speed gives a human twice the reaction time; losing the god view
-   takes much of it back. Bots cannot answer this: they have perfect information.
+2. **Is 2 Hz right?** The user set the scale (2.5 m cells, 5 and 10 m/s, build 45), which
+   fixes the rate at 2 Hz: the sim sees pickups, the portal and capture every half second.
+   The body is continuous, so movement is smooth; whether the half-second shows is a
+   person's call. Bots cannot answer this: they have perfect information.
 3. **Full radar or hear-only?** v1 shows every alien on the minimap for parity with what
    the balance was measured against.
 4. **One dossier or two?** Separate for now; the same person's trait profile in 2D and 3D

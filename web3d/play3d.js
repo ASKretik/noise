@@ -40,6 +40,9 @@ const $ = (id) => document.getElementById(id);
 const DISPATCH_EVERY_TICKS = 32;
 
 const TUNE_KEY = 'noise3d-tune-v1';
+/** Head bob per metre walked: one dip, and one footstep, about every 2 m (build 45: per metre, not per cell). */
+const BOB_PER_M = 2.4 / 1.5;
+const footfall = (bob) => Math.floor(bob / Math.PI - 0.75);
 const DEFAULTS = Object.freeze({ cellM: CELL_M, tickHz: TICK_HZ_3D, response: RESPONSE, debug: false });
 
 function loadTune() {
@@ -198,7 +201,7 @@ export class Play3D {
    */
   stumble(dt, cam, b, speed, cellM, calm, sprinting) {
     const px = b.x * cellM, pz = b.y * cellM;
-    const hit = speed > 0.9 ? this.world.obstacleAt?.(px, pz, 0.22) : null;
+    const hit = speed * cellM > 1.35 ? this.world.obstacleAt?.(px, pz, 0.22) : null;
     if (hit && hit !== this.tripOn && (!this.tripState || this.t - this.tripState.t0 > 0.45)) {
       // which side of your path it is on: a foot caught on the left throws you left
       const fx = -Math.sin(this.controls.yaw), fz = -Math.cos(this.controls.yaw);
@@ -254,7 +257,6 @@ export class Play3D {
     this.chains.set(n, this.runner.chain);
     this.runner.onEnd = (summary) => this.finish(summary);
     this.runner.onTick = (row) => this.afterTick(row);
-    this.lastCell = { x: this.runner.game.player.x, y: this.runner.game.player.y };
     this.wasAlert = false;
     this.endAnim = null;
     this.fx.reset();
@@ -675,11 +677,6 @@ export class Play3D {
   afterTick() {
     this.remember();
     const g = this.runner.game;
-    if (g.player.x !== this.lastCell.x || g.player.y !== this.lastCell.y) {
-      const tile = this.runner.map.tiles[g.player.y * this.runner.map.w + g.player.x];
-      this.audio.footstep(tile === TILE.COVER ? 'water' : tile === TILE.SAFE ? 'safe' : 'floor', g.sprinting);
-      this.lastCell = { x: g.player.x, y: g.player.y };
-    }
     const alert = g.alertTicks > 0;
     if ((g.started && g.tick % DISPATCH_EVERY_TICKS === 0) || (alert && !this.wasAlert)) this.narrate();
     this.wasAlert = alert;
@@ -880,8 +877,16 @@ export class Play3D {
     const b = r.session.body;
     const speed = Math.hypot(b.vx, b.vy);
     const calm = this.settings.reduceMotion;
-    // Head bob from distance actually walked, not from time: standing still is still.
-    this.bob += speed * dt * 2.4;
+    // Head bob from distance actually walked, not from time: standing still is still. A
+    // footstep at each low point (build 45: by distance, not by sim cell -- a 2.5 m cell
+    // is too long a step, and a sprint tick of two cells would be one step for 5 m).
+    const stepWas = footfall(this.bob);
+    this.bob += speed * cellM * dt * BOB_PER_M;
+    if (footfall(this.bob) > stepWas && !g.over) {
+      const { w, h, tiles } = r.map, tx = Math.floor(b.x), ty = Math.floor(b.y);
+      const tile = tx >= 0 && ty >= 0 && tx < w && ty < h ? tiles[ty * w + tx] : TILE.FLOOR;
+      this.audio.footstep(tile === TILE.COVER ? 'water' : tile === TILE.SAFE ? 'safe' : 'floor', g.sprinting);
+    }
     const bobY = calm ? 0 : Math.sin(this.bob * 2) * 0.035 * Math.min(1, speed / r.session.tickHz);
     cam.position.set(b.x * cellM, EYE_M + bobY, b.y * cellM);
     cam.rotation.set(this.controls.pitch, this.controls.yaw, 0);

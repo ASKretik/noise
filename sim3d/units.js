@@ -6,15 +6,25 @@
 //   CELL_M      how wide one sim cell is in the world
 //   TICK_HZ_3D  how many sim ticks run per real second on the 3D page
 //
-// The 2D page runs at 8 Hz. At first-person scale that is about twice a shooter's sprint,
-// so the 3D page runs the SAME sim more slowly. Everything is unchanged in ticks -- chase
-// periods, alert length, stun length, division interval, par, the score -- which is why
-// nothing in /sim needs to know.
+// The 2D page runs at 8 Hz. At first-person scale that is several times a shooter's
+// sprint, so the 3D page runs the SAME sim more slowly. Everything is unchanged in ticks --
+// chase periods, alert length, stun length, division interval, par, the score -- which is
+// why nothing in /sim needs to know.
+//
+// 3D build 45 (the user's numbers): a cell is 2.5 m, you walk at 5 m/s and sprint at
+// 10 m/s. The sim moves you one cell a tick (two sprinting), so the tick rate follows:
+// 5 / 2.5 = 2 Hz. Builds 2-44 ran 1.5 m cells at 4 Hz (6 and 12 m/s). The aliens' speeds
+// are fractions of yours per tier (sim3d/next/rules.js), so they follow too. A tick is now
+// half a second, so every timer kept in ticks lasts twice as long in seconds as it did --
+// but exactly as many of your steps.
 
 import { TICKS_PER_SECOND } from '../sim/difficulty.js';
 
-export const CELL_M = 1.5;
-export const TICK_HZ_3D = 4;
+export const CELL_M = 2.5;
+export const TICK_HZ_3D = 2;
+/** Your speeds in metres per second, as the two constants above make them. */
+export const WALK_M_S = CELL_M * TICK_HZ_3D;
+export const SPRINT_M_S = 2 * WALK_M_S;
 
 /** Wall height, eye height and body radius, in metres. */
 export const WALL_M = 3.2;

@@ -13,7 +13,7 @@ import { generateLevel } from '../../sim/gen.js';
 import { levelParams, difficultyOf } from '../../sim/difficulty.js';
 import { generateCity } from './city.js';
 import { areaMultiple } from './size.js';
-import { CELL_M, TICK_HZ_3D } from '../units.js';
+import { TICK_HZ_3D } from '../units.js';
 
 export const RULESETS = Object.freeze(['classic', 'next']);
 export const DEFAULT_RULESET = 'next';
@@ -52,11 +52,17 @@ export const DISTRICT_SPEED_MAX = 1.4;
 export const HUNT_CEILING = 0.7;
 /** Travel speed at HARD, in your walking speeds, scaled by tier like the rest. */
 export const TRAVEL_SPEED = 2.0;
-/** Aliens travel only when at least this far from you, and out of your line of sight. */
-export const TRAVEL_MIN_M = 40;
-/** Where arrivals land: as the alien walks, 25-60 m from you, and out of your sight. */
-export const ARRIVE_MIN_M = 25;
-export const ARRIVE_MAX_M = 60;
+/**
+ * Aliens travel only when at least this many cells from you, and out of your line of
+ * sight. Distances the sim plays by are in cells -- your steps -- so a change of scale
+ * leaves the game itself alone: these were 40 m and 25-60 m at build 44's 1.5 m cells,
+ * and are 67 m and 42-100 m at 2.5 m (build 45). Only what you see is set in metres:
+ * the fog, and the stun gun's reach.
+ */
+export const TRAVEL_MIN_CELLS = 27;
+/** Where arrivals land: as the alien walks, 17-40 cells from you, and out of your sight. */
+export const ARRIVE_MIN_CELLS = 17;
+export const ARRIVE_MAX_CELLS = 40;
 
 /** Arrival cap on a city map: grows with the side of the map, not its area. */
 export const arrivalCap = (area) => Math.round(4 * Math.sqrt(area));
@@ -73,11 +79,11 @@ export const districtSpeed = (district) => 1 + ((DISTRICT_SPEED_MAX - 1) * (Math
  *   speeds   the base move rate (the 2D period with its tier factor undone) x the 3D tier
  *            factor x the district factor; hunting is capped at HUNT_CEILING x tier, and
  *            patrolling is never faster than hunting. A move period is 1 / rate.
- *   travel   TRAVEL_SPEED x tier walking speeds, beyond TRAVEL_MIN_M and out of sight
+ *   travel   TRAVEL_SPEED x tier walking speeds, beyond TRAVEL_MIN_CELLS and out of sight
  *   numbers  arrival cap round(4 sqrt A), divisions up to twice that, about one in eight
  *            already on the map, and the arrival rate scaled up so the city fills over the
  *            first two minutes or so rather than ten
- *   arrivals 25-60 m away as the alien walks (sim3d/next/spawn.js adds "out of sight")
+ *   arrivals 17-40 cells away as the alien walks (sim3d/next/spawn.js adds "out of sight")
  */
 export function paramsFor(ruleset, district, tier) {
   const p = levelParams(district, tier);
@@ -96,23 +102,24 @@ export function paramsFor(ruleset, district, tier) {
     chaseMovePeriod: 1 / hunt,
     patrolMovePeriod: 1 / patrol,
     travelRate: TRAVEL_SPEED * k,
-    travelMinCells: Math.round(TRAVEL_MIN_M / CELL_M),
+    travelMinCells: TRAVEL_MIN_CELLS,
     caches: keysFor(district),
     maxPatrols: cap,
     splitCeiling: 2 * cap,
     initialPatrols: Math.max(1, Math.round(cap / 8)),
     lambdaBase: (p.lambdaBase * cap) / p.maxPatrols,
-    spawnMinDist: Math.round(ARRIVE_MIN_M / CELL_M),
-    spawnMaxDist: Math.round(ARRIVE_MAX_M / CELL_M),
+    spawnMinDist: ARRIVE_MIN_CELLS,
+    spawnMaxDist: ARRIVE_MAX_CELLS,
   };
 }
 
 /**
  * The run's time limit (N8.3), set per run from its par -- the greedy key route plus the
  * portal, with the 2D game's 1.35 slack -- so it scales with the route actually drawn.
- * Measured: walking the route with no aliens takes 0.9 min at district 1 and 4.4 at 100
- * (par 1.2 and 6.0), so six times par is about eight times the walk: a backstop no careful
- * run meets, never under six minutes. The HUD counts down the last minute.
+ * Measured at build 23's 4 Hz: walking the route with no aliens takes 0.9 min at district 1
+ * and 4.4 at 100 (par 1.2 and 6.0), so six times par is about eight times the walk: a
+ * backstop no careful run meets, never under six real minutes. The HUD counts down the
+ * last minute. Par is in ticks, so at build 45's 2 Hz all of these double in minutes.
  * (N8.1 used 180 s x 8 ticks x sqrt(A), 13-46 min, before anyone had measured.)
  */
 export const LIMIT_PAR = 6;

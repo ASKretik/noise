@@ -5,7 +5,7 @@
 // inventory.items3d, written through the store's single active-id path (persist3d.js).
 // Their rules are Game3DNext's (sim3d/next/game.js): the `next` ruleset only.
 //
-// Times are sim ticks: at 4 Hz, 4 ticks are one real second.
+// Times are sim ticks: at TICK_HZ_3D (2 Hz since build 45) two ticks are one real second.
 
 export const ITEMS3D = Object.freeze({
   decoy: Object.freeze({
@@ -18,7 +18,7 @@ export const ITEMS3D = Object.freeze({
   }),
   emp: Object.freeze({
     id: 'emp', label: 'EMP', price: 150, carry: 2, perDistrict: 1, range: Infinity, thrown: true,
-    blurb: 'A pulse grenade, thrown wherever you aim. Every awake alien within 3 cells of where it lands, with nothing solid in between, is stunned as if shot.',
+    blurb: 'A pulse grenade, thrown wherever you aim. Every awake alien within 7.5 m of where it lands, with nothing solid in between, is stunned as if shot.',
   }),
 });
 export const ITEM3D_IDS = Object.freeze(Object.keys(ITEMS3D));
@@ -38,11 +38,11 @@ export function throwRayOf(eye, dir, cellM) {
   return [q(eye.x / cellM), q(eye.z / cellM), q(eye.y), dq(dir.x / cellM), dq(dir.z / cellM), dq(dir.y)];
 }
 
-/** How long a decoy holds the aliens it drew, unless they see you: 10 real seconds. */
+/** How long a decoy holds the aliens it drew, unless they see you: 40 of your steps (20 real seconds at 2 Hz; 10 at build 44's 4 Hz). */
 export const DECOY_TICKS = 40;
 /** Patrolling aliens within this many cells of a decoy go to it. */
 export const DECOY_PULL = 14;
-/** An EMP stuns awake aliens within this many cells of where it lands. */
+/** An EMP stuns awake aliens within this many cells of where it lands (7.5 m at 2.5 m cells). */
 export const EMP_RADIUS = 3;
 /** Dampers scale the radius you are heard at by this. */
 export const DAMPERS_FACTOR = 0.75;
