@@ -807,15 +807,23 @@ shutters, balconies, awnings, pitched roofs), lamps and effects. See decisions.m
 - **Stumbling** (`Play3D.stumble`): the kit builder records every small thing on the
   pavement: stoops, bank steps, bins, bags, crates, barrels, tyres, benches, utility
   boxes, rubble, canopy poles. Moving at over 1.35 m/s into one (0.22 m of foot reach)
-  trips you. Build 46 (the user: "more pronounced ... and even more when sprinting"),
-  `TRIP` in `play3d.js`: a jolt as the foot stops dead; the view pitches forward and
-  down and lurches on (walking about 10°, an 8 cm drop), rolls and turns toward the side
-  you hit, and recovers in 0.95 s. Sprinting multiplies all of it by 1.6 on top of the
-  extra speed — about 20°, a 19 cm drop, a 13° roll — over 1.3 s, and the recovery
-  wobbles to one side and then the other. (Builds 42–45: 5° walking, 7° sprinting,
-  0.75 s.) Once per obstacle; Reduce motion keeps a third of it, with no roll or head
-  turn. A scuff and a heavy step play, louder sprinting, plus a ring or knock for metal
-  or wood. Camera only: speed, the sim and the noise you make are unchanged.
+  trips you. Build 47 (the user: "much more aggressive"), `TRIP` in `play3d.js`, is a
+  near-fall. The foot stops dead with a jolt; you pitch over in 60 ms, hang there
+  (0.12 s walking, 0.25 s sprinting), lurch on and come back up; the view rolls and turns
+  toward the side you hit and staggers side to side as you find your feet. A second slam
+  (and a second scuff) as the next foot comes down at 0.3 s. With Glow on, the screen
+  takes the hit too (`post.js setShock`): a dark tunnel, a smear toward the middle,
+  stronger colour fringes, a dimming, and a lens punch of up to 9°. Measured on a stoop
+  in district 1:
+
+  | | Pitch | Roll | Head turn | Drop | Lasts | Stagger |
+  |---|---|---|---|---|---|---|
+  | Walking | 21° | 18° | 7° | 19 cm | 1.5 s | 2 swings |
+  | Sprinting | 47° | 41° | 15° | 47 cm | 2.2 s | 3 swings |
+
+  (Builds 42–45: 5° and 7° in 0.75 s. Build 46: 10° and 20° in 0.95 and 1.3 s.) Once per
+  obstacle; Reduce motion keeps a third of it, with no roll, head turn or full screen
+  hit. Camera and screen only: speed, the sim and the noise you make are unchanged.
 - **Measured** at 1080p Medium:
 
   | Districts | Mean |
@@ -894,6 +902,33 @@ first, the rest once approved. See decisions.md R74.
   to face it. It has an arrow and its distance, at mid-height when behind you.
 - **Every kit district:** a puddle's alpha now fills its cell with a frayed edge, so
   neighbouring water cells merge into one sheet.
+
+### Every district in its belt's style (N4.4, 3D build 47)
+
+The user approved the ten styles below and asked for each to go to the whole of its
+belt. `artFor` now applies `hdOverrides` to every district (`styledDistrict` in
+`belts.js`); `HD_DISTRICTS` remains as the list of where each style was set. All ten
+districts of a belt share its style exactly: sky, light, palette, weather, grade, ground,
+2K finish, plates, coins and edge markers. What differs between them is what always did:
+the city (layout, places, buildings, damage, signs) and its size. The old
+dusk-to-midnight progression within a belt (the drawn styles of builds 29–34) no longer
+shows in play; its tables stay as data for the drawn walls and floors used where the
+model kit cannot load, and 3D-16 still lints their colours (its dusk-to-midnight order
+check now has no district to apply to).
+
+- **Measured** at 1080p Medium, the deepest districts:
+
+  | District | City | Ready | Mean | p95 | Calls |
+  |---|---|---|---|---|---|
+  | 10 RUST | 101 × 63 | 2.3 s | 21.5 ms | 26–27 | 280 |
+  | 50 VIOLET | 175 × 110 | 3.0 s | 17–20 ms | 24–29 | 254 |
+  | 100 COBALT | 248 × 155 | 7.4 s | 26–27.5 ms | 28–31 | 278–287 |
+
+  (Ready: from page load with the kit cached. The GPU texture count grows with the city
+  -- 1,207 at district 10, 3,246 at 100 -- because each batched chunk keeps three small
+  data textures; only 154 image textures are in use.)
+- **Plates**, rendered from in front as in build 46: district 10 52 plates, 96% visible
+  on average; 57 159, 96%; 83 253, 97%; 100 293, 97% (one at 70%).
 
 ### Every belt's first district at district 1's finish (N4.4, 3D build 46)
 

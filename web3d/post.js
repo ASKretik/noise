@@ -100,7 +100,7 @@ void main() {
   gl_FragColor = vec4(vec3(sum / max(wsum, 1e-4)), 1.0);
 }`;
 
-const COMPOSITE = `uniform sampler2D src, b1, b2, aoTex; uniform float strength, sat, lift, gain, vignette, grain, ca, time, aces, exposure, ao, mono, shimmer, clock;
+const COMPOSITE = `uniform sampler2D src, b1, b2, aoTex; uniform float strength, sat, lift, gain, vignette, grain, ca, time, aces, exposure, ao, mono, shimmer, clock, shock;
 uniform vec3 tint; varying vec2 vUv;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 // three's ACES filmic fit (tonemapping_pars_fragment), with its exposure convention
@@ -129,8 +129,11 @@ void main() {
   vec2 uv0 = vUv;
   // build 42, SOLAR: heat shimmer, strongest across the middle of the view where the street ends
   if (shimmer > 0.0) uv0 += vec2(sin(vUv.y * 150.0 + clock * 4.2) * 0.0012, cos(vUv.x * 95.0 + clock * 3.3) * 0.0007) * shimmer * (1.0 - min(1.0, abs(vUv.y - 0.48) * 2.2));
-  vec2 off = (uv0 - 0.5) * ca;   // N4.4: a cheap lens -- colour fringes toward the edges
-  vec3 c = ca > 0.0 ? vec3(texture2D(src, uv0 + off).r, texture2D(src, uv0).g, texture2D(src, uv0 - off).b) : texture2D(src, uv0).rgb;
+  float fringe = ca + shock * 0.014;
+  vec2 off = (uv0 - 0.5) * fringe;   // N4.4: a cheap lens -- colour fringes toward the edges
+  vec3 c = fringe > 0.0 ? vec3(texture2D(src, uv0 + off).r, texture2D(src, uv0).g, texture2D(src, uv0 - off).b) : texture2D(src, uv0).rgb;
+  // build 47: a stumble's smear, toward the middle of the view
+  if (shock > 0.0) { vec2 r = (uv0 - 0.5) * shock * 0.045; c = (c + texture2D(src, uv0 - r).rgb + texture2D(src, uv0 - 2.0 * r).rgb) / 3.0; }
   if (ao > 0.0) c *= mix(1.0, texture2D(aoTex, vUv).r, ao);
   c += (texture2D(b1, vUv).rgb * 0.6 + texture2D(b2, vUv).rgb * 0.8) * strength;
   if (aces > 0.5) c = filmAces(c);
@@ -139,7 +142,7 @@ void main() {
   float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
   c = max(mix(vec3(l), c, sat), 0.0) * tint;
   vec2 d = vUv - 0.5;
-  c *= 1.0 - vignette * dot(d, d) * 2.0;
+  c *= max(0.0, 1.0 - (vignette + shock * 1.1) * dot(d, d) * 2.0) * (1.0 - shock * 0.3);
   // film grain, a new pattern every frame, stronger in the shadows like real stock
   if (grain > 0.0) c *= 1.0 + (hash(vUv * 1024.0 + time) - 0.5) * grain * (2.0 - min(1.0, dot(c, vec3(0.33)) * 4.0));
   gl_FragColor = vec4(c, 1.0);
@@ -175,7 +178,7 @@ export function createPost(renderer, { scale = 0.5, samples = 4 } = {}) {
   const comp = material(COMPOSITE, {
     src: { value: scene.texture }, b1: { value: b1.texture }, b2: { value: a2.texture },
     strength: { value: 0.9 }, sat: { value: 1 }, lift: { value: 0 }, gain: { value: 1 },
-    vignette: { value: 0.22 }, tint: { value: new THREE.Color(1, 1, 1) },
+    vignette: { value: 0.22 }, shock: { value: 0 }, tint: { value: new THREE.Color(1, 1, 1) },
     grain: { value: 0 }, ca: { value: 0 }, time: { value: 0 },
     aces: { value: 0 }, exposure: { value: 1 }, ao: { value: 0 }, aoTex: { value: ao2.texture },
     mono: { value: 0 }, shimmer: { value: 0 }, clock: { value: 0 },
@@ -232,6 +235,8 @@ export function createPost(renderer, { scale = 0.5, samples = 4 } = {}) {
       return info;
     },
     /** The belt's grade: { tint, sat, lift, gain, bloom } */
+    /** Build 47: a stumble's hit on the screen, 0-1 (play3d.js stumble). */
+    setShock(x) { comp.uniforms.shock.value = x; },
     setGrade(g = {}) {
       comp.uniforms.tint.value.set(g.tint || '#ffffff');
       comp.uniforms.sat.value = g.sat ?? 1;

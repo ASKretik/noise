@@ -218,13 +218,16 @@ const ART = {
 };
 
 /**
- * N4.4 PROTOTYPE: the first district of every belt in its own style (art/hdstyles.js),
- * built from the model kit (art/kit.js, art/kitbuild.js). Builds 38-40 tried a smog
- * horror look on district 1, build 41 daylight; the user kept build 41's craft and asked
- * for a sombre look that changes completely from belt to belt (3D build 42, R72). Once a
- * belt's first district is approved it is carried to the rest of the belt.
+ * N4.4: every belt in its own style (art/hdstyles.js), built from the model kit
+ * (art/kit.js, art/kitbuild.js). Builds 38-40 tried a smog horror look on district 1,
+ * build 41 daylight; the user kept build 41's craft and asked for a sombre look that
+ * changes completely from belt to belt (3D build 42, R72). Each style was set on its
+ * belt's first district (these), finished there (builds 43-46), and carried to the
+ * whole belt at the user's word in build 47 (R77).
  */
 export const HD_DISTRICTS = Object.freeze([1, 11, 21, 31, 41, 51, 61, 71, 81, 91]);
+/** Build 47: whether a district is drawn in its belt's style -- every district now. */
+export const styledDistrict = (district) => !!HD_STYLES[BELT_NAMES[beltOf(district)]];
 /** what every belt's style shares: the torch in your hand */
 const HD_TORCH = Object.freeze({ color: '#ffe8c8', intensity: 20, angle: 0.38, penumbra: 0.7, distance: 32, decay: 1.15 });
 
@@ -298,12 +301,12 @@ export function artFor(district) {
       keyI: lerp(a.keyI, b.keyI, t), keyAz: body.az, keyElev: Math.max(6, body.elev),
     },
     fog: { color: mixHex(a.horizon, b.horizon, t) },
-    ...(HD_DISTRICTS.includes(district) && HD_STYLES[BELT_NAMES[belt]] ? hdOverrides(HD_STYLES[BELT_NAMES[belt]], a) : {}),
+    ...(styledDistrict(district) ? hdOverrides(HD_STYLES[BELT_NAMES[belt]], a) : {}),
   };
 }
 
 /**
- * A belt's first district in its own style (art/hdstyles.js). The drawn-sky fields keep
+ * A district in its belt's style (art/hdstyles.js). The drawn-sky fields keep
  * the shape art/sky.js wants; a photographed sky keeps a stand-in gradient from its haze.
  * `light` keeps the old keys for the fallbacks; world.js lightScene reads `hd` itself.
  */

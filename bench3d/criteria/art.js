@@ -44,9 +44,10 @@ export const criteria = [{
         for (const hex of [art.light.hemiSky, art.light.hemiGround, art.light.key, art.sky.body.color]) {
           if (!isHex(hex)) problems.push(`district ${d} light colour is not a hex: ${hex}`);
         }
-        // build 42: a belt's first district in its own style (art/hdstyles.js) sets its own
-        // hour -- EMBER's burned night, JADE's two moons -- so the dusk-to-midnight order
-        // starts after it; its colours, facades and fog are linted above like the rest
+        // build 42: a district in its belt's style (art/hdstyles.js) sets its own hour --
+        // EMBER's burned night, JADE's two moons -- so there is no dusk-to-midnight order to
+        // keep (since build 47 every district is styled); its colours, facades and fog are
+        // linted above like the rest
         if (art.hd) { lastL = Infinity; hd++; continue; }
         // dusk to midnight: the horizon never brightens going deeper into a belt
         const l = hexToHsl(art.sky.horizon).l;
@@ -68,6 +69,6 @@ export const criteria = [{
 
     return problems.length
       ? [FAIL, problems.slice(0, 6).join('; ')]
-      : [PASS, `${styled.length} belts art-directed (${styled.join(', ')}): ${checked} large-area colours over ${styled.length * 10} districts, none within 25°/0.25 of ${Object.keys(ENTITY_COLOURS).length} entity colours; horizons darken dusk to midnight; ${hd} first districts in their own style (facades, brick, fog, haze linted too); sign and wall-art colours clear too${fallback.length ? `. On 2D palettes: ${fallback.join(', ')}` : ''}`];
+      : [PASS, `${styled.length} belts art-directed (${styled.join(', ')}): ${checked} large-area colours over ${styled.length * 10} districts, none within 25°/0.25 of ${Object.keys(ENTITY_COLOURS).length} entity colours; ${hd} districts in their belt's own style (facades, brick, fog, haze linted too)${hd < styled.length * 10 ? '; horizons darken dusk to midnight in the rest' : ''}; sign and wall-art colours clear too${fallback.length ? `. On 2D palettes: ${fallback.join(', ')}` : ''}`];
   },
 }];

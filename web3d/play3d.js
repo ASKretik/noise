@@ -44,12 +44,19 @@ const TUNE_KEY = 'noise3d-tune-v1';
 const BOB_PER_M = 2.4 / 1.5;
 const footfall = (bob) => Math.floor(bob / Math.PI - 0.75);
 /**
- * A stumble's shape (build 46). Amplitudes at k = 1, about walking pace: radians for dip,
- * roll, turn and jolt, metres for drop, sway and lurch. Sprinting multiplies k by
- * sprintGain on top of the extra speed, which makes it about twice a walking stumble.
- * Build 42-45 were dip 0.15, drop 0.09, roll 0.085, sway 0.06, 0.75 s, sprint x1.15.
+ * A stumble's shape (build 47). Amplitudes at k = 1, about walking pace: radians for dip,
+ * roll, turn and jolt, metres for drop, sway and lurch, degrees for the lens punch.
+ * Sprinting multiplies k by sprintGain on top of the extra speed (k about 2.1 against
+ * 1.05). Per gait: how long it all lasts, how long you hang at the bottom, how fast you
+ * come back up, how many stagger steps, how fast they die away, when the second slam
+ * comes, and how long the screen stays shocked.
+ * Builds 42-45: 5 and 7 degrees in 0.75 s. Build 46: 10 and 20 degrees in 0.95 and 1.3 s.
  */
-const TRIP = Object.freeze({ dip: 0.28, drop: 0.16, roll: 0.15, turn: 0.07, sway: 0.1, lurch: 0.14, jolt: 0.018, sprintGain: 1.6, durWalk: 0.95, durSprint: 1.3 });
+const TRIP = Object.freeze({
+  dip: 0.4, drop: 0.23, roll: 0.3, turn: 0.13, sway: 0.18, lurch: 0.3, jolt: 0.045, fovPunch: 9, sprintGain: 1.6,
+  walk: Object.freeze({ dur: 1.5, hold: 0.12, rise: 0.32, steps: 2, settle: 1.8, slam: 0.32, shock: 0.35 }),
+  sprint: Object.freeze({ dur: 2.2, hold: 0.25, rise: 0.5, steps: 3, settle: 1.1, slam: 0.3, shock: 0.6 }),
+});
 const DEFAULTS = Object.freeze({ cellM: CELL_M, tickHz: TICK_HZ_3D, response: RESPONSE, debug: false });
 
 function loadTune() {
@@ -201,14 +208,18 @@ export class Play3D {
   /**
    * Build 42, at the user's request: running into something small -- a stoop, a bin, a
    * crate, a bag, rubble -- catches your foot. Speed is untouched and the sim never knows:
-   * it is the camera only. Once per obstacle until you are clear of it; Reduce motion
-   * keeps a third of it, with no roll or head turn. Returns the drop, for the gun to follow.
+   * it is the camera (and, with Glow on, the screen) only. Once per obstacle until you are
+   * clear of it; Reduce motion keeps a third of it, with no roll, head turn or smear.
+   * Returns the drop, for the gun to follow.
    *
-   * Build 46, asked for "more pronounced, and even more when sprinting": a jolt as the foot
-   * stops dead, the view pitching forward and down (about 10 degrees walking) and lurching
-   * on, rolling and turning toward the side you hit, then a stagger back. Sprinting it is
-   * about twice that (about 20 degrees), lasts 1.3 s instead of 0.95, and the recovery
-   * wobbles twice, one side and then the other, before you have your feet again.
+   * Build 47, after "much more aggressive" (build 46's 10 and 20 degrees were not enough):
+   * a near-fall. The foot stops dead with a jolt; the body pitches over -- about 25 degrees
+   * walking, about 50 sprinting, the eye dropping 25 cm and 50 cm toward the ground --
+   * and lurches on; the view rolls and turns hard toward the side you hit, the screen
+   * tunnels dark, smears and fringes, and the lens punches in. You hang there a moment
+   * (0.12 s walking, 0.25 s sprinting), then stagger back up over 1.5 s, or 2.2 s and
+   * three lurching steps from one side to the other when sprinting, with a second slam
+   * as the next foot (or a hand) comes down.
    */
   stumble(dt, cam, b, speed, cellM, calm, sprinting) {
     const px = b.x * cellM, pz = b.y * cellM;
@@ -218,27 +229,28 @@ export class Play3D {
       const fx = -Math.sin(this.controls.yaw), fz = -Math.cos(this.controls.yaw);
       const side = Math.sign(fx * (hit.z - pz) - fz * (hit.x - px)) || 1;
       const k = Math.min(1.3, 0.6 + speed / (this.runner.session.tickHz * 2.2)) * (sprinting ? TRIP.sprintGain : 1);
-      this.tripState = { t0: this.t, side, k: calm ? k * 0.33 : k, sprint: !!sprinting, dur: sprinting ? TRIP.durSprint : TRIP.durWalk };
-      this.audio.stumble(hit.kind, Math.min(1.3, 0.55 + 0.35 * k));
+      const P = sprinting ? TRIP.sprint : TRIP.walk;
+      this.tripState = { t0: this.t, side, k: calm ? k * 0.33 : k, calm, P, slammed: false };
+      this.audio.stumble(hit.kind, Math.min(1.4, 0.7 + 0.35 * k));
     }
     this.tripOn = hit;
     const st = this.tripState;
-    if (!st) return 0;
-    const tau = this.t - st.t0, u = tau / st.dur;
-    if (u >= 1) { this.tripState = null; return 0; }
-    const k = st.k, side = st.side;
-    const catchUp = 1 - Math.exp(-u * 22);                 // the foot stops dead
-    const fall = catchUp * Math.exp(-u * 4.2);              // forward and down, then back up
-    const jolt = TRIP.jolt * k * Math.sin(tau * 70) * Math.exp(-tau * 18);
-    // the stagger: walking one swing to the side you hit; sprinting a second, smaller one
-    // to the other side as the next foot comes down
-    const wobble = st.sprint
-      ? Math.sin(u * 11) * Math.exp(-u * 2.4)
-      : Math.sin(u * 8.5) * Math.exp(-u * 3.4);
-    const dip = -TRIP.dip * k * fall + jolt;
-    const drop = -TRIP.drop * k * catchUp * Math.exp(-u * 4.8);
-    const roll = calm ? 0 : side * TRIP.roll * k * wobble;
-    const turn = calm ? 0 : side * TRIP.turn * k * Math.sin(u * 7) * Math.exp(-u * 4);
+    if (!st) { this.tripFov = 0; this.view.post?.setShock?.(0); return 0; }
+    const tau = this.t - st.t0, P = st.P;
+    if (tau >= P.dur) { this.tripState = null; this.tripFov = 0; this.view.post?.setShock?.(0); return 0; }
+    const k = st.k, side = st.side, quiet = st.calm;
+    // over in 60 ms, held, then up again; the whole thing eased out by the end
+    const fade = 1 - Math.pow(tau / P.dur, 3);
+    const fall = (1 - Math.exp(-tau / 0.06)) * Math.exp(-Math.max(0, tau - P.hold) / P.rise) * fade;
+    const jolt = TRIP.jolt * k * Math.sin(tau * 70) * Math.exp(-tau * 14);
+    // the stagger: lurching steps, side to side, each smaller
+    const wobble = Math.sin(tau * Math.PI * 2 * P.steps / P.dur) * Math.exp(-tau * P.settle) * fade;
+    if (!st.slammed && tau > P.slam) { st.slammed = true; this.audio.stumble('soft', Math.min(1.4, 0.45 + 0.35 * k)); }
+    const slam = tau > P.slam ? TRIP.jolt * 0.7 * k * Math.sin((tau - P.slam) * 60) * Math.exp(-(tau - P.slam) * 16) : 0;
+    const dip = -TRIP.dip * k * fall + jolt + slam;
+    const drop = -TRIP.drop * k * fall - Math.abs(slam) * 0.6;
+    const roll = quiet ? 0 : side * TRIP.roll * k * (0.55 * fall + 0.75 * wobble);
+    const turn = quiet ? 0 : side * TRIP.turn * k * fall;
     const sway = side * TRIP.sway * k * wobble;
     const lurch = TRIP.lurch * k * fall;
     const fx = -Math.sin(this.controls.yaw), fz = -Math.cos(this.controls.yaw);
@@ -248,6 +260,10 @@ export class Play3D {
     cam.position.y += drop;
     cam.position.x += Math.cos(this.controls.yaw) * sway + fx * lurch;
     cam.position.z += -Math.sin(this.controls.yaw) * sway + fz * lurch;
+    // the screen: a lens punch, a dark tunnel, a smear (post.js, Glow on)
+    const hitScreen = Math.min(1, k / 2.1) * ((1 - Math.exp(-tau / 0.04)) * Math.exp(-tau / P.shock));
+    this.tripFov = -TRIP.fovPunch * hitScreen;
+    this.view.post?.setShock?.(quiet ? hitScreen * 0.3 : hitScreen);
     return drop;
   }
 
@@ -273,7 +289,7 @@ export class Play3D {
     this.runner.session.response = this.tune.response;
     // N6.1: a new district starts with the gun in hand and no effects left over
     this.active = 'gun';
-    this.tripState = null; this.tripOn = null;
+    this.tripState = null; this.tripOn = null; this.tripFov = 0; this.view.post?.setShock?.(0);
     for (const fx of this.itemFx || []) this.view.scene.remove(fx.obj);
     this.itemFx = [];
     this.dossier = this.runner.dossier;
@@ -919,7 +935,7 @@ export class Play3D {
     // A small FOV kick while actually sprinting.
     const kick = !calm && g.sprinting && speed > r.session.tickHz * 1.2 ? 5 : 0;
     this.fovKick += (kick - this.fovKick) * (1 - Math.exp(-dt * 8));
-    this.view.setHFov(this.settings.fov + this.fovKick);
+    this.view.setHFov(this.settings.fov + this.fovKick + (this.tripFov || 0));
 
     if (this.endAnim) {
       const k = Math.min(1, (this.t - this.endAnim.t0) / (this.endAnim.dur || 0.45));

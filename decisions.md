@@ -3685,11 +3685,58 @@ searchlight's shadows over a district-91 city).
 **Not done:** the other districts of each belt, until the user has seen these and
 suggested changes.
 
+## R77 · A near-fall; every district in its belt's style (3D build 47)
+
+**Asked:** "no, it is still not sufficient. the stumbling should be much more aggressive.
+fix that, and then extend it to all the districts of the belt".
+
+**[ASSUMED] "It" is the art.** The user had said they would extend the styles once they
+liked them; this is that word. Each belt's style goes to all ten of its districts
+unchanged.
+
+**The stumble: a near-fall, and the screen takes the hit.**
+
+- **Shape.** Builds 42–46 drew the stumble as one smooth dip. Now you pitch over in
+  60 ms, hang at the bottom (0.12 s walking, 0.25 s sprinting), and come back up while
+  staggering side to side (2 swings walking, 3 sprinting). A second slam lands at 0.3 s.
+- **Screen.** With Glow on, the post pass takes a `shock` value from the stumble: a dark
+  tunnel, a smear toward the middle, stronger fringes, a dimming, and a lens punch of up
+  to 9°.
+- **[ASSUMED] Speed still untouched,** as the user said in R72. A real stumble would
+  cost time, and that would be a rules change. Not made unasked.
+
+Measured on the stoop in district 1:
+
+| | Pitch | Roll | Drop | Lasts |
+|---|---|---|---|---|
+| Build 46 walking | 10° | 5° | 8 cm | 0.97 s |
+| Build 47 walking | 21° | 18° | 19 cm | 1.53 s |
+| Build 46 sprinting | 20° | 13° | 19 cm | 1.32 s |
+| Build 47 sprinting | 47° | 41° | 47 cm | 2.23 s |
+
+Frames at 0.2 s and 0.8 s of a sprint stumble were looked at: first the stoop and
+pavement filling a dark, smeared view, then the street rolled hard over.
+
+**Every district.**
+
+- **The change.** `artFor` styles every district (`styledDistrict`). The 2K kit is
+  shared, and each belt's ground sets are the same for its ten districts.
+- **Frame time** at 1080p Medium: district 10 21.5 ms, district 50 17–20 ms, district
+  100 26–27.5 ms. District 100 is ready 7.4 s after load with the kit cached.
+- **Plates:** 52, 159, 253 and 293 in districts 10, 57, 83 and 100, 96–97% visible on
+  average.
+- **A number that looked wrong and was not:** GPU textures grow with the city (1,207 to
+  3,246). Each batched chunk keeps three small data textures; only 154 image textures
+  are in use.
+
+**What goes:** the dusk-to-midnight drift within a belt (builds 29–34) no longer shows.
+Its tables remain for the drawn fallback.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 46; 3D-1 via the
+npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 47; 3D-1 via the
                   2D suites above, run alongside)
 ```

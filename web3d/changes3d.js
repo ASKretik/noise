@@ -8,6 +8,24 @@
 
 export const CHANGES = [
   {
+    build: 47,
+    date: '2026-11-25',
+    phase: 'N4.4',
+    changed: [
+      'Tripping is now a near-fall. Your foot stops dead with a jolt, you pitch over and hang there for a moment, then stagger back up side to side. Walking: about 21 degrees forward, an 18 degree roll, your eye drops 19 cm, 1.5 s to recover. Sprinting: about 47 degrees forward, a 41 degree roll, your head turns 15 degrees, your eye drops 47 cm toward the ground, and you stagger three steps over 2.2 s. A second slam as the next foot comes down. With Glow on, the screen takes the hit too: it tunnels dark, smears, fringes and punches in. Your speed is still not touched.',
+      'Every district now has its belt\'s style, not just the first: all ten districts of a belt share its sky, light, colours, weather, ground, 2K buildings, enamel place-name plates, minted coins and edge key markers. Each district is still its own city.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R). Run into a stoop or a bin walking, then sprinting.',
+      'Play a few districts deep in a belt (10, 25, 57, 83, 100) and check they read as the same place as the belt\'s first.',
+    ],
+    unverified: [
+      'Frame time at 1080p Medium: district 10 21.5 ms, district 50 17-20 ms, district 100 26-27.5 ms. The biggest city takes about 7 s to be ready after the models are cached. Weaker machines are not measured.',
+      'Plates checked in districts 10, 57, 83 and 100 (52 to 293 each, 96-97% visible on average); the other 86 districts use the same rules but were not each checked.',
+      'Whether the near-fall is now too much, especially on a big screen or for anyone prone to motion sickness. Reduce motion keeps a third of it.',
+    ],
+  },
+  {
     build: 46,
     date: '2026-11-25',
     phase: 'N4.4 prototype',
