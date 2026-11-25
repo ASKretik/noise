@@ -81,6 +81,14 @@ add(0, 'Build hygiene: vendored three.js matches its recorded hashes; 3D stylesh
     'addons/loaders/HDRLoader.js': 'CYa1ePms0UzsdOXuheB/ReaBtAvNIppgGgORIB+bX/E=',
     'addons/utils/BufferGeometryUtils.js': 'XFUiI6kwmIN0O4BTjW6c20XjIn8w0+xW+yw5tG541ZU=',
     'addons/utils/SkeletonUtils.js': 'sWMqcDIGw9gw3p/L5RVpZ3DQS3GhXua1CvptLDKYyG8=',
+    // build 43: the decoder for GPU-compressed (KTX2) textures
+    'addons/loaders/KTX2Loader.js': 'OjIzzjQJRDB200FLeIMuFAX8+sXss002c2X9B4ESfWw=',
+    'addons/utils/WorkerPool.js': 'WscJX9VmvJrkg3YFX9Zu3yfLnrv54Sadwga/1JM66es=',
+    'addons/libs/ktx-parse.module.js': '9AxJH2xE3eURJoEh93igBQ5zsaFf2ETBrix4xzIT6vw=',
+    'addons/libs/zstddec.module.js': 'XL+BjoQmKKRGTnSFlKberhjO3do8L1QeezoP9fx2EeI=',
+    'addons/libs/basis/basis_transcoder.js': 'hHi1tta3Tn0wgrifZBcyHY0dwDB/KzDUSEuxG0QWlqE=',
+    'addons/libs/basis/basis_transcoder.wasm': 'bPF9yIk1LELprPiJcQeXjRJwBf4zhsNqDjhF4nlnYwo=',
+    'addons/math/ColorSpaces.js': 'zDXAHHk80XzN7XvIFCq//Tzg1g3W3o1dIWmDvQWu4mI=',
   };
   for (const [f, h] of Object.entries(expected)) {
     const p = join(vdir, f);

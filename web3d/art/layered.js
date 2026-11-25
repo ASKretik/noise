@@ -175,6 +175,9 @@ export function patchDark(mat, dark) {
       .replace('#include <common>', '#include <common>\nvarying vec3 vDkPos;')
       .replace('#include <project_vertex>', `#include <project_vertex>
   vec4 dkp = vec4(transformed, 1.0);
+  #ifdef USE_BATCHING
+    dkp = batchingMatrix * dkp;   // build 42 fix: the model kit's pieces are batched, not instanced
+  #endif
   #ifdef USE_INSTANCING
     dkp = instanceMatrix * dkp;
   #endif

@@ -28,6 +28,19 @@ the two utils by relative path; all four import `three` through the import map):
 | `addons/utils/BufferGeometryUtils.js` | 37,621 | `XFUiI6kwmIN0O4BTjW6c20XjIn8w0+xW+yw5tG541ZU=` |
 | `addons/utils/SkeletonUtils.js` | 11,535 | `sWMqcDIGw9gw3p/L5RVpZ3DQS3GhXua1CvptLDKYyG8=` |
 
+Build 43 (district 1 at 2K, GPU-compressed textures) adds the KTX2 decoder, again unmodified
+from the same release (`KTX2Loader` imports the other six by relative path):
+
+| File | Bytes | SHA-256 (base64, matches jsDelivr's published hash) |
+|---|---|---|
+| `addons/loaders/KTX2Loader.js` | 36,567 | `OjIzzjQJRDB200FLeIMuFAX8+sXss002c2X9B4ESfWw=` |
+| `addons/utils/WorkerPool.js` | 3,110 | `WscJX9VmvJrkg3YFX9Zu3yfLnrv54Sadwga/1JM66es=` |
+| `addons/libs/ktx-parse.module.js` | 19,932 | `9AxJH2xE3eURJoEh93igBQ5zsaFf2ETBrix4xzIT6vw=` |
+| `addons/libs/zstddec.module.js` | 39,754 | `XL+BjoQmKKRGTnSFlKberhjO3do8L1QeezoP9fx2EeI=` |
+| `addons/libs/basis/basis_transcoder.js` | 57,529 | `hHi1tta3Tn0wgrifZBcyHY0dwDB/KzDUSEuxG0QWlqE=` |
+| `addons/libs/basis/basis_transcoder.wasm` | 527,333 | `bPF9yIk1LELprPiJcQeXjRJwBf4zhsNqDjhF4nlnYwo=` |
+| `addons/math/ColorSpaces.js` | 4,290 | `zDXAHHk80XzN7XvIFCq//Tzg1g3W3o1dIWmDvQWu4mI=` |
+
 `three.module.min.js` imports `./three.core.min.js`, so the two must stay side by side.
 The 3D pages reach it through an import map: `"three": "../vendor/three/0.185.1/three.module.min.js"`.
 

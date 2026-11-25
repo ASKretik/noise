@@ -28,6 +28,7 @@ import { TILE } from '../../sim/grid.js';
 import { Rng, hashString } from '../../sim/prng.js';
 import { DIR4, TYPES, SURFACES, surface, batch, BOX, PLANE, CYL, PRISM, signAtlas, canvasTex } from './buildings.js';
 import { KitBatch, setWallLook } from './kit.js';
+import { ground2k } from './ground.js';
 
 const ST = 3;   // the kits' storey and bay, metres
 
@@ -110,7 +111,7 @@ function roomTexture(lit) {
  */
 export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, track, lookAt = () => null, style = {} }) {
   const town = style.town || {}, LS = style.lamps || {}, FX = style.effects || {};
-  setWallLook({ brickSat: town.brickSat ?? 1 });
+  setWallLook({ brickSat: town.brickSat ?? 1, plasterSat: town.plasterSat ?? 0, weather: style.weathering ?? 0 });
   const { w, h, tiles } = map;
   const open = (x, y) => x >= 0 && y >= 0 && x < w && y < h && tiles[y * w + x] !== TILE.WALL && tiles[y * w + x] !== TILE.BUILDING;
   const K = new KitBatch(kit);
@@ -466,10 +467,24 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
 
     // ---- a park's hedge: overgrown, a little uneven along the top
     if (b.type === 'parkwall') {
+      const mine = new Set(b.cells.map(([x, y]) => `${x},${y}`));
       for (const [x, y] of b.cells) {
         const hh = 2.4 + (r.float() - 0.5) * 0.35;
-        m4.compose(v.set((x + 0.5) * C, hh / 2, (y + 0.5) * C), q.identity(), s.set(C * 1.04, hh, C * 1.04));
-        B('hedge', 1.4).add(BOX, m4, ['#6f7d5a', '#66744f', '#77845f', '#5e6c4a'][r.int(4)]);
+        m4.compose(v.set((x + 0.5) * C, hh / 2, (y + 0.5) * C), q.identity(), s.set(C * 1.02, hh, C * 1.02));
+        B('hedge', 1.4).add(BOX, m4, ['#4f6a3c', '#4a6236', '#567242', '#465c34'][r.int(4)]);
+        // build 43: a loose outer layer of leaf cards on every open face and the top, so a
+        // hedge has a ragged edge instead of a box's
+        for (const [dx, dy] of DIR4) {
+          if (mine.has(`${x + dx},${y + dy}`)) continue;
+          for (const off of [0.05, 0.12]) {
+            e.set(0, Math.atan2(dx, dy), 0, 'YXZ');
+            m4.compose(v.set((x + 0.5 + dx * 0.51) * C + dx * off, hh / 2 + off * 0.5, (y + 0.5 + dy * 0.51) * C + dy * off), q.setFromEuler(e), s.set(C * 1.08, hh + 0.12, 1));
+            B('leaves').add(PLANE, m4, ['#5d7a44', '#66844a', '#55703e'][r.int(3)]);
+          }
+        }
+        e.set(-Math.PI / 2, 0, 0, 'YXZ');
+        m4.compose(v.set((x + 0.5) * C, hh + 0.06, (y + 0.5) * C), q.setFromEuler(e), s.set(C * 1.12, C * 1.12, 1));
+        B('leaves').add(PLANE, m4, '#6a8a4e');
       }
       continue;
     }
@@ -596,11 +611,33 @@ export function buildKitBuildings(plan, { map, cellM: C, seed, heightAt, kit, tr
   };
   for (const id of Object.keys(SURFACES)) if (batches.has(id)) add(id, new THREE.MeshStandardMaterial({ ...surface(id), vertexColors: true, roughness: 1 }));
   add('paint', new THREE.MeshStandardMaterial({ ...surface('Plaster001'), vertexColors: true, roughness: 1 }));
+  // build 43: the hedges' loose leaves -- clusters of leaf shapes on a transparent card
+  if (batches.has('leaves')) {
+    const leafTex = canvasTex(256, (g, nn) => {
+      const lr = new Rng(hashString(`${seed}:hedgeleaves`), 'leaves');
+      for (let i = 0; i < 2600; i++) {
+        const x = lr.float() * nn, y = lr.float() * nn, len = 3 + lr.float() * 5, a = lr.float() * 3.14;
+        const k = lr.float();
+        g.fillStyle = k < 0.6 ? `rgb(${60 + lr.int(40)},${86 + lr.int(40)},${40 + lr.int(24)})` : k < 0.9 ? `rgb(${88 + lr.int(30)},${110 + lr.int(30)},${48 + lr.int(20)})` : `rgb(${110 + lr.int(30)},${96 + lr.int(24)},${50 + lr.int(16)})`;
+        for (const [ox, oy] of [[0, 0], [nn, 0], [-nn, 0], [0, nn], [0, -nn]]) {
+          g.save(); g.translate(x + ox, y + oy); g.rotate(a);
+          g.beginPath(); g.moveTo(-len, 0); g.quadraticCurveTo(0, -len * 0.45, len, 0); g.quadraticCurveTo(0, len * 0.45, -len, 0); g.fill();
+          g.restore();
+        }
+      }
+    });
+    leafTex.repeat.set(2, 2);
+    add('leaves', new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.45, side: THREE.DoubleSide, vertexColors: true, roughness: 0.9 }));
+    track(leafTex);
+  }
   // the hedges: Poly Haven's leaf photo (assets3d/textures), on every face
   if (batches.has('hedge')) {
     const L = new THREE.TextureLoader();
     const t = (n, srgb) => { const tx = track(L.load(new URL(`../../assets3d/textures/forest_leaves_02/${n}.jpg`, import.meta.url).href)); tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.anisotropy = 8; if (srgb) tx.colorSpace = THREE.SRGBColorSpace; return tx; };
-    add('hedge', new THREE.MeshStandardMaterial({ map: t('diff', true), normalMap: t('nor_gl', false), roughnessMap: t('arm', false), normalScale: new THREE.Vector2(1.6, 1.6), vertexColors: true, roughness: 1 }));
+    const hi = style.res === '2k' && ground2k('forest_leaves_02');   // build 43: district 1's at 2K
+    add('hedge', new THREE.MeshStandardMaterial(hi
+      ? { map: hi.map, normalMap: hi.normalMap, roughnessMap: hi.roughnessMap, normalScale: new THREE.Vector2(1.6, 1.6), vertexColors: true, roughness: 1 }
+      : { map: t('diff', true), normalMap: t('nor_gl', false), roughnessMap: t('arm', false), normalScale: new THREE.Vector2(1.6, 1.6), vertexColors: true, roughness: 1 }));
   }
   add('cloth', new THREE.MeshStandardMaterial({ map: canvasStripe, vertexColors: true, roughness: 1, side: THREE.DoubleSide }));
   add('metal', new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.6 }));

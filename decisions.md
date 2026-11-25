@@ -3456,11 +3456,80 @@ a 7 cm drop and a roll, recovered in 0.75 s, at unchanged speed.
 - interiors;
 - a weaker laptop.
 
+## R73 · District 1 at 2K (3D build 43)
+
+**Asked:** "the sky looks like real sky like from gta 6, but then the buildings dont look
+real, they look like the ones from gta san andreas. I want the game to have consistent
+graphics. How much space would that take?" Then: "continue with the 2K version. first
+implement only the first district".
+
+**Answered first:**
+
+- **Size.** 2K would take the download from about 100 MB to 330–430 MB. Graphics memory
+  was the real limit: about 2.4 GB of uncompressed 2K textures per district, so 2K had to
+  be GPU-compressed.
+- **Where the dated look came from** besides resolution:
+  - every bay repeating;
+  - build 42's flat plaster colour;
+  - flat walls;
+  - no bounce light.
+- **Local versus web.** Running locally (`npm run serve`) removes the download wait, not
+  the GPU cost.
+
+**Downloaded**, with the user's approval of an itemised list:
+
+- the 2K models (210 MB) and district 1's 2K ground with height maps (106 MB);
+- the official Basis Universal WebAssembly encoder (3.5 MB, used once, not shipped);
+- three 0.185.1's KTX2 decoder (seven files, about 0.7 MB, shipped and hash-checked).
+
+Homebrew has no KTX-Software formula, and Khronos's own macOS package needs an
+administrator's install; the encoder's WebAssembly build runs in Node with neither.
+
+**Built** (spec-3d.md, "District 1 at 2K"):
+
+- **Compression.** Colour and packed maps in ETC1S, normal maps in UASTC with Zstandard.
+  The 2K JPEGs and PNGs were 301 MB; the KTX2 set is 179 MB.
+- **Ground** with parallax relief.
+- **Walls** with weathering by world position, a little of the plaster photo's colour
+  back, and a warm bounce in the shade.
+- **Every belt** (they share the kit): hedge blocks for the drawn trees, leaf-card edges
+  on hedges, uneven puddles.
+
+**What the browser showed:**
+
+- **Decoder.** The newest encoder's output reads fine in three 0.185.1's decoder. Checked
+  before converting anything: ETC1S came back as ETC2, UASTC as ASTC 4x4.
+- **Conversion.** The first run stopped: one model lists the same image twice. Made
+  resumable; 75 textures, no failures.
+- **Darkness map.** It had been reading kit pieces at their local position since build 41,
+  because `patchDark` handled instancing but not batching. Fixed.
+- **Parks.** The drawn round trees and a hedge made of a forest-floor photo were the
+  loudest "San Andreas" left. Clipped hedge blocks with ragged leaf cards replaced them.
+- **Puddles.** As mirrors they showed the ripple map's stripes, then bright perfect
+  squares. They are now uneven, darker and rougher. There are no screen-space
+  reflections, so a mirror could only show the sky.
+
+**Measured** in district 1 at 1080p:
+
+| | Mean |
+|---|---|
+| Medium | 19–20 ms |
+| High | 19–21 ms |
+
+That is about 1 ms over 1K; compressed 2K costs little.
+
+**Not done:**
+
+- the other districts stay at 1K until the user approves district 1;
+- no screen-space reflections;
+- no real global illumination (the bounce is a hemisphere colour);
+- a weaker laptop.
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 42; 3D-1 via the
+npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 43; 3D-1 via the
                   2D suites above, run alongside)
 ```

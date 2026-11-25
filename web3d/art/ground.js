@@ -16,6 +16,7 @@
 import * as THREE from 'three';
 import { TILE } from '../../sim/grid.js';
 import { hashString } from '../../sim/prng.js';
+import { ktx2Loader } from './kit.js';
 
 /** id -> metres one repeat covers (Poly Haven's own dimensions) */
 const SURF = {
@@ -29,6 +30,84 @@ const BY_PLACE = {
   plaza: 'cobblestone_floor_04', market: 'cobblestone_floor_04', park: 'grass_path_2',
   yards: 'damaged_concrete_floor', depot: 'damaged_concrete_floor', ruins: 'dirt', canal: 'concrete_pavement',
 };
+
+// ------------------------------------------------------------------ 2K (build 43)
+
+/**
+ * District 1's surfaces at 2K, GPU-compressed (assets3d/textures2k/, KTX2), each with its
+ * height map for parallax: the relief (metres) is how deep the stones and slab joints
+ * read when you look across them.
+ */
+export const GROUND_2K = Object.freeze({
+  asphalt_02: 0.008, concrete_pavement: 0.012, cobblestone_floor_04: 0.045, grass_path_2: 0.03,
+  damaged_concrete_floor: 0.015, dirt: 0.035, forest_leaves_02: 0.03,
+});
+const cache2k = new Map();
+/** Load every 2K set once (resolves when all are on the GPU-side loader's hands). */
+export function loadGround2k() {
+  const K = ktx2Loader();
+  if (!K) return Promise.reject(new Error('ground: the KTX2 decoder is not set up'));
+  return Promise.all(Object.keys(GROUND_2K).map(async (id) => {
+    if (cache2k.has(id)) return;
+    const url = (n) => new URL(`../../assets3d/textures2k/${id}/${n}.ktx2`, import.meta.url).href;
+    const [map, normalMap, roughnessMap, disp] = await Promise.all(['diff', 'nor_gl', 'arm', 'disp'].map((n) => K.loadAsync(url(n))));
+    for (const t of [map, normalMap, roughnessMap, disp]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; }
+    cache2k.set(id, { map, normalMap, roughnessMap, disp });
+  }));
+}
+export const ground2kReady = () => cache2k.size === Object.keys(GROUND_2K).length;
+/** one loaded 2K set ({ map, normalMap, roughnessMap, disp }), or undefined */
+export const ground2k = (id) => cache2k.get(id);
+
+/**
+ * Parallax occlusion on a flat, upward ground: the height map is marched along the view
+ * ray (8-24 steps, fewer when you look straight down), and every map is read where the
+ * ray meets the surface. Only on faces that point up -- the kerbs keep their plain look.
+ */
+function addParallax(mat, disp, depthUv) {
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.pomMap = { value: disp };
+    shader.uniforms.pomDepth = { value: depthUv };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vPomW;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\n  vPomW = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;');
+    const C = THREE.ShaderChunk;
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vPomW;\nuniform sampler2D pomMap;\nuniform float pomDepth;')
+      .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+  vec2 pomUv = vMapUv;
+  {
+    vec3 fn = normalize( cross( dFdx( vPomW ), dFdy( vPomW ) ) );
+    if ( abs( fn.y ) > 0.9 ) {
+      vec3 V = normalize( cameraPosition - vPomW );
+      vec3 Vt = vec3( V.x, -V.z, V.y );          // u along +x, v along -z, up
+      float layers = mix( 24.0, 8.0, abs( Vt.z ) );
+      float dl = 1.0 / layers;
+      vec2 duv = Vt.xy / max( Vt.z, 0.25 ) * pomDepth / layers;
+      vec2 gx = dFdx( vMapUv ), gy = dFdy( vMapUv );
+      vec2 uv = vMapUv;
+      float cur = 0.0;
+      float h = 1.0 - textureGrad( pomMap, uv, gx, gy ).r;
+      for ( int i = 0; i < 24; i++ ) {
+        if ( cur >= h ) break;
+        uv -= duv;
+        h = 1.0 - textureGrad( pomMap, uv, gx, gy ).r;
+        cur += dl;
+      }
+      vec2 prev = uv + duv;
+      float after = h - cur;
+      float before = ( 1.0 - textureGrad( pomMap, prev, gx, gy ).r ) - cur + dl;
+      pomUv = mix( uv, prev, clamp( after / ( after - before + 1e-5 ), 0.0, 1.0 ) );
+    }
+  }`)
+      .replace('#include <map_fragment>', C.map_fragment.replace(/vMapUv/g, 'pomUv'))
+      .replace('#include <normal_fragment_maps>', C.normal_fragment_maps.replace(/vNormalMapUv/g, 'pomUv'))
+      .replace('#include <roughnessmap_fragment>', C.roughnessmap_fragment.replace(/vRoughnessMapUv/g, 'pomUv'));
+  };
+  mat.customProgramCacheKey = () => 'ground-pom';
+}
+
+// ------------------------------------------------------------------ 1K
 
 const cache = new Map();
 function surfaceSet(id) {
@@ -134,11 +213,13 @@ export function buildKitGround({ map, cellM: C, seed, lookAt, track, style = {} 
     geo.setAttribute('color', new THREE.Float32BufferAttribute(g.col, 3));
     geo.setIndex(g.idx);
     geo.computeBoundingSphere();
-    const S = surfaceSet(id);
+    const hi = style.res === '2k' && cache2k.get(id);
+    const S = hi ? { map: hi.map, normalMap: hi.normalMap, roughnessMap: hi.roughnessMap } : surfaceSet(id);
     const mat = new THREE.MeshStandardMaterial({
       ...S, vertexColors: true, roughness: 1 - wet * 0.78, metalness: 0, side: THREE.DoubleSide, name: `ground-${id}`,
       color: tint.clone().multiplyScalar(1 - wet * 0.3),
     });
+    if (hi) addParallax(mat, hi.disp, GROUND_2K[id] / (SURF[id] ?? 2));
     const mesh = new THREE.Mesh(track(geo), track(mat));
     mesh.name = `ground-${id}`;
     mesh.receiveShadow = true;

@@ -44,16 +44,21 @@ export const HD_STYLES = Object.freeze({
   // sky slate; the light reaches the top storeys and the ends of streets that face it and
   // nothing else. Brick terraces, soot, and a few candles where people are still hiding.
   RUST: {
+    // build 43, the user's 2K test: the kit and the ground at 2K, GPU-compressed, the
+    // ground with parallax relief; walls weathered (dirt at the foot, rain streaks, damp
+    // patches) and keeping a little of the plaster photo's own colour; a warm bounce from
+    // the street into the shade
+    res: '2k', weathering: 1,
     sky: { photo: 'belfast_sunset_sky_4k.jpg', env: 'belfast_sunset_puresky_1k.hdr', gain: 1 / 0.09, dim: 0.55, haze: '#56545c', drift: 0.0003 },
     sun: { dir: [0.79, 0.09, 0.61], color: '#ffb27a', intensity: 2.2, shadow: true },
     env: 0.55,
-    hemi: { sky: '#7a7f8c', ground: '#2a2522', i: 0.15 },
+    hemi: { sky: '#7a7f8c', ground: '#6a5a4c', i: 0.38 },
     fog: { color: '#56545c', near: 14, far: 170 },
     grade: { tint: '#f6f2f0', sat: 0.82, lift: 0.004, gain: 1.0, bloom: 0.45, grain: 0.05, ca: 0.0008, vignette: 0.42, aces: true, exposure: 0.78, ao: 0.9 },
     weather: { kind: 'dust', color: '#8a8580', rate: 0.25, size: 0.025, speed: 0.25, slant: 0.5 },
     ground: { tint: '#c8c4c0', wet: 0 },
     town: {
-      brickSat: 0.85,
+      brickSat: 0.85, plasterSat: 0.3,
       plaster: 0.4, storeys: 0,
       palette: ['#8f918c', '#7d8580', '#8a8f99', '#6f6a66', '#a3a09b', '#5f6b73', '#94988f', '#7a7570'],
       brick: ['#a89e97', '#8c847e', '#b3aaa4', '#7a716c', '#9b948f'],

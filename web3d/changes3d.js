@@ -8,6 +8,26 @@
 
 export const CHANGES = [
   {
+    build: 43,
+    date: '2026-11-25',
+    phase: 'N4.4 prototype',
+    changed: [
+      'District 1 only, to test: its buildings, props and ground now use 2K textures instead of 1K, compressed into a GPU format so they take about a quarter of the graphics memory of plain images.',
+      'The ground has real relief: cobbles, paving joints and cracks read as depth when you look across them (parallax from height maps).',
+      'District 1\'s walls are weathered: dirt splashed up the base, rain streaks running down, damp patches. They are placed by position, so no two bays repeat. The plaster keeps a little of its photo\'s own colour again, and the shade picks up a warm bounce from the street.',
+      'Every belt: the old round trees in parks are now clipped hedge blocks; all hedges have a ragged edge of leaves; puddles are uneven dark pools instead of bright squares.',
+      'Fixed: the dark-alley shading on the model buildings was being read from the wrong place since build 41.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R) and play district 1. Look along a cobbled street, at the foot of a plaster wall, and at a brick wall up close; then compare district 11, which is still 1K.',
+      'Or locally: npm run serve, then http://localhost:8123/3d/play.html?d=1',
+    ],
+    unverified: [
+      'Download: about 180 MB the first time district 1 loads (from the website; instant from disk). Measured at 1080p on this Mac: Medium 19-20 ms a frame, High 19-21 ms, about 1 ms more than at 1K. Not tried on a weaker laptop.',
+      'Only district 1 is 2K. The other nine first districts stay at 1K until you approve this.',
+    ],
+  },
+  {
     build: 42,
     date: '2026-11-21',
     phase: 'N4.4 prototype',

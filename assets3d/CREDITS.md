@@ -107,3 +107,32 @@ shipped).
 MOSS and SOLAR reuse build 41's Kloofendal 48d sky (behind a canopy; behind dust). EMBER,
 VIOLET, JADE and COBALT have drawn skies (web3d/art/sky.js), whose light is made from the
 drawn dome itself.
+
+## Build 43: district 1 at 2K
+
+The same Poly Haven assets as above (same authors, **CC0 1.0**), downloaded again on
+2026-11-25 at 2K for district 1 only:
+
+- `assets3d/models2k/`: the 14 models in "Models" above, glTF at 2K. Geometry is as
+  published; every texture was converted from JPEG to KTX2, and the glTF rewritten to use
+  `KHR_texture_basisu`.
+- `assets3d/textures2k/`: the 7 ground textures district 1 uses (asphalt_02,
+  concrete_pavement, cobblestone_floor_04, grass_path_2, damaged_concrete_floor, dirt,
+  forest_leaves_02) at 2K, each with its displacement map (`disp`) for parallax, all as
+  KTX2.
+
+**The conversion** was made with the [Basis Universal](https://github.com/BinomialLLC/basis_universal)
+encoder (Apache-2.0; its WebAssembly build, run once on the development machine, not
+shipped):
+
+| Map | Format | Colour space |
+|---|---|---|
+| Colour | ETC1S | sRGB |
+| AO/rough/metal, height | ETC1S | linear |
+| Normal maps | UASTC LDR 4x4 + RDO + Zstandard | linear |
+
+Mipmaps are generated. The ground textures are flipped vertically, to match how the game
+lays the 1K JPEGs.
+
+**Shipped:** 133 MB of models and 46 MB of ground, 179 MB in all (the 2K JPEGs and PNGs
+were 301 MB).

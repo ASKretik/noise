@@ -805,6 +805,43 @@ shutters, balconies, awnings, pitched roofs), lamps and effects. See decisions.m
   | RUST, TIDE, MOSS, EMBER, ASH, CORAL, SOLAR | 12–21 ms |
   | VIOLET, JADE, COBALT (night) | 25–29 ms |
 
+### District 1 at 2K (N4.4, 3D build 43)
+
+A test of a higher-fidelity set on district 1 only (`RUST.res = '2k'` in `hdstyles.js`);
+the other first districts stay at 1K. See decisions.md R73.
+
+- **Assets.**
+  - `assets3d/models2k/`: the same 14 Poly Haven models at 2K (133 MB).
+  - `assets3d/textures2k/`: district 1's 7 ground surfaces at 2K, each with a height
+    map (46 MB).
+  - All textures are KTX2: colour and packed maps in ETC1S, normal maps in UASTC with
+    Zstandard.
+- **Decoding.** `kit.js initKtx2(renderer)` makes three's `KTX2Loader` (vendored,
+  hash-checked by 3D-0), which transcodes each texture to the GPU's own compressed
+  format. That is ASTC or ETC2 on the development Mac: 0.5–1 byte a pixel instead of 4.
+- **Loading.**
+  - `loadKit(onProgress, res)` and `kitReady(res)` keep one kit per resolution.
+  - `loadGround2k()` loads the ground sets.
+  - `boot()` waits for both when the first district's style asks for 2K, and falls back
+    to 1K if they fail.
+  - A district builds with its own resolution's kit, or any loaded one.
+- **Ground relief** (`ground.js addParallax`): parallax occlusion, 8–24 steps of the
+  height map along the view ray, only on faces that point up. Relief depths run from
+  8 mm (asphalt) to 45 mm (cobbles).
+- **Weathering** (`kit.js wallColour`, `setWallLook({ weather })`):
+  - on the kit's plaster, stone trim and brick, by world position: dirt up the foot of
+    each wall, rain streaks stretched down it, broad damp patches;
+  - `town.plasterSat` lets plaster keep part of its photo's colour (RUST 0.3);
+  - RUST's hemisphere ground colour is a warm bounce from the street.
+- **Every kit district:**
+  - a park's lone cells are hedge blocks (no more drawn trees);
+  - hedges carry two layers of alpha-tested leaf cards on every open face and the top;
+  - puddles have an uneven, soft outline and a dark, rough sheen (no ripple map).
+- **Fixed:** the darkness map's position on batched kit pieces (`batchingMatrix`
+  was missing in `patchDark`).
+- **Measured** in district 1 at 1080p: Medium 19–20 ms, High 19–21 ms, about 1 ms over
+  1K. 471 textures resident.
+
 **Bolts thin out deeper into each belt** (`sim3d/bolts.js`): the generator's bolts are
 kept in full in a belt's first district and cut to `max(1, round(n × (1 − 2k/27)))` at
 depth `k` (0–9), about a third by its tenth; the next belt starts full again. The kept set

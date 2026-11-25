@@ -27,6 +27,8 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from '../../vendor/three/0.185.1/addons/loaders/GLTFLoader.js';
+import { KTX2Loader } from '../../vendor/three/0.185.1/addons/loaders/KTX2Loader.js';
+import { Rng } from '../../sim/prng.js';
 
 const MODELS = {
   apart: 'modular_urban_apartments_facade',
@@ -190,28 +192,109 @@ const WALL_U = {
   plaster: { uSat: { value: 0 }, uNorm: { value: 0.75 / 0.176 } },
   trim: { uSat: { value: 0 }, uNorm: { value: 0.7 / 0.085 } },      // the stone trim photo is warm brown too
   brick: { uSat: { value: 1 }, uNorm: { value: 1 } },
+  // build 43: weathering, shared by every kit wall (0 = off; a district's style turns it on)
+  uWeather: { value: 0 },
+  uGrime: { value: null },
 };
+
+/**
+ * Build 43: a tileable noise for weathering, made once from a fixed seed. R: broad
+ * patches; G: fine, for rain streaks when stretched upright; B: medium.
+ */
+function grimeNoise() {
+  const N = 256, out = new Uint8Array(N * N * 4), rng = new Rng(4242, 'grime');
+  const layer = (cells, octaves) => {
+    const f = new Float32Array(N * N);
+    let amp = 1, total = 0;
+    for (let o = 0; o < octaves; o++, cells *= 2, amp *= 0.5) {
+      const g = new Float32Array(cells * cells).map(() => rng.float());
+      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+        const fx = (x / N) * cells, fy = (y / N) * cells, ix = Math.floor(fx), iy = Math.floor(fy);
+        const tx = fx - ix, ty = fy - iy, sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+        const at = (i, j) => g[((j % cells) * cells) + (i % cells)];
+        const a = at(ix, iy), b = at(ix + 1, iy), c = at(ix, iy + 1), d = at(ix + 1, iy + 1);
+        f[y * N + x] += amp * (a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy);
+      }
+      total += amp;
+    }
+    return f.map((v) => v / total);
+  };
+  const R = layer(4, 4), G = layer(32, 3), Bn = layer(12, 3);
+  for (let i = 0; i < N * N; i++) { out[i * 4] = R[i] * 255; out[i * 4 + 1] = G[i] * 255; out[i * 4 + 2] = Bn[i] * 255; out[i * 4 + 3] = 255; }
+  const t = new THREE.DataTexture(out, N, N);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true;
+  t.needsUpdate = true;
+  return t;
+}
+
 function wallColour(mat) {
   mat.userData.kitWall = true;
   const U = /plaster/.test(mat.name) ? WALL_U.plaster : /apartments_facade_trim_01/.test(mat.name) ? WALL_U.trim : WALL_U.brick;
+  if (!WALL_U.uGrime.value) WALL_U.uGrime.value = grimeNoise();
   const prev = mat.onBeforeCompile;
   mat.onBeforeCompile = (shader, renderer) => {
     if (prev) prev.call(mat, shader, renderer);
     shader.uniforms.uSat = U.uSat; shader.uniforms.uNorm = U.uNorm;
+    shader.uniforms.uWeather = WALL_U.uWeather; shader.uniforms.uGrime = WALL_U.uGrime;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vKitW;')
+      .replace('#include <project_vertex>', `#include <project_vertex>
+  vec4 kw = vec4( transformed, 1.0 );
+  #ifdef USE_BATCHING
+    kw = batchingMatrix * kw;
+  #endif
+  vKitW = ( modelMatrix * kw ).xyz;`);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uSat, uNorm;')
+      .replace('#include <common>', '#include <common>\nuniform float uSat, uNorm, uWeather;\nuniform sampler2D uGrime;\nvarying vec3 vKitW;')
       .replace('#include <map_fragment>', `#ifdef USE_MAP
   vec4 sampledDiffuseColor = texture2D( map, vMapUv );
   float kitL = dot( sampledDiffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) );
-  sampledDiffuseColor.rgb = mix( vec3( kitL * uNorm ), sampledDiffuseColor.rgb, uSat );
+  sampledDiffuseColor.rgb = mix( vec3( kitL * uNorm ), sampledDiffuseColor.rgb * mix( uNorm, 1.0, uSat ), uSat );
   diffuseColor *= sampledDiffuseColor;
-#endif`);
+#endif
+  // build 43: weather -- dirt splashed up the foot of the wall, rain streaks running down,
+  // broad patches of damp and old repairs; by world position, so no two bays repeat
+  if ( uWeather > 0.0 ) {
+    vec3 wp = vKitW;
+    vec3 fn = normalize( cross( dFdx( wp ), dFdy( wp ) ) );
+    float along = abs( fn.x ) > abs( fn.z ) ? wp.z : wp.x;
+    vec4 nA = texture2D( uGrime, vec2( along, wp.y ) * 0.105 + 0.37 );
+    float streak = texture2D( uGrime, vec2( along * 0.8, wp.y * 0.028 + along * 0.011 ) ).g;
+    float foot = smoothstep( 1.8, 0.0, wp.y ) * ( 0.55 + 0.45 * nA.b );
+    float rain = smoothstep( 0.52, 0.8, streak ) * smoothstep( 0.2, 2.5, wp.y );
+    diffuseColor.rgb *= 1.0 + ( nA.r - 0.5 ) * 0.34 * uWeather;
+    diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.46, 0.42, 0.37 ), clamp( ( foot * 0.8 + rain * 0.55 ) * uWeather, 0.0, 0.85 ) );
+  }`);
   };
   const key = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : null;
-  mat.customProgramCacheKey = () => `${key ? key() : ''}:kitwall`;
+  mat.customProgramCacheKey = () => `${key ? key() : ''}:kitwall2`;
 }
-/** A belt's brick: how much of the photo's red-brown it keeps (ASH and COBALT keep little). */
-export function setWallLook({ brickSat = 1 } = {}) { WALL_U.brick.uSat.value = brickSat; }
+/**
+ * A district's walls: how much of the brick photo's red-brown it keeps (ASH, COBALT keep
+ * little), how much of the plaster photo's own colour (build 43: a little, for variation),
+ * and how weathered (0 off).
+ */
+export function setWallLook({ brickSat = 1, plasterSat = 0, weather = 0 } = {}) {
+  WALL_U.brick.uSat.value = brickSat;
+  WALL_U.plaster.uSat.value = plasterSat;
+  WALL_U.trim.uSat.value = plasterSat;
+  WALL_U.uWeather.value = weather;
+}
+
+// ------------------------------------------------------------------ the GPU texture format
+
+let ktx2 = null;
+/**
+ * Build 43: the decoder for GPU-compressed textures (KTX2: ETC1S and UASTC, transcoded to
+ * whatever this GPU reads -- ASTC, BC7, ETC2). Made once, from the renderer, before a 2K
+ * kit or ground is loaded. Without it the 2K set cannot load and the 1K one is used.
+ */
+export function initKtx2(renderer) {
+  if (!ktx2) ktx2 = new KTX2Loader().setTranscoderPath(new URL('../../vendor/three/0.185.1/addons/libs/basis/', import.meta.url).href).detectSupport(renderer);
+  return ktx2;
+}
+export const ktx2Loader = () => ktx2;
 
 // ------------------------------------------------------------------ loading
 
@@ -226,24 +309,31 @@ function clean(geo) {
   return g;
 }
 
-const url = (id) => new URL(`../../assets3d/models/${id}/${id}.gltf`, import.meta.url).href;
+const url = (id, res) => new URL(`../../assets3d/models${res === '2k' ? '2k' : ''}/${id}/${id}.gltf`, import.meta.url).href;
 
-let loading = null, loaded = null;
+const loading = {}, loaded = {};
 
-/** The kit, if it has finished loading (else null: world.js falls back to the drawn buildings). */
-export const kitReady = () => loaded;
+/**
+ * The kit at a resolution ('1k', or '2k': GPU-compressed, build 43), if it has finished
+ * loading (else null: world.js falls back to the drawn buildings).
+ */
+export const kitReady = (res = '1k') => loaded[res] || null;
 
 /**
  * Load every model once. Resolves to the kit: piece(name) -> { parts: [{ geo, mat, role }], box },
  * where name is '<model>/<node>' ('apart/wall_window_centered_small_02') or, for the props
  * kept whole, '<model>/<variant>' ('car/car', 'can/rusty').
  */
-export function loadKit(onProgress = () => {}) {
-  if (loading) return loading;
+export function loadKit(onProgress = () => {}, res = '1k') {
+  if (loading[res]) return loading[res];
   const loader = new GLTFLoader();
+  if (res === '2k') {
+    if (!ktx2) return Promise.reject(new Error('kit: the KTX2 decoder is not set up (initKtx2)'));
+    loader.setKTX2Loader(ktx2);
+  }
   let done = 0;
   const ids = Object.entries(MODELS);
-  loading = Promise.all(ids.map(([key, id]) => loader.loadAsync(url(id)).then((gltf) => { onProgress(++done / ids.length); return [key, gltf]; })))
+  const job = loading[res] = Promise.all(ids.map(([key, id]) => loader.loadAsync(url(id, res)).then((gltf) => { onProgress(++done / ids.length); return [key, gltf]; })))
     .then((list) => {
       const pieces = new Map();
       const m = new THREE.Matrix4(), inv = new THREE.Matrix4(), rot = new THREE.Matrix4();
@@ -293,7 +383,8 @@ export function loadKit(onProgress = () => {}) {
           }
         }
       }
-      loaded = {
+      const kit = loaded[res] = {
+        res,
         piece(name) {
           const p = pieces.get(name);
           if (!p) throw new Error(`kit: no piece ${name}`);
@@ -308,10 +399,10 @@ export function loadKit(onProgress = () => {}) {
         },
         names: () => [...pieces.keys()],
       };
-      return loaded;
+      return kit;
     });
-  loading.catch(() => { loading = null; });
-  return loading;
+  job.catch(() => { delete loading[res]; });
+  return job;
 }
 
 // ------------------------------------------------------------------ placing

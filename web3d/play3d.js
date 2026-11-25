@@ -12,7 +12,8 @@ import { createPost } from './post.js';
 import { buildWorld, lightScene } from './world.js';
 import { artFor } from './art/belts.js';
 import { loadDayEnv, envFromSky } from './art/daylight.js';
-import { loadKit, kitReady } from './art/kit.js';
+import { loadKit, kitReady, initKtx2 } from './art/kit.js';
+import { loadGround2k } from './art/ground.js';
 import { currentQuality, setQuality } from './quality.js';
 import { Entities } from './entities.js';
 import { Audio3D } from './audio3d.js';
@@ -75,6 +76,7 @@ export class Play3D {
       antialias: this.quality.antialias,
     });
     this.view.renderer.shadowMap.enabled = this.quality.shadows;
+    initKtx2(this.view.renderer);   // build 43: the GPU-compressed (2K) textures' decoder
     // N4.3: bloom and the belt's grade, by the Glow setting (applyGlow)
     this.applyGlow();
 
@@ -167,11 +169,19 @@ export class Play3D {
     this.view.resize();
     // build 41: district 1 is built from downloaded models (art/kit.js, about 90 MB the
     // first time); wait for them rather than show it half-made
-    if (artFor(this.district)?.hd) {
+    const H0 = artFor(this.district)?.hd;
+    if (H0) {
       const note = $('ov-note'), was = note.textContent;
+      const res = H0.res || '1k';
       try {
-        await loadKit((f) => { note.textContent = `Loading the district's buildings and props... ${Math.round(f * 100)}%`; });
-      } catch (e) { console.warn('kit: the models did not load; drawing the buildings instead', e); }
+        await Promise.all([
+          loadKit((f) => { note.textContent = `Loading the district's buildings and props${res === '2k' ? ' (2K)' : ''}... ${Math.round(f * 100)}%`; }, res),
+          res === '2k' ? loadGround2k() : null,
+        ]);
+      } catch (e) {
+        console.warn(`kit: the ${res} models did not load; trying 1K`, e);
+        try { await loadKit(() => {}, '1k'); } catch (e2) { console.warn('kit: no models; drawing the buildings instead', e2); }
+      }
       note.textContent = was;
     }
     this.start(this.district);
@@ -506,8 +516,12 @@ export class Play3D {
     R.shadowMap.enabled = shadows;
     R.shadowMap.type = H ? T.PCFSoftShadowMap : T.PCFShadowMap;
     // for the next time this district is built, or the next district if it is a belt's first
-    if ((H || artFor(this.runner.level.level + 1)?.hd) && !kitReady()) loadKit().catch(() => {});
-    this.world = buildWorld(this.runner.level, { cellM, shadows, kit: H ? kitReady() : null });
+    // (build 43: a style may ask for the 2K kit; the 1K one stands in if that is not loaded)
+    const res = H?.res || '1k', nextH = artFor(this.runner.level.level + 1)?.hd;
+    if (H && !kitReady(res)) loadKit(undefined, res).catch(() => {});
+    if (nextH && !kitReady(nextH.res || '1k')) loadKit(undefined, nextH.res || '1k').catch(() => {});
+    if (res === '2k' || nextH?.res === '2k') loadGround2k().catch(() => {});
+    this.world = buildWorld(this.runner.level, { cellM, shadows, kit: H ? (kitReady(res) || kitReady('1k') || kitReady('2k')) : null });
     this.view.post?.setGrade(this.world.art.grade);
     // film tone mapping: in post.js when it runs, else (Low) by the renderer
     R.toneMapping = H ? T.ACESFilmicToneMapping : T.NoToneMapping;

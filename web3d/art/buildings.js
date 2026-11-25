@@ -188,8 +188,9 @@ export function planBuildings({ map, lookAt, seed, allPlaces = false }) {
       block.push([x, y]);
       for (const [dx, dy] of DIR4) if (inBlock(x + dx, y + dy) && !seen[(y + dy) * w + x + dx]) { seen[(y + dy) * w + x + dx] = 1; stack.push([x + dx, y + dy]); }
     }
-    // (a lone cell in a tenement block is too small to be a building; in a park it is a tree)
-    if (block.length < 2 && ['tenements', 'park'].includes(lookAt(block[0][0], block[0][1])?.type)) continue;
+    // (a lone cell in a tenement block is too small to be a building; build 43: in a park it
+    // is a clipped hedge block, no longer a drawn tree)
+    if (block.length < 2 && lookAt(block[0][0], block[0][1])?.type === 'tenements') continue;
     const r = new Rng(hashString(`${seed}:block:${bi++}`), 'block');
     const place = lookAt(block[0][0], block[0][1])?.type || 'tenements';
     const xs = block.map((c) => c[0]), ys = block.map((c) => c[1]);

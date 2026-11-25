@@ -362,7 +362,7 @@ export function buildWorld(level, { cellM, shadows = false, kit = null }) {
   if (floorLayers) setLayers(floor, floorCells.map(([x, y]) => { const L = lookAt(x, y); return L ? floorLayers.index[L.type] : 0; }));
   floor.receiveShadow = shadows;
   // build 41: district 1's ground is photographed surfaces (art/ground.js), not this
-  if (useKit) { floor.dispose(); for (const m of buildKitGround({ map, cellM, seed, lookAt, track, style: art.hd.ground })) group.add(m); }
+  if (useKit) { floor.dispose(); for (const m of buildKitGround({ map, cellM, seed, lookAt, track, style: { ...art.hd.ground, res: art.hd.res } })) group.add(m); }
   else group.add(floor);
 
   // ---- walls: body + a lighter cap, per-instance wear. A wall cell with wall on all four
@@ -528,7 +528,7 @@ export function buildWorld(level, { cellM, shadows = false, kit = null }) {
   const waterGeo = track(new THREE.PlaneGeometry(cellM, cellM).rotateX(-Math.PI / 2));
   // (build 41: under district 1's daylight, standing water is a dark mirror of the sky)
   const waterMat = track(new THREE.MeshStandardMaterial(useKit
-    ? { color: '#141a1e', roughness: 0.12, metalness: 0.0, normalMap: waterNorm, normalScale: new THREE.Vector2(0.035, 0.035), transparent: true, opacity: 0.94 }
+    ? { color: '#0c1012', roughness: 0.3, envMapIntensity: 0.4, metalness: 0.0, transparent: true, opacity: 0.92, alphaMap: track(puddleShape(seed)), depthWrite: false }   // (build 43: an uneven edge, not a tile; no ripple map -- its stripes showed in the mirror)
     : {
       color: styled ? new THREE.Color(art.water) : pal.water, roughness: styled ? 0.34 : 0.08, metalness: 0.15, normalMap: waterNorm,
       normalScale: styled ? new THREE.Vector2(0.28, 0.28) : new THREE.Vector2(0.6, 0.6), transparent: true, opacity: 0.86,
@@ -573,7 +573,7 @@ export function buildWorld(level, { cellM, shadows = false, kit = null }) {
   }
 
   // ---- N4.2: a park's lone wall cells are trees: a crown of leaves on the clipped trunk
-  if (looks) {
+  if (looks && !useKit) {
     const crowns = walls.filter(([x, y]) => lookAt(x, y)?.type === 'park' && !isWall(x - 1, y) && !isWall(x + 1, y) && !isWall(x, y - 1) && !isWall(x, y + 1));
     if (crowns.length) {
       const leaf = looks.park.walls[0];
@@ -778,6 +778,30 @@ export function buildWorld(level, { cellM, shadows = false, kit = null }) {
       for (const d of disposables) d.dispose?.();
     },
   };
+}
+
+/**
+ * Build 43: a puddle's outline -- overlapping soft blobs, so standing water lies in an
+ * uneven pool inside its cell instead of filling a square. Still covers most of the
+ * cell: a cover cell must read as water.
+ */
+function puddleShape(seed) {
+  const n = 256, cv = document.createElement('canvas');
+  cv.width = cv.height = n;
+  const g = cv.getContext('2d');
+  const r = new Rng(seed, 'puddle');
+  g.fillStyle = '#000'; g.fillRect(0, 0, n, n);
+  g.filter = 'blur(6px)';
+  g.fillStyle = '#fff';
+  for (let i = 0; i < 9; i++) {
+    const a = r.float() * 6.283, d = r.float() * n * 0.16;
+    g.beginPath();
+    g.ellipse(n / 2 + Math.cos(a) * d, n / 2 + Math.sin(a) * d, n * (0.2 + r.float() * 0.16), n * (0.16 + r.float() * 0.14), r.float() * 3.14, 0, 6.283);
+    g.fill();
+  }
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.NoColorSpace;
+  return t;
 }
 
 /** MOSS's canopy: one big leafy sheet with holes, its own shade from the sun. */
