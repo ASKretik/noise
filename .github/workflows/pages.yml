@@ -47,12 +47,15 @@ jobs:
         # The 2D suites just ran above, so 3D-1 is not repeated here.
         run: npm run test3d -- --skip-2d
 
-  deploy:
+  # Packaging and deploying are separate jobs (GitHub's own layout for Pages). Until
+  # 2026-11-25 they were one job, and deploy-pages asked for the artifact about 0.3 s after
+  # upload-pages-artifact had finalised it; three pushes in a row it was not listed yet
+  # ("No artifacts named github-pages were found") and the site stayed a build behind.
+  # A job boundary gives the artifact time to appear; a second attempt 30 s later covers
+  # the rest.
+  package:
     needs: verify
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
@@ -60,6 +63,22 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: '.'
+
+  deploy:
+    needs: package
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url || steps.retry.outputs.page_url }}
+    steps:
       - name: Deploy
         id: deployment
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+      - name: Wait before trying again
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 30
+      - name: Deploy, second attempt
+        id: retry
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v4

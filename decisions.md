@@ -3780,6 +3780,28 @@ unchanged, so the priors are byte-identical.
 **Aliens** follow your walking speed by tier, as the user asked in build 45. On Hard a
 hunting alien runs 5.7–7.0 m/s and travels at 20 m/s out of sight; on Ultra 7.4–9.1 m/s.
 
+## R79 · The Pages deploy waits for its artifact (workflow only, no build)
+
+**Asked:** "Yes, fix it" -- the deploy workflow, after three pushes in a row (builds 46,
+47, 48) whose first deploy failed with "No artifacts named github-pages were found",
+though the upload had finished and githubstatus was green. Each time a fresh run, started
+by hand a minute later, went through.
+
+**Cause:** `pages.yml` uploaded the site and called `deploy-pages` in the same job. The
+deploy asked for the artifact about 0.3 s after it was finalised, and GitHub had not
+listed it yet.
+
+**Fix:**
+
+- **Two jobs.** Packaging (checkout, `configure-pages`, `upload-pages-artifact`) and
+  deploying are separate jobs, `deploy` needing `package`. This is GitHub's own starter
+  layout for Pages, and it puts a fresh runner's start-up between the upload and the
+  lookup.
+- **A retry.** If `deploy-pages` still fails, the job waits 30 s and tries once more.
+
+The tests still gate the deploy (`package` needs `verify`). No game file changed, so
+there is no 3D build stamp and no save is reset.
+
 ## Current state
 
 ```
