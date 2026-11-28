@@ -3802,11 +3802,32 @@ listed it yet.
 The tests still gate the deploy (`package` needs `verify`). No game file changed, so
 there is no 3D build stamp and no save is reset.
 
+## R80 · Developer mode open to everyone, for now (3D build 49)
+
+**Asked:** "can you make the deevloper mode public for now?" -- right after drafting a
+message asking the course professor to try the 3D game.
+
+**Assumed:** "public" means no code: anyone visiting the hub gets the open panel and
+every district, exactly as a browser with the code did. "For now" means it should be
+easy to lock again, so the code check is switched off rather than deleted: one constant,
+`DEV_PUBLIC`, with the digest, the code file and `npm run devcode` untouched.
+
+**What changed:** `devUnlocked()` returns true while `DEV_PUBLIC` is set. The panel says
+OPEN TO ALL and drops the "turn developer mode off" button, which had nothing to lock.
+Dev runs are still the unsaved sandbox with the gold strip, and a career URL is still
+never a dev run, so a visitor's saves are as safe as before. `npm run remove-devmode` is
+unaffected: the change is all inside `dev3d.js`, which it deletes.
+
+**Checked:** in the browser pane with `noise3d-dev` cleared from localStorage, the hub
+shows the open panel (100 district links, no code box), and
+`play.html?d=41&t=medium&dev=1&god=1` starts a dev run (strip shown, kit unlimited, no
+console errors).
+
 ## Current state
 
 ```
 npm test          12 passed · 1 not demonstrated · 0 failed
 npm run webcheck  39/39
-npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 48; 3D-1 via the
+npm run test3d    27 passed · 0 not demonstrated · 0 failed  (3D build 49; 3D-1 via the
                   2D suites above, run alongside)
 ```

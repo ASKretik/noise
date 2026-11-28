@@ -1117,6 +1117,10 @@ minutes; if the banner's number is behind the update note, reload.
 
 For testing every district while the game is built, and to be removed when it is done.
 
+- **Public for now (3D build 49).** `DEV_PUBLIC = true` in `web3d/dev3d.js` opens it to
+  every visitor: no code box, the panel shown open (badge "OPEN TO ALL", no off button),
+  and every `?dev=1` link works. Setting it to `false` restores the code lock below,
+  with the same digest and code.
 - **Unlocking.** On the hub (Dev pages → Developer mode), the developer code unlocks it
   in that browser. `web3d/devhash.js` holds only `SHA-256(salt + ":" + code)`; the code
   lives in the git-ignored `DEV-MODE-CODE.txt`. `npm run devcode -- "code"` sets a new

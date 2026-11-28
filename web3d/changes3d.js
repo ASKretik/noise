@@ -8,6 +8,22 @@
 
 export const CHANGES = [
   {
+    build: 49,
+    date: '2026-11-28',
+    phase: 'dev mode',
+    changed: [
+      'Developer mode is open to everyone for now, with no code: on the 3D hub, scroll to Dev pages and every district 1-100 is one click away, on any tier, with the two switches (they cannot catch you, empty city).',
+      'Dev runs are still unsaved and marked by the gold strip at the bottom, so nobody\'s MAIN or GUEST file, scores or unlocks are touched. Normal play from a profile is unchanged.',
+      'The code lock is kept, only switched off: one line in web3d/dev3d.js (DEV_PUBLIC) turns it back on, and the same code works again.',
+    ],
+    tryThis: [
+      'Hard-reload (Cmd+Shift+R) the hub in a browser that has never entered the code (or a private window). Scroll to Developer mode, which now says OPEN TO ALL, tick "they can\'t catch me" and open district 41.',
+    ],
+    unverified: [
+      'Checked in a browser with no code stored: the panel opens and a dev link starts a dev run. Not checked on a phone.',
+    ],
+  },
+  {
     build: 48,
     date: '2026-11-25',
     phase: 'scale',

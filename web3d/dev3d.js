@@ -4,6 +4,11 @@
 // code is in the repository (web3d/devhash.js, written by `npm run devcode`), and this
 // browser remembers that it was unlocked, never the code.
 //
+// PUBLIC FOR NOW (3D build 49): while DEV_PUBLIC is true there is no code box. The panel
+// is open on the hub for every visitor and every ?dev=1 link works, so reviewers can
+// reach any district. Set it back to false to restore the code lock; the digest and the
+// code file are untouched, so the old code works again at once.
+//
 // What it gives:
 //
 //   hub   a Developer panel: every district 1-100 one click away, any tier, city or
@@ -28,6 +33,9 @@ import { ITEMS3D, ITEM3D_IDS } from '../sim3d/shop3d.js';
 import { TICKS_PER_SECOND } from '../sim/difficulty.js';
 import { DISTRICT_THEMES, BLOCK_SIZE, TOTAL_DISTRICTS } from '../web/themes.js';
 
+/** Open to everyone, no code (see the header). false restores the code lock. */
+export const DEV_PUBLIC = true;
+
 const KEY = 'noise3d-dev';
 const OPT_KEY = 'noise3d-dev-options';
 /** Lightning in a dev run, in the sim's seconds; topped up every tick, so it never ends. */
@@ -43,6 +51,7 @@ export async function hashCode(code) {
 
 /** Has the code been entered in this browser (for the code currently in devhash.js)? */
 export function devUnlocked() {
+  if (DEV_PUBLIC) return true;
   try { return localStorage.getItem(KEY) === DEV_HASH; } catch { return false; }
 }
 
@@ -112,7 +121,8 @@ function renderOpen(host, rerender) {
   const o = loadOptions();
   host.innerHTML = `
     <div class="dev3d dev3d-open">
-      <h2>Developer mode <span class="dev3d-badge">ON</span></h2>
+      <h2>Developer mode <span class="dev3d-badge">${DEV_PUBLIC ? 'OPEN TO ALL' : 'ON'}</span></h2>
+      ${DEV_PUBLIC ? '<p>Open to everyone for now, no code needed: jump to any district to look around.</p>' : ''}
       <p>Every district, unsaved: nothing here touches your MAIN or GUEST file. Every shop
         item comes unlimited (stun gun kept full, lightning that never runs out). In a
         district, <kbd>[</kbd> and <kbd>]</kbd> go to the previous and next one.</p>
@@ -126,7 +136,7 @@ function renderOpen(host, rerender) {
         <label class="g3-check"><input type="checkbox" data-k="empty"${o.empty ? ' checked' : ''}> empty city (no aliens)</label>
       </div>
       <div class="l3-grid dev3d-grid"></div>
-      <button class="btn ghost dev3d-lock" type="button">turn developer mode off</button>
+      ${DEV_PUBLIC ? '' : '<button class="btn ghost dev3d-lock" type="button">turn developer mode off</button>'}
     </div>`;
   const grid = host.querySelector('.dev3d-grid');
   const drawGrid = () => {
@@ -156,7 +166,7 @@ function renderOpen(host, rerender) {
       drawGrid();
     });
   }
-  host.querySelector('.dev3d-lock').addEventListener('click', () => { setUnlocked(false); rerender(); });
+  host.querySelector('.dev3d-lock')?.addEventListener('click', () => { setUnlocked(false); rerender(); });
 }
 
 // ------------------------------------------------------------------ the district page
